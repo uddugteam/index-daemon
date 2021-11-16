@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use crate::other_helpers::config_parser::ConfigParser;
+use crate::worker::other_helpers::config_parser::ConfigParser;
 
 extern crate xml;
 

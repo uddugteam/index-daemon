@@ -1,4 +1,4 @@
-use crate::other_helpers::config_parser::ConfigParser;
+use crate::worker::other_helpers::config_parser::ConfigParser;
 
 const TEST_CONFIG_PATH: &str = "./test/resources/curr_daemon__good.config";
 const TEST_CONFIG_PATH_2: &str = "./test/resources/curr_daemon__bad__param_code_with_space.config";

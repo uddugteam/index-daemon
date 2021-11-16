@@ -1,6 +1,5 @@
 use std::env;
 
-mod other_helpers;
 mod worker;
 
 #[cfg(test)]
@@ -54,7 +53,7 @@ fn main() {
         }
     }
 
-    let mut worker = worker::Worker::new();
+    let mut worker = worker::worker::Worker::new();
     if args.contains(&String::from("all")) || args.len() == 1 {
         unsafe {
             worker.start("all", DAEMON_MODE, config);
