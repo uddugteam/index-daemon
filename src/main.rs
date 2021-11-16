@@ -3,6 +3,9 @@ use std::env;
 mod other_helpers;
 mod worker;
 
+#[cfg(test)]
+mod tests;
+
 const VERSION: &str = "1.0";
 static mut DAEMON_MODE: bool = false;
 
