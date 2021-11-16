@@ -37,6 +37,7 @@ impl Worker {
         }
 
         // C++: loggingHelper->printLog("default", 1, "MainConfig path = " + path);
+        println!("MainConfig path = {}", path);
 
         let configParser = ConfigParser::new(&path).expect("Config file open/read error.");
 
@@ -80,6 +81,7 @@ impl Worker {
             }
             Err(_) => {
                 // C++: loggingHelper->printLog("default", 1, "Basic Config not Found. Checking alternative config.");
+                println!("Basic Config not Found. Checking alternative config.");
 
                 match File::open(XML_CONFIG_FILE_PATH) {
                     Ok(file) => {
@@ -87,6 +89,7 @@ impl Worker {
                     }
                     Err(_) => {
                         // C++: loggingHelper->printLog("default", 1, "Config not Found. Abort.");
+                        println!("Config not Found. Abort.");
                         panic!("NoConfig");
                     }
                 }
@@ -97,7 +100,7 @@ impl Worker {
     pub fn start(&mut self, market_startup: &str, daemon: bool, configPath: Option<String>) {
         self.configPath = configPath;
         // C++: sqlitePool = new ThreadPool(20);
-        println!("{}", market_startup);
+        println!("market_startup: {}", market_startup);
         if !daemon {
             println!("daemon interface disabled");
         }
