@@ -9,20 +9,22 @@ use std::io::BufReader;
 
 use xml::reader::{EventReader, XmlEvent};
 
+pub const DEFAULT_CONFIG_PATH: &str = "./resources/curr_daemon.config";
+pub const DEFAULT_CONFIG_PATH_2: &str = "/etc/curr_daemon/curr_daemon.config";
+pub const XML_CONFIG_FILE_PATH: &str = "./resources/config.xml";
+
 pub struct Worker {
     configPath: Option<String>,
 }
 
 impl Worker {
+    // TODO: Implement
     pub fn new() -> Worker {
         Worker { configPath: None }
     }
 
     fn configure(&self) {
         let path: String;
-        const DEFAULT_CONFIG_PATH: &str = "../resources/curr_daemon.config";
-        const DEFAULT_CONFIG_PATH_2: &str = "/etc/curr_daemon/curr_daemon.config";
-        const XML_CONFIG_FILE_PATH: &str = "../resources/config.xml";
 
         match &self.configPath {
             Some(config_path_str) if Path::new(config_path_str).exists() => {
@@ -36,9 +38,9 @@ impl Worker {
 
         // C++: loggingHelper->printLog("default", 1, "MainConfig path = " + path);
 
-        let configParser = ConfigParser::new(&path);
+        let configParser = ConfigParser::new(&path).expect("Config file open/read error.");
 
-        let pqEnabled: bool = (configParser.getParam("postgres.enabled") == Some("1"));
+        let pqEnabled: bool = configParser.getParam("postgres.enabled") == Some("1");
         // C++: postgresHelper->setEnabled(pqEnabled);
         if pqEnabled {
             let pqHost = configParser
