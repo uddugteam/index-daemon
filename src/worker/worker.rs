@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use crate::other_helpers::config_parser::ConfigParser;
+use crate::worker::other_helpers::config_parser::ConfigParser;
 
 extern crate xml;
 
@@ -9,20 +9,22 @@ use std::io::BufReader;
 
 use xml::reader::{EventReader, XmlEvent};
 
+pub const DEFAULT_CONFIG_PATH: &str = "./resources/curr_daemon.config";
+pub const DEFAULT_CONFIG_PATH_2: &str = "/etc/curr_daemon/curr_daemon.config";
+pub const XML_CONFIG_FILE_PATH: &str = "./resources/config.xml";
+
 pub struct Worker {
     configPath: Option<String>,
 }
 
 impl Worker {
+    // TODO: Implement
     pub fn new() -> Worker {
         Worker { configPath: None }
     }
 
     fn configure(&self) {
         let path: String;
-        const DEFAULT_CONFIG_PATH: &str = "../resources/curr_daemon.config";
-        const DEFAULT_CONFIG_PATH_2: &str = "/etc/curr_daemon/curr_daemon.config";
-        const XML_CONFIG_FILE_PATH: &str = "../resources/config.xml";
 
         match &self.configPath {
             Some(config_path_str) if Path::new(config_path_str).exists() => {
@@ -35,10 +37,11 @@ impl Worker {
         }
 
         // C++: loggingHelper->printLog("default", 1, "MainConfig path = " + path);
+        println!("MainConfig path = {}", path);
 
-        let configParser = ConfigParser::new(&path);
+        let configParser = ConfigParser::new(&path).expect("Config file open/read error.");
 
-        let pqEnabled: bool = (configParser.getParam("postgres.enabled") == Some("1"));
+        let pqEnabled: bool = configParser.getParam("postgres.enabled") == Some("1");
         // C++: postgresHelper->setEnabled(pqEnabled);
         if pqEnabled {
             let pqHost = configParser
@@ -78,6 +81,7 @@ impl Worker {
             }
             Err(_) => {
                 // C++: loggingHelper->printLog("default", 1, "Basic Config not Found. Checking alternative config.");
+                println!("Basic Config not Found. Checking alternative config.");
 
                 match File::open(XML_CONFIG_FILE_PATH) {
                     Ok(file) => {
@@ -85,6 +89,7 @@ impl Worker {
                     }
                     Err(_) => {
                         // C++: loggingHelper->printLog("default", 1, "Config not Found. Abort.");
+                        println!("Config not Found. Abort.");
                         panic!("NoConfig");
                     }
                 }
@@ -95,7 +100,7 @@ impl Worker {
     pub fn start(&mut self, market_startup: &str, daemon: bool, configPath: Option<String>) {
         self.configPath = configPath;
         // C++: sqlitePool = new ThreadPool(20);
-        println!("{}", market_startup);
+        println!("market_startup: {}", market_startup);
         if !daemon {
             println!("daemon interface disabled");
         }
