@@ -18,7 +18,7 @@ fn daemonize() {
 }
 
 fn main() {
-    let mut args: Vec<_> = env::args().collect();
+    let mut args: Vec<String> = env::args().collect();
 
     if args.len() > 1 && args[1] == "-v" {
         println!("Current version {}", VERSION);
@@ -54,7 +54,7 @@ fn main() {
     }
 
     let mut worker = worker::worker::Worker::new();
-    if args.contains(&String::from("all")) || args.len() == 1 {
+    if args.contains(&"all".to_string()) || args.len() == 1 {
         unsafe {
             worker.start("all", DAEMON_MODE, config);
         }

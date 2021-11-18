@@ -43,7 +43,7 @@ impl ConfigParser {
                                 panic!("Param value read error, line number: {}", line_number);
                             });
 
-                        params.insert(String::from(param_code), String::from(param_value));
+                        params.insert(param_code.to_string(), param_value.to_string());
                     }
                 }
             }

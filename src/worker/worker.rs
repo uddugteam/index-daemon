@@ -26,17 +26,13 @@ impl Worker {
     }
 
     fn configure(&mut self) {
-        let path: String;
-
-        match &self.configPath {
+        let path: String = match &self.configPath {
             Some(config_path_str) if Path::new(config_path_str).exists() => {
-                path = String::from(config_path_str)
+                config_path_str.to_string()
             }
-            _ if Path::new(DEFAULT_CONFIG_PATH).exists() => {
-                path = String::from(DEFAULT_CONFIG_PATH)
-            }
-            _ => path = String::from(DEFAULT_CONFIG_PATH_2),
-        }
+            _ if Path::new(DEFAULT_CONFIG_PATH).exists() => DEFAULT_CONFIG_PATH.to_string(),
+            _ => DEFAULT_CONFIG_PATH_2.to_string(),
+        };
 
         // C++: loggingHelper->printLog("default", 1, "MainConfig path = " + path);
         println!("MainConfig path = {}", path);
@@ -109,6 +105,13 @@ impl Worker {
 
             // C++: calcIndex.emplace(indexName, getCustomIndexesSummary(indexName, curl));
             // C++: postgresHelper->dropToDB({"short, name"}, {"'" + indexName + "'", "'" + indexName + "'"}, "tickers", true);
+            println!(
+                "Called {} with params: table={}; keys={}; values={}",
+                "postgresHelper->dropToDB()",
+                "tickers",
+                "short, name",
+                index_name.clone() + ", " + index_name
+            );
         }
 
         // C++: loggingHelper->printLog("general", 1, "CustomIndexes configured successfully.");
