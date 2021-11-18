@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::env;
 use std::fs::File;
 use std::io::{self, prelude::*, BufReader};
 
@@ -8,7 +7,7 @@ pub struct ConfigParser {
 }
 
 impl ConfigParser {
-    pub fn new(path: &str) -> Result<ConfigParser, io::Error> {
+    pub fn new(path: &str) -> Result<Self, io::Error> {
         let mut params: HashMap<String, String> = HashMap::new();
 
         let file = File::open(path)?;

@@ -39,7 +39,9 @@ impl Worker {
         // C++: loggingHelper->printLog("default", 1, "MainConfig path = " + path);
         println!("MainConfig path = {}", path);
 
-        let configParser = ConfigParser::new(&path).expect("Config file open/read error.");
+        let configParser = ConfigParser::new(&path)
+            .map_err(|err| panic!("Config file open/read error: {}.", err.to_string()))
+            .unwrap();
 
         let pqEnabled: bool = configParser.getParam("postgres.enabled") == Some("1");
         // C++: postgresHelper->setEnabled(pqEnabled);
@@ -50,7 +52,7 @@ impl Worker {
             let pqPort = configParser
                 .getParam("postgres.port")
                 .expect("Param postgres.port not found")
-                .parse::<i32>()
+                .parse::<u32>()
                 .expect("Param postgres.port parse error");
             let pqDBName = configParser
                 .getParam("postgres.dbname")
@@ -63,7 +65,7 @@ impl Worker {
                 .expect("Param postgres.password not found");
             let pqMaxConns = configParser
                 .getParam("postgres.maxConnections")
-                .and_then(|v| v.parse::<i32>().ok());
+                .and_then(|v| v.parse::<u32>().ok());
             // C++: postgresHelper->setLoggingHelper(this->loggingHelper);
             // C++: postgresHelper->init(pqHost, pqPort, pqDBName, pqUser, pqPass, pqMaxConns);
         }
