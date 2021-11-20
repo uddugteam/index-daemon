@@ -7,3 +7,4 @@ edition = "2021"
 
 [dependencies]
 xmltree = "0.10.3"
+chrono = "0.4.19"

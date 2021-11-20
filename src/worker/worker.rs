@@ -3,7 +3,7 @@ use std::fs;
 use std::path::Path;
 use xmltree::Element;
 
-use crate::worker::markets::market::{marketFactory, MarketSpine};
+use crate::worker::markets::market::{market_factory, MarketSpine};
 use crate::worker::other_helpers::config_parser::ConfigParser;
 use crate::worker::xml_reader::*;
 
@@ -14,6 +14,7 @@ pub const XML_CONFIG_FILE_PATH: &str = "./resources/config.xml";
 pub struct Worker {
     configPath: Option<String>,
     coins: HashMap<String, String>,
+    fiats: HashMap<String, String>,
 }
 
 impl Worker {
@@ -22,6 +23,7 @@ impl Worker {
         Worker {
             configPath: None,
             coins: HashMap::new(),
+            fiats: HashMap::new(),
         }
     }
 
@@ -118,10 +120,10 @@ impl Worker {
         // println!("CustomIndexes configured successfully.");
 
         let markets_global = xml_config_reader.get_child("markets-global").unwrap();
-        let updateTicker: bool = get_el_child_text(markets_global, "update-ticker") == "1";
-        let updateLastTrade: bool = get_el_child_text(markets_global, "update-last-trade") == "1";
-        let updateDepth: bool = get_el_child_text(markets_global, "update-depth") == "1";
-        let fiatRefreshTime: u64 =
+        let update_ticker: bool = get_el_child_text(markets_global, "update-ticker") == "1";
+        let update_last_trade: bool = get_el_child_text(markets_global, "update-last-trade") == "1";
+        let update_depth: bool = get_el_child_text(markets_global, "update-depth") == "1";
+        let fiat_refresh_time: u64 =
             get_el_child_text_as(markets_global, "fiat-refresh-time").unwrap();
 
         // C++: loggingHelper->printLog("general", 1, "GlobalMarketsParams configured successfully.");
@@ -132,10 +134,6 @@ impl Worker {
 
         // C++: loggingHelper->printLog("general", 1, "Ping-Pong configured successfully.");
         // println!("Ping-Pong configured successfully.");
-
-        let redisEnabled = configParser.getParam("redis.enabled").unwrap() == "1";
-        let candlesRedisEnabled = configParser.getParam("candles_redis.enabled").unwrap() == "1";
-        let cacheRedisEnabled = configParser.getParam("cache_redis.enabled").unwrap() == "1";
 
         // C++: code, associated with Redis
         // C++: code, associated with candles
@@ -168,7 +166,7 @@ impl Worker {
             let short: String = get_node_child_text_as(fiat, "short").unwrap();
             let full: String = get_node_child_text_as(fiat, "name").unwrap();
 
-            self.coins.insert(short.clone(), full.clone());
+            self.fiats.insert(short.clone(), full.clone());
 
             // C++: postgresHelper->dropToDB({"short, name"}, {"'" + shrt + "'", "'" + full + "'"}, "tickers", true);
             println!(
@@ -209,21 +207,97 @@ impl Worker {
             let error_message: String = get_node_child_text_as(entity, "error-message").unwrap();
             let delay: u32 = get_node_child_text_as(entity, "delay").unwrap();
 
-            let marketSpine = MarketSpine {
-                status: status.parse().unwrap_or_else(|_| {
+            let market_spine = MarketSpine::new(
+                status.parse().unwrap_or_else(|_| {
                     panic!(
                         "Parse status error. Market: {}. Status not found: {}",
                         name, status
                     )
                 }),
-                name: name.clone(),
+                name.clone(),
                 api_url,
                 error_message,
                 delay,
-            };
+                update_ticker,
+                update_last_trade,
+                update_depth,
+                fiat_refresh_time,
+            );
 
-            let market =
-                marketFactory(marketSpine).unwrap_or_else(|| panic!("Market not found: {}", name));
+            let market = market_factory(market_spine)
+                .unwrap_or_else(|| panic!("Market not found: {}", name));
+
+            let currency_mask_pairs = entity
+                .as_element()
+                .unwrap()
+                .get_child("currency_mask_pairs")
+                .unwrap();
+            for child in currency_mask_pairs.children.iter() {
+                let pair_string = child.as_element().unwrap().get_text().unwrap().to_string();
+                let parts: Vec<&str> = pair_string.split(':').collect();
+                market
+                    .borrow_mut()
+                    .get_spine_mut()
+                    .add_mask_pair((parts[0], parts[1]));
+            }
+
+            // C++: ThreadPool *threadPool = new ThreadPool(30);
+
+            // C++: postgresHelper->dropToDB({"name"}, {"'" + market->getName() + "'"}, "exchanges", true);
+            println!(
+                "Called {} with params: table={}; keys={}; values={}",
+                "postgresHelper->dropToDB()",
+                "exchanges",
+                "name",
+                market.borrow().get_spine().name
+            );
+
+            println!("Get exchange_pairs from xml BEGIN.");
+            let exchange_pairs = entity
+                .as_element()
+                .unwrap()
+                .get_child("exchange_pairs")
+                .unwrap();
+            for exchange_pair in exchange_pairs.children.iter() {
+                let pair_string = get_node_child_text(exchange_pair, "value");
+                let parts: Vec<&str> = pair_string.split(':').collect();
+
+                if !self.fiats.contains_key(parts[0]) && !self.coins.contains_key(parts[0]) {
+                    // C++: postgresHelper->dropToDB({"short, name"}, {"'" + a + "'", "'" + a + "'"}, "tickers", true);
+                    println!(
+                        "Called {} with params: table={}; keys={}; values={}",
+                        "postgresHelper->dropToDB()",
+                        "tickers",
+                        "short, name",
+                        parts[0].to_string() + ", " + parts[0]
+                    );
+                }
+
+                if !self.fiats.contains_key(parts[1]) && !self.coins.contains_key(parts[1]) {
+                    // C++: postgresHelper->dropToDB({"short, name"}, {"'" + b + "'", "'" + b + "'"}, "tickers", true);
+                    println!(
+                        "Called {} with params: table={}; keys={}; values={}",
+                        "postgresHelper->dropToDB()",
+                        "tickers",
+                        "short, name",
+                        parts[1].to_string() + ", " + parts[1]
+                    );
+                }
+
+                let conversion: String = get_node_child_text(exchange_pair, "conversion");
+                market
+                    .borrow_mut()
+                    .add_exchange_pair((parts[0], parts[1]), &conversion);
+
+                // C++: if (postgresHelper->isEnabled()) {
+                // C++: threadPool->runAsync([postgresHelper, a, b, market] {
+                // C++: block of code, associated with asynchronous queries to postgres
+                // C++: }); // end threadPool->runAsync()
+                // C++: } // endif
+            }
+            println!("Get exchange_pairs from xml END.");
+
+            // C++: free(threadPool);
         }
         println!("Get entities from xml END.");
     }
