@@ -52,7 +52,7 @@ impl ConfigParser {
         Ok(ConfigParser { params })
     }
 
-    pub fn getParam(&self, name: &str) -> Option<&str> {
+    pub fn get_param(&self, name: &str) -> Option<&str> {
         self.params.get(name).map(|v| &v[..])
     }
 }

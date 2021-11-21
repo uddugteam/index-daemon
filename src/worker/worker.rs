@@ -12,7 +12,7 @@ pub const DEFAULT_CONFIG_PATH_2: &str = "/etc/curr_daemon/curr_daemon.config";
 pub const XML_CONFIG_FILE_PATH: &str = "./resources/config.xml";
 
 pub struct Worker {
-    configPath: Option<String>,
+    config_path: Option<String>,
     coins: HashMap<String, String>,
     fiats: HashMap<String, String>,
 }
@@ -21,14 +21,14 @@ impl Worker {
     // TODO: Implement
     pub fn new() -> Self {
         Worker {
-            configPath: None,
+            config_path: None,
             coins: HashMap::new(),
             fiats: HashMap::new(),
         }
     }
 
     fn configure(&mut self) {
-        let path: String = match &self.configPath {
+        let path: String = match &self.config_path {
             Some(config_path_str) if Path::new(config_path_str).exists() => {
                 config_path_str.to_string()
             }
@@ -39,39 +39,39 @@ impl Worker {
         // C++: loggingHelper->printLog("default", 1, "MainConfig path = " + path);
         println!("MainConfig path = {}", path);
 
-        let configParser = ConfigParser::new(&path)
+        let config_parser = ConfigParser::new(&path)
             .map_err(|err| panic!("Config file open/read error: {}.", err.to_string()))
             .unwrap();
 
-        let pqEnabled: bool = configParser.getParam("postgres.enabled") == Some("1");
-        // C++: postgresHelper->setEnabled(pqEnabled);
-        if pqEnabled {
-            let pqHost = configParser
-                .getParam("postgres.host")
+        let pq_enabled: bool = config_parser.get_param("postgres.enabled") == Some("1");
+        // C++: postgresHelper->setEnabled(pq_enabled);
+        if pq_enabled {
+            let pq_host = config_parser
+                .get_param("postgres.host")
                 .expect("Param postgres.host not found");
-            let pqPort = configParser
-                .getParam("postgres.port")
+            let pq_port = config_parser
+                .get_param("postgres.port")
                 .expect("Param postgres.port not found")
                 .parse::<u32>()
                 .expect("Param postgres.port parse error");
-            let pqDBName = configParser
-                .getParam("postgres.dbname")
+            let pq_dbname = config_parser
+                .get_param("postgres.dbname")
                 .expect("Param postgres.dbname not found");
-            let pqUser = configParser
-                .getParam("postgres.username")
+            let pq_user = config_parser
+                .get_param("postgres.username")
                 .expect("Param postgres.username not found");
-            let pqPass = configParser
-                .getParam("postgres.password")
+            let pq_pass = config_parser
+                .get_param("postgres.password")
                 .expect("Param postgres.password not found");
-            let pqMaxConns = configParser
-                .getParam("postgres.maxConnections")
+            let pq_max_conns = config_parser
+                .get_param("postgres.maxConnections")
                 .and_then(|v| v.parse::<u32>().ok());
             // C++: postgresHelper->setLoggingHelper(this->loggingHelper);
             // C++: postgresHelper->init(pqHost, pqPort, pqDBName, pqUser, pqPass, pqMaxConns);
         }
 
-        let coinsPath = configParser
-            .getParam("coins.config")
+        let coins_path = config_parser
+            .get_param("coins.config")
             .expect("Param coins.config not found");
 
         // C++: TiXmlDocument doc("../resources/config.xml");
@@ -84,7 +84,7 @@ impl Worker {
                     println!("Basic Config open error: {}.", err.to_string());
                     println!("Checking alternative config.");
 
-                    match Element::parse(fs::read_to_string(coinsPath).unwrap().as_bytes()) {
+                    match Element::parse(fs::read_to_string(coins_path).unwrap().as_bytes()) {
                         Ok(xml_reader) => xml_reader,
                         Err(err) => {
                             // C++: loggingHelper->printLog("default", 1, "Config not Found. Abort.");
@@ -96,8 +96,8 @@ impl Worker {
                 }
             };
 
-        // C++: loggingHelper->printLog("default", 1, "CoinsConfig path = " + coinsPath);
-        println!("CoinsConfig path = {}", coinsPath);
+        // C++: loggingHelper->printLog("default", 1, "CoinsConfig path = " + coins_path);
+        println!("CoinsConfig path = {}", coins_path);
 
         // C++: std::vector <AbstractMarket*> markets;
 
@@ -129,7 +129,7 @@ impl Worker {
         // C++: loggingHelper->printLog("general", 1, "GlobalMarketsParams configured successfully.");
         // println!("GlobalMarketsParams configured successfully.");
 
-        // C++: pingPong.init(std::stoi(configParser.getParam("network.pingPort")));
+        // C++: pingPong.init(std::stoi(config_parser.get_param("network.pingPort")));
         // C++: pingPong.setLoggingHelper(loggingHelper);
 
         // C++: loggingHelper->printLog("general", 1, "Ping-Pong configured successfully.");
@@ -302,8 +302,8 @@ impl Worker {
         println!("Get entities from xml END.");
     }
 
-    pub fn start(&mut self, market_startup: &str, daemon: bool, configPath: Option<String>) {
-        self.configPath = configPath;
+    pub fn start(&mut self, market_startup: &str, daemon: bool, config_path: Option<String>) {
+        self.config_path = config_path;
         // C++: sqlitePool = new ThreadPool(20);
         println!("market_startup: {}", market_startup);
         if !daemon {
