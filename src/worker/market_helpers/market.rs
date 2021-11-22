@@ -1,5 +1,5 @@
+use crate::worker::market_helpers::exchange_pair_info::ExchangePairInfo;
 use crate::worker::markets::binance::Binance;
-use crate::worker::markets::exchange_pair_info::ExchangePairInfo;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};

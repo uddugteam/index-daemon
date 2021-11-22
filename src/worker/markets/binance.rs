@@ -1,4 +1,4 @@
-use crate::worker::markets::market::{Market, MarketSpine};
+use crate::worker::market_helpers::market::{Market, MarketSpine};
 
 pub struct Binance {
     pub spine: MarketSpine,

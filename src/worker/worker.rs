@@ -6,7 +6,7 @@ use std::thread;
 use std::thread::JoinHandle;
 use xmltree::Element;
 
-use crate::worker::markets::market::{market_factory, Market, MarketSpine};
+use crate::worker::market_helpers::market::{market_factory, Market, MarketSpine};
 use crate::worker::other_helpers::config_parser::ConfigParser;
 use crate::worker::xml_reader::*;
 
