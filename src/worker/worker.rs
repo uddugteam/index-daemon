@@ -1,9 +1,10 @@
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 use xmltree::Element;
 
-use crate::worker::markets::market::{market_factory, MarketSpine};
+use crate::worker::markets::market::{market_factory, Market, MarketSpine};
 use crate::worker::other_helpers::config_parser::ConfigParser;
 use crate::worker::xml_reader::*;
 
@@ -15,15 +16,17 @@ pub struct Worker {
     config_path: Option<String>,
     coins: HashMap<String, String>,
     fiats: HashMap<String, String>,
+    markets: Vec<Box<RefCell<dyn Market>>>,
 }
 
 impl Worker {
     // TODO: Implement
-    pub fn new() -> Self {
+    pub fn new(config_path: Option<String>) -> Self {
         Worker {
-            config_path: None,
+            config_path,
             coins: HashMap::new(),
             fiats: HashMap::new(),
+            markets: Vec::new(),
         }
     }
 
@@ -98,8 +101,6 @@ impl Worker {
 
         // C++: loggingHelper->printLog("default", 1, "CoinsConfig path = " + coins_path);
         println!("CoinsConfig path = {}", coins_path);
-
-        // C++: std::vector <AbstractMarket*> markets;
 
         let custom_index = xml_config_reader.get_child("custom-index").unwrap();
         for child in custom_index.children.iter() {
@@ -298,12 +299,33 @@ impl Worker {
             println!("Get exchange_pairs from xml END.");
 
             // C++: free(threadPool);
+
+            // C++: market->setCoinsArrayRef(&coins);
+            // C++: market->setAddOrUpdateIndexHandler(this->addOrUpdateIndex);
+            // C++: market->setReCalculateIndexHandler(this->reCalculate);
+            // C++: market->setReCalculateTotalVolumeHandler(this->reCalculateTotalVolume);
+            // C++: market->setGetIndexHandler(this->getValue);
+            // C++: market->setAddRedisKeyHandler(this->addRedisKey);
+            // C++: market->setRequestPool(&pool);
+            // C++: market->setLoggingHelper(loggingHelper);
+            // C++: market->setUpdateHashMarketDataHandler(this->updateHashForMarket);
+            // C++: market->setSQLitehelper(postgresHelper);
+            // C++: markets.emplace_back(market);
+
+            // C++: loggingHelper->printLog("general", 1, market->getName() + " configured successfully.");
+            println!(
+                "{} configured successfully.",
+                market.borrow().get_spine().name
+            );
+
+            self.markets.push(market);
         }
         println!("Get entities from xml END.");
+        // C++: loggingHelper->printLog("general", 1, "Configuration done.");
+        println!("Configuration done.");
     }
 
-    pub fn start(&mut self, market_startup: &str, daemon: bool, config_path: Option<String>) {
-        self.config_path = config_path;
+    pub fn start(&mut self, market_startup: &str, daemon: bool) {
         // C++: sqlitePool = new ThreadPool(20);
         println!("market_startup: {}", market_startup);
         if !daemon {
@@ -312,5 +334,21 @@ impl Worker {
         // C++: curl = curl_easy_init();
 
         self.configure();
+
+        // C++: auto ping_thread = std::async(std::launch::async, [this] {
+        // C++:    this->pingPong.perform();
+        // C++: });
+
+        // C++: this->pool.perform();
+
+        // for market in self.markets {
+        //     println!(
+        //         "{} {}",
+        //         market.borrow().get_spine().name,
+        //         market.borrow().get_spine().status
+        //     );
+        //
+        //     if market.borrow().get_spine().status.is_active {}
+        // }
     }
 }

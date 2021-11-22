@@ -53,14 +53,14 @@ fn main() {
         }
     }
 
-    let mut worker = worker::worker::Worker::new();
+    let mut worker = worker::worker::Worker::new(config);
     if args.contains(&"all".to_string()) || args.len() == 1 {
         unsafe {
-            worker.start("all", DAEMON_MODE, config);
+            worker.start("all", DAEMON_MODE);
         }
     } else {
         unsafe {
-            worker.start(&args[1], DAEMON_MODE, config);
+            worker.start(&args[1], DAEMON_MODE);
         }
     }
 }

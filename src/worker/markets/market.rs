@@ -2,11 +2,21 @@ use crate::worker::markets::binance::Binance;
 use crate::worker::markets::exchange_pair_info::ExchangePairInfo;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 
 pub enum Status {
     Active,
     Down,
+}
+impl Status {
+    pub fn is_active(&self) -> bool {
+        matches!(self, Status::Active)
+    }
+
+    pub fn is_down(&self) -> bool {
+        matches!(self, Status::Down)
+    }
 }
 // TODO: Replace error type with correct
 impl FromStr for Status {
@@ -20,6 +30,16 @@ impl FromStr for Status {
         }
     }
 }
+impl Display for Status {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let status_string = match self {
+            Status::Active => "active",
+            Status::Down => "down",
+        };
+
+        write!(f, "{}", status_string)
+    }
+}
 impl Clone for Status {
     fn clone(&self) -> Self {
         match self {
@@ -31,7 +51,7 @@ impl Clone for Status {
 impl Copy for Status {}
 
 pub struct MarketSpine {
-    status: Status,
+    pub status: Status,
     pub name: String,
     api_url: String,
     error_message: String,
