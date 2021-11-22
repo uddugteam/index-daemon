@@ -1,5 +1,7 @@
 use crate::worker::market_helpers::exchange_pair_info::ExchangePairInfo;
 use crate::worker::markets::binance::Binance;
+use crate::worker::markets::bittrex::Bittrex;
+use crate::worker::markets::poloniex::Poloniex;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
@@ -126,6 +128,8 @@ impl MarketSpine {
 
 pub fn market_factory(spine: MarketSpine) -> Option<Box<RefCell<dyn Market + Send>>> {
     match spine.name.as_ref() {
+        "poloniex" => Some(Box::new(RefCell::new(Poloniex { spine }))),
+        "bittrex" => Some(Box::new(RefCell::new(Bittrex { spine }))),
         "binance" => Some(Box::new(RefCell::new(Binance { spine }))),
         _ => None,
     }
