@@ -2,6 +2,8 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
+use std::thread;
+use std::thread::JoinHandle;
 use xmltree::Element;
 
 use crate::worker::markets::market::{market_factory, Market, MarketSpine};
@@ -16,7 +18,8 @@ pub struct Worker {
     config_path: Option<String>,
     coins: HashMap<String, String>,
     fiats: HashMap<String, String>,
-    markets: Vec<Box<RefCell<dyn Market>>>,
+    markets: Vec<Box<RefCell<dyn Market + Send>>>,
+    threads: Vec<JoinHandle<()>>,
 }
 
 impl Worker {
@@ -27,6 +30,7 @@ impl Worker {
             coins: HashMap::new(),
             fiats: HashMap::new(),
             markets: Vec::new(),
+            threads: Vec::new(),
         }
     }
 
@@ -341,14 +345,29 @@ impl Worker {
 
         // C++: this->pool.perform();
 
-        // for market in self.markets {
-        //     println!(
-        //         "{} {}",
-        //         market.borrow().get_spine().name,
-        //         market.borrow().get_spine().status
-        //     );
-        //
-        //     if market.borrow().get_spine().status.is_active {}
-        // }
+        while !self.markets.is_empty() {
+            let market = self.markets.remove(self.markets.len() - 1);
+            println!(
+                "{} {}",
+                market.borrow().get_spine().name,
+                market.borrow().get_spine().status
+            );
+
+            if market.borrow().get_spine().status.is_active() {
+                // C++: auto thread = std::async(std::launch::async, [this, it] {
+                // C++:     (*it)->perform();
+                // C++: });
+                // C++: threads.emplace_back(std::move(thread));
+
+                let thread = thread::spawn(move || market.borrow().perform());
+
+                self.threads.push(thread);
+            }
+        }
+
+        while !self.threads.is_empty() {
+            let thread = self.threads.remove(self.threads.len() - 1);
+            thread.join().unwrap();
+        }
     }
 }

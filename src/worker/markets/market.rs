@@ -119,9 +119,12 @@ impl MarketSpine {
     pub fn get_unmasked_value<'a>(&'a self, a: &'a str) -> &str {
         self.unmask_pair.get(a).map(|s| s.as_ref()).unwrap_or(a)
     }
+
+    // TODO: Implement
+    pub fn refresh_capitalization(&self) {}
 }
 
-pub fn market_factory(spine: MarketSpine) -> Option<Box<RefCell<dyn Market>>> {
+pub fn market_factory(spine: MarketSpine) -> Option<Box<RefCell<dyn Market + Send>>> {
     match spine.name.as_ref() {
         "binance" => Some(Box::new(RefCell::new(Binance { spine }))),
         _ => None,
@@ -135,4 +138,12 @@ pub trait Market {
         pair.0.to_string() + pair.1
     }
     fn add_exchange_pair(&mut self, pair: (&str, &str), conversion: &str);
+    fn update(&self);
+    fn perform(&self) {
+        // writeln!(&mut io::stdout().lock(), "called Binance::perform()").unwrap();
+        println!("called Binance::perform()");
+
+        self.get_spine().refresh_capitalization();
+        self.update();
+    }
 }

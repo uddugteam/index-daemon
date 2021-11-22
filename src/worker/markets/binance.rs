@@ -22,4 +22,10 @@ impl Market for Binance {
         let pair_string = self.make_pair(pair);
         self.spine.add_exchange_pair(pair_string, pair, conversion);
     }
+
+    // TODO: Implement
+    fn update(&self) {
+        // writeln!(&mut io::stdout().lock(), "called Binance::update()").unwrap();
+        println!("called Binance::update()");
+    }
 }
