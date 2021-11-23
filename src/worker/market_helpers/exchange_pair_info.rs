@@ -22,6 +22,14 @@ impl ExchangePairInfo {
     }
 }
 
+impl Clone for ExchangePairInfo {
+    fn clone(&self) -> Self {
+        Self { ..*self }
+    }
+}
+
+impl Copy for ExchangePairInfo {}
+
 impl Display for ExchangePairInfo {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         if self.last_trade_price.is_none()

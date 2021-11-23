@@ -346,27 +346,25 @@ impl Worker {
         // C++: this->pool.perform();
 
         while !self.markets.is_empty() {
-            let market = self.markets.remove(self.markets.len() - 1);
+            let market = self.markets.swap_remove(0);
             println!(
                 "{} {}",
                 market.borrow().get_spine().name,
                 market.borrow().get_spine().status
             );
 
-            if market.borrow().get_spine().status.is_active() {
-                // C++: auto thread = std::async(std::launch::async, [this, it] {
-                // C++:     (*it)->perform();
-                // C++: });
-                // C++: threads.emplace_back(std::move(thread));
-
-                let thread = thread::spawn(move || market.borrow().perform());
+            if market.borrow().get_spine().status.is_active()
+                && (market_startup.contains(&market.borrow().get_spine().name)
+                    || market_startup == "all")
+            {
+                let thread = thread::spawn(move || market.borrow_mut().perform());
 
                 self.threads.push(thread);
             }
         }
 
         while !self.threads.is_empty() {
-            let thread = self.threads.remove(self.threads.len() - 1);
+            let thread = self.threads.swap_remove(0);
             thread.join().unwrap();
         }
     }

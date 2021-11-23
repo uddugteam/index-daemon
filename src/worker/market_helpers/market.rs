@@ -57,7 +57,7 @@ pub struct MarketSpine {
     pub name: String,
     api_url: String,
     error_message: String,
-    delay: u32,
+    pub delay: u32,
     mask_pairs: HashMap<String, String>,
     unmask_pairs: HashMap<String, String>,
     exchange_pairs: HashMap<String, ExchangePairInfo>,
@@ -67,6 +67,7 @@ pub struct MarketSpine {
     update_last_trade: bool,
     update_depth: bool,
     fiat_refresh_time: u64,
+    pub socket_enabled: bool,
 }
 impl MarketSpine {
     pub fn new(
@@ -95,6 +96,7 @@ impl MarketSpine {
             update_last_trade,
             update_depth,
             fiat_refresh_time,
+            socket_enabled: false,
         }
     }
 
@@ -103,6 +105,14 @@ impl MarketSpine {
             .insert(pair.0.to_string(), pair.1.to_string());
         self.unmask_pairs
             .insert(pair.1.to_string(), pair.0.to_string());
+    }
+
+    pub fn get_exchange_pairs(&self) -> &HashMap<String, ExchangePairInfo> {
+        &self.exchange_pairs
+    }
+
+    pub fn get_exchange_pairs_mut(&mut self) -> &mut HashMap<String, ExchangePairInfo> {
+        &mut self.exchange_pairs
     }
 
     pub fn add_exchange_pair(&mut self, pair_string: String, pair: (&str, &str), conversion: &str) {
@@ -142,10 +152,9 @@ pub trait Market {
         pair.0.to_string() + pair.1
     }
     fn add_exchange_pair(&mut self, pair: (&str, &str), conversion: &str);
-    fn update(&self);
-    fn perform(&self) {
-        // writeln!(&mut io::stdout().lock(), "called Binance::perform()").unwrap();
-        println!("called Binance::perform()");
+    fn update(&mut self);
+    fn perform(&mut self) {
+        println!("called Market::perform()");
 
         self.get_spine().refresh_capitalization();
         self.update();
