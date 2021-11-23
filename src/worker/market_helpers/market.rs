@@ -58,9 +58,9 @@ pub struct MarketSpine {
     api_url: String,
     error_message: String,
     delay: u32,
-    mask_pair: HashMap<String, String>,
-    unmask_pair: HashMap<String, String>,
-    exchange_pair: HashMap<String, ExchangePairInfo>,
+    mask_pairs: HashMap<String, String>,
+    unmask_pairs: HashMap<String, String>,
+    exchange_pairs: HashMap<String, ExchangePairInfo>,
     conversions: HashMap<String, String>,
     pairs: HashMap<String, (String, String)>,
     update_ticker: bool,
@@ -86,9 +86,9 @@ impl MarketSpine {
             api_url,
             error_message,
             delay,
-            mask_pair: HashMap::new(),
-            unmask_pair: HashMap::new(),
-            exchange_pair: HashMap::new(),
+            mask_pairs: HashMap::new(),
+            unmask_pairs: HashMap::new(),
+            exchange_pairs: HashMap::new(),
             conversions: HashMap::new(),
             pairs: HashMap::new(),
             update_ticker,
@@ -99,14 +99,14 @@ impl MarketSpine {
     }
 
     pub fn add_mask_pair(&mut self, pair: (&str, &str)) {
-        self.mask_pair
+        self.mask_pairs
             .insert(pair.0.to_string(), pair.1.to_string());
-        self.unmask_pair
+        self.unmask_pairs
             .insert(pair.1.to_string(), pair.0.to_string());
     }
 
     pub fn add_exchange_pair(&mut self, pair_string: String, pair: (&str, &str), conversion: &str) {
-        self.exchange_pair
+        self.exchange_pairs
             .insert(pair_string.clone(), ExchangePairInfo::new());
         self.conversions
             .insert(pair_string.clone(), conversion.to_string());
@@ -115,11 +115,11 @@ impl MarketSpine {
     }
 
     pub fn get_masked_value<'a>(&'a self, a: &'a str) -> &str {
-        self.mask_pair.get(a).map(|s| s.as_ref()).unwrap_or(a)
+        self.mask_pairs.get(a).map(|s| s.as_ref()).unwrap_or(a)
     }
 
     pub fn get_unmasked_value<'a>(&'a self, a: &'a str) -> &str {
-        self.unmask_pair.get(a).map(|s| s.as_ref()).unwrap_or(a)
+        self.unmask_pairs.get(a).map(|s| s.as_ref()).unwrap_or(a)
     }
 
     // TODO: Implement
