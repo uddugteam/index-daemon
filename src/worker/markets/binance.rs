@@ -1,8 +1,12 @@
+use std::cell::RefCell;
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::thread::JoinHandle;
 use std::time;
 
+use crate::worker::market_helpers::action::Action;
 use crate::worker::market_helpers::market::{Market, MarketSpine};
+use crate::worker::market_helpers::market_name::MarketName;
 
 pub struct Binance {
     pub spine: MarketSpine,
@@ -19,10 +23,74 @@ impl Binance {
     fn update_depth(&self, pair: &str) {}
 
     // TODO: Implement
-    fn subscribe_ticker(&self, pair: &str) {}
+    pub fn subscribe_ticker(market: Arc<Mutex<Box<RefCell<dyn Market + Send>>>>, pair: String) {
+        println!("called Binance::subscribe_ticker()");
+    }
+
+    // TODO: Implement
+    pub fn subscribe_trades(market: Arc<Mutex<Box<RefCell<dyn Market + Send>>>>, pair: String) {
+        println!("called Binance::subscribe_trades()");
+    }
+
+    // TODO: Implement
+    pub fn subscribe_depth(market: Arc<Mutex<Box<RefCell<dyn Market + Send>>>>, pair: String) {
+        println!("called Binance::subscribe_depth()");
+    }
+
+    pub fn subscribe_threads(
+        market: Arc<Mutex<Box<RefCell<dyn Market + Send>>>>,
+        pair: String,
+        delay: u64,
+    ) -> Vec<JoinHandle<()>> {
+        println!("called Binance::subscribe_threads()");
+
+        let mut threads: Vec<JoinHandle<()>> = Vec::new();
+
+        let market_2 = Arc::clone(&market);
+        let pair_2 = pair.clone();
+        let thread = thread::spawn(move || {
+            let market_3 = Arc::clone(&market_2);
+            let pair_3 = pair_2.clone();
+            loop {
+                Self::subscribe_ticker(Arc::clone(&market_3), pair_3.clone());
+                thread::sleep(time::Duration::from_millis(delay));
+            }
+        });
+        threads.push(thread);
+
+        let market_2 = Arc::clone(&market);
+        let pair_2 = pair.clone();
+        let thread = thread::spawn(move || {
+            let market_3 = Arc::clone(&market_2);
+            let pair_3 = pair_2.clone();
+            loop {
+                Self::subscribe_trades(Arc::clone(&market_3), pair_3.clone());
+                thread::sleep(time::Duration::from_millis(delay));
+            }
+        });
+        threads.push(thread);
+
+        let market_2 = Arc::clone(&market);
+        let pair_2 = pair.clone();
+        let thread = thread::spawn(move || {
+            let market_3 = Arc::clone(&market_2);
+            let pair_3 = pair_2.clone();
+            loop {
+                Self::subscribe_depth(Arc::clone(&market_3), pair_3.clone());
+                thread::sleep(time::Duration::from_millis(delay));
+            }
+        });
+        threads.push(thread);
+
+        threads
+    }
 }
 
 impl Market for Binance {
+    fn get_name(&self) -> MarketName {
+        MarketName::Binance
+    }
+
     fn get_spine(&self) -> &MarketSpine {
         &self.spine
     }
@@ -41,9 +109,10 @@ impl Market for Binance {
         self.spine.add_exchange_pair(pair_string, pair, conversion);
     }
 
-    // TODO: Rework function to allow spawn inside it multiple threads, that borrow `self`
-    fn update(&mut self) {
+    fn update(&mut self) -> Vec<Action> {
         println!("called Binance::update()");
+
+        let mut actions: Vec<Action> = Vec::new();
 
         self.spine.socket_enabled = true;
 
@@ -56,29 +125,16 @@ impl Market for Binance {
         } else {
             println!("Binance: Delay: {}", self.spine.delay);
 
-            let keys: Vec<String> = self
-                .spine
-                .get_exchange_pairs()
-                .keys()
-                .into_iter()
-                .cloned()
-                .collect();
-
-            let mut threads: Vec<JoinHandle<()>> = Vec::new();
+            let delay = self.spine.delay.into();
 
             for exchange_pair in self.spine.get_exchange_pairs().clone() {
-                let thread = thread::spawn(|| loop {
-                    self.subscribe_ticker(&exchange_pair.0);
-                    thread::sleep(time::Duration::from_millis(self.spine.delay.into()));
+                actions.push(Action::SubscribeTickerTradesDepth {
+                    pair: exchange_pair.0.to_string(),
+                    delay,
                 });
-
-                threads.push(thread);
-            }
-
-            while !threads.is_empty() {
-                let thread = threads.swap_remove(0);
-                thread.join().unwrap();
             }
         }
+
+        actions
     }
 }

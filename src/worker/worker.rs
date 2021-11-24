@@ -2,11 +2,15 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::thread::JoinHandle;
 use xmltree::Element;
 
+use crate::worker::market_helpers::action::Action;
 use crate::worker::market_helpers::market::{market_factory, Market, MarketSpine};
+use crate::worker::market_helpers::market_name::MarketName;
+use crate::worker::markets::binance::Binance;
 use crate::worker::other_helpers::config_parser::ConfigParser;
 use crate::worker::xml_reader::*;
 
@@ -345,6 +349,13 @@ impl Worker {
 
         // C++: this->pool.perform();
 
+        // let mut m: Mutex<Option<i32>> = Mutex::new(Some(10));
+        // let mut m_val = m.lock().unwrap();
+        // println!("m_val: {:?}", *m_val);
+        // let res = m_val.take();
+        // println!("res: {:?}", res);
+        // println!("m_val: {:?}", *m_val);
+
         while !self.markets.is_empty() {
             let market = self.markets.swap_remove(0);
             println!(
@@ -357,7 +368,45 @@ impl Worker {
                 && (market_startup.contains(&market.borrow().get_spine().name)
                     || market_startup == "all")
             {
-                let thread = thread::spawn(move || market.borrow_mut().perform());
+                let thread = thread::spawn(move || {
+                    let market = Arc::new(Mutex::new(market));
+
+                    let market_box = &*market.lock().unwrap();
+
+                    let actions = market_box.borrow_mut().perform();
+                    println!("actions: {:?}", &actions);
+
+                    let market_name = market_box.borrow().get_name();
+
+                    let mut threads = Vec::new();
+
+                    match market_name {
+                        MarketName::Poloniex => {}
+                        MarketName::Bittrex => {}
+                        MarketName::Binance => {
+                            println!("market is Binance.");
+
+                            for action in actions {
+                                match action {
+                                    Action::SubscribeTickerTradesDepth { pair, delay } => {
+                                        threads = Binance::subscribe_threads(
+                                            Arc::clone(&market),
+                                            pair,
+                                            delay,
+                                        )
+                                    }
+                                    _ => {}
+                                };
+                            }
+                        }
+                        _ => {}
+                    }
+
+                    while !threads.is_empty() {
+                        let thread = threads.swap_remove(0);
+                        thread.join().unwrap();
+                    }
+                });
 
                 self.threads.push(thread);
             }
