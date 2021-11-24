@@ -5,8 +5,9 @@ use std::thread::JoinHandle;
 use std::time;
 
 use crate::worker::market_helpers::action::Action;
-use crate::worker::market_helpers::market::{Market, MarketSpine};
+use crate::worker::market_helpers::market::Market;
 use crate::worker::market_helpers::market_name::MarketName;
+use crate::worker::market_helpers::market_spine::MarketSpine;
 
 pub struct Binance {
     pub spine: MarketSpine,

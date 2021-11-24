@@ -8,8 +8,9 @@ use std::thread::JoinHandle;
 use xmltree::Element;
 
 use crate::worker::market_helpers::action::Action;
-use crate::worker::market_helpers::market::{market_factory, Market, MarketSpine};
+use crate::worker::market_helpers::market::{market_factory, Market};
 use crate::worker::market_helpers::market_name::MarketName;
+use crate::worker::market_helpers::market_spine::MarketSpine;
 use crate::worker::markets::binance::Binance;
 use crate::worker::other_helpers::config_parser::ConfigParser;
 use crate::worker::xml_reader::*;
