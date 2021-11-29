@@ -253,13 +253,13 @@
     <entities>
         <entity>
             <status>active</status>
-            <name>binance</name>
-            <api-url>https://www.binance.com/api/v1</api-url>
-            <error-message>message</error-message>
-            <delay>4000</delay>
+            <name>bitfinex</name>
+            <api-url>https://api.bitfinex.com/v1</api-url>
+            <error-message>error</error-message>
+            <delay>3000</delay>
             <currency_mask_pairs>
-                <mask-pair>IOT:IOTA</mask-pair>
-                <mask-pair>USD:USDT</mask-pair>
+                <mask-pair>DASH:dsh</mask-pair>
+                <mask-pair>QTUM:QTM</mask-pair>
             </currency_mask_pairs>
             <exchange_pairs>
                 <pair>
@@ -272,82 +272,6 @@
                 </pair>
                 <pair>
                     <value>ETH:BTC</value>
-                    <conversion>crypto</conversion>
-                </pair>
-                <pair>
-                    <value>BCC:USD</value>
-                    <conversion>fiat</conversion>
-                </pair>
-                <pair>
-                    <value>BCC:BTC</value>
-                    <conversion>crypto</conversion>
-                </pair>
-                <pair>
-                    <value>DASH:BTC</value>
-                    <conversion>crypto</conversion>
-                </pair>
-                <pair>
-                    <value>XEM:BTC</value>
-                    <conversion>crypto</conversion>
-                </pair>
-                <pair>
-                    <value>XMR:ETH</value>
-                    <conversion>crypto</conversion>
-                </pair>
-                <pair>
-                    <value>XMR:BTC</value>
-                    <conversion>crypto</conversion>
-                </pair>
-                <pair>
-                    <value>XRP:BTC</value>
-                    <conversion>crypto</conversion>
-                </pair>
-                <pair>
-                    <value>XRP:ETH</value>
-                    <conversion>crypto</conversion>
-                </pair>
-                <pair>
-                    <value>LTC:USD</value>
-                    <conversion>none</conversion>
-                </pair>
-                <pair>
-                    <value>LTC:BTC</value>
-                    <conversion>crypto</conversion>
-                </pair>
-                <pair>
-                    <value>LTC:ETH</value>
-                    <conversion>crypto</conversion>
-                </pair>
-                <pair>
-                    <value>STRAT:BTC</value>
-                    <conversion>crypto</conversion>
-                </pair>
-                <pair>
-                    <value>IOT:BTC</value>
-                    <conversion>crypto</conversion>
-                </pair>
-                <pair>
-                    <value>IOT:ETH</value>
-                    <conversion>crypto</conversion>
-                </pair>
-                <pair>
-                    <value>NEO:USD</value>
-                    <conversion>none</conversion>
-                </pair>
-                <pair>
-                    <value>NEO:BTC</value>
-                    <conversion>crypto</conversion>
-                </pair>
-                <pair>
-                    <value>NEO:ETH</value>
-                    <conversion>crypto</conversion>
-                </pair>
-                <pair>
-                    <value>QTUM:BTC</value>
-                    <conversion>crypto</conversion>
-                </pair>
-                <pair>
-                    <value>BTG:BTC</value>
                     <conversion>crypto</conversion>
                 </pair>
             </exchange_pairs>
