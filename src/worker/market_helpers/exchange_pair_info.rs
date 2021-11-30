@@ -1,24 +1,33 @@
+use chrono::{DateTime, Utc};
 use std::fmt::{Display, Formatter};
 
 pub struct ExchangePairInfo {
-    last_trade_price: Option<f64>,
-    last_trade_volume: Option<f64>,
-    volume: Option<f64>,
-    total_ask: Option<f64>,
-    total_bid: Option<f64>,
-    timestamp: Option<chrono::Utc>,
+    last_trade_price: f64,
+    last_trade_volume: f64,
+    volume: f64,
+    total_ask: f64,
+    total_bid: f64,
+    timestamp: DateTime<Utc>,
 }
 
 impl ExchangePairInfo {
     pub fn new() -> Self {
         ExchangePairInfo {
-            last_trade_price: None,
-            last_trade_volume: None,
-            volume: None,
-            total_ask: None,
-            total_bid: None,
-            timestamp: None,
+            last_trade_price: 0.0,
+            last_trade_volume: 0.0,
+            volume: 0.0,
+            total_ask: 0.0,
+            total_bid: 0.0,
+            timestamp: Utc::now(),
         }
+    }
+
+    pub fn get_total_volume(&self) -> f64 {
+        self.volume
+    }
+
+    pub fn set_total_volume(&mut self, value: f64) {
+        self.volume = value;
     }
 }
 
@@ -32,43 +41,17 @@ impl Copy for ExchangePairInfo {}
 
 impl Display for ExchangePairInfo {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        if self.last_trade_price.is_none()
-            || self.last_trade_volume.is_none()
-            || self.volume.is_none()
-            || self.total_ask.is_none()
-            || self.total_bid.is_none()
-            || self.timestamp.is_none()
-        {
-            Err(std::fmt::Error {})
-        } else {
-            write!(
-                f,
-                "Timestamp:        {}",
-                self.timestamp.unwrap().to_string()
-            )?;
-            write!(
-                f,
-                "LastTradePrice:   {}",
-                self.last_trade_price.unwrap().to_string()
-            )?;
-            write!(
-                f,
-                "LastTradeVolume:  {}",
-                self.last_trade_volume.unwrap().to_string()
-            )?;
-            write!(f, "TotalVolume:      {}", self.volume.unwrap().to_string())?;
-            write!(
-                f,
-                "TotalAsk:         {}",
-                self.total_ask.unwrap().to_string()
-            )?;
-            write!(
-                f,
-                "TotalBid:         {}",
-                self.total_bid.unwrap().to_string()
-            )?;
+        write!(f, "Timestamp:        {}", self.timestamp.to_string())?;
+        write!(f, "LastTradePrice:   {}", self.last_trade_price.to_string())?;
+        write!(
+            f,
+            "LastTradeVolume:  {}",
+            self.last_trade_volume.to_string()
+        )?;
+        write!(f, "TotalVolume:      {}", self.volume.to_string())?;
+        write!(f, "TotalAsk:         {}", self.total_ask.to_string())?;
+        write!(f, "TotalBid:         {}", self.total_bid.to_string())?;
 
-            Ok(())
-        }
+        Ok(())
     }
 }
