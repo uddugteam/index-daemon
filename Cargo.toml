@@ -8,3 +8,7 @@ edition = "2021"
 [dependencies]
 xmltree = "0.10.3"
 chrono = "0.4.19"
+async-tungstenite = { version="0.16.0", features=["async-std-runtime", "async-tls"] }
+futures = "^0.3"
+async-std = "^1.0"
+rustc-serialize = "0.3.24"
