@@ -11,7 +11,10 @@ use crate::worker::market_helpers::action::Action;
 use crate::worker::market_helpers::market::{market_factory, Market};
 use crate::worker::market_helpers::market_name::MarketName;
 use crate::worker::market_helpers::market_spine::MarketSpine;
-use crate::worker::markets::binance::Binance;
+// use crate::worker::markets::binance::Binance;
+use crate::worker::markets::bitfinex::Bitfinex;
+// use crate::worker::markets::bittrex::Bittrex;
+// use crate::worker::markets::poloniex::Poloniex;
 use crate::worker::other_helpers::config_parser::ConfigParser;
 use crate::worker::xml_reader::*;
 
@@ -23,20 +26,33 @@ pub struct Worker {
     config_path: Option<String>,
     coins: HashMap<String, String>,
     fiats: HashMap<String, String>,
-    markets: Vec<Box<RefCell<dyn Market + Send>>>,
+    markets_box: Vec<Box<RefCell<dyn Market + Send>>>,
+    markets_arc: Vec<Arc<Mutex<Box<RefCell<dyn Market + Send>>>>>,
     threads: Vec<JoinHandle<()>>,
 }
 
 impl Worker {
-    // TODO: Implement
     pub fn new(config_path: Option<String>) -> Self {
         Worker {
             config_path,
             coins: HashMap::new(),
             fiats: HashMap::new(),
-            markets: Vec::new(),
+            markets_box: Vec::new(),
+            markets_arc: Vec::new(),
             threads: Vec::new(),
         }
+    }
+
+    // TODO: Implement
+    fn recalculate_total_volume(&self, currency: &str) {
+        let volume_val: f64 = 0.0;
+        let markets_count: i32 = 0;
+        let vol: Vec<f64> = Vec::new();
+        let buf: String = String::new();
+        let success: bool = true;
+        let fail_count: i32 = 0;
+
+        for market in &self.markets_arc {}
     }
 
     fn configure(&mut self) {
@@ -312,7 +328,9 @@ impl Worker {
             // C++: market->setCoinsArrayRef(&coins);
             // C++: market->setAddOrUpdateIndexHandler(this->addOrUpdateIndex);
             // C++: market->setReCalculateIndexHandler(this->reCalculate);
+
             // C++: market->setReCalculateTotalVolumeHandler(this->reCalculateTotalVolume);
+
             // C++: market->setGetIndexHandler(this->getValue);
             // C++: market->setAddRedisKeyHandler(this->addRedisKey);
             // C++: market->setRequestPool(&pool);
@@ -327,7 +345,7 @@ impl Worker {
                 market.borrow().get_spine().name
             );
 
-            self.markets.push(market);
+            self.markets_box.push(market);
         }
         println!("Get entities from xml END.");
         // C++: loggingHelper->printLog("general", 1, "Configuration done.");
@@ -350,47 +368,57 @@ impl Worker {
 
         // C++: this->pool.perform();
 
-        // let mut m: Mutex<Option<i32>> = Mutex::new(Some(10));
-        // let mut m_val = m.lock().unwrap();
-        // println!("m_val: {:?}", *m_val);
-        // let res = m_val.take();
-        // println!("res: {:?}", res);
-        // println!("m_val: {:?}", *m_val);
-
-        while !self.markets.is_empty() {
-            let market = self.markets.swap_remove(0);
+        while !self.markets_box.is_empty() {
+            let market = self.markets_box.swap_remove(0);
             println!(
                 "{} {}",
                 market.borrow().get_spine().name,
                 market.borrow().get_spine().status
             );
 
-            if market.borrow().get_spine().status.is_active()
-                && (market_startup.contains(&market.borrow().get_spine().name)
-                    || market_startup == "all")
+            let market_is_active = market.borrow().get_spine().status.is_active();
+            let market_name = market.borrow().get_spine().name.clone();
+
+            let market = Arc::new(Mutex::new(market));
+            self.markets_arc.push(Arc::clone(&market));
+
+            if market_is_active
+                && (market_startup.contains(&market_name) || market_startup == "all")
             {
                 let thread = thread::spawn(move || {
-                    let market = Arc::new(Mutex::new(market));
+                    let market = Arc::clone(&market);
 
-                    let market_box = &*market.lock().unwrap();
+                    let actions = market.lock().unwrap().borrow_mut().perform();
+                    println!("actions.len(): {:?}", &actions.len());
 
-                    let actions = market_box.borrow_mut().perform();
-                    println!("actions: {:?}", &actions);
-
-                    let market_name = market_box.borrow().get_name();
+                    let market_name = market.lock().unwrap().borrow().get_name();
 
                     let mut threads = Vec::new();
 
                     match market_name {
-                        MarketName::Poloniex => {}
-                        MarketName::Bittrex => {}
                         MarketName::Binance => {
-                            println!("market is Binance.");
+                            // println!("market is Binance.");
+                            //
+                            // for action in actions {
+                            //     match action {
+                            //         Action::SubscribeTickerTradesDepth { pair, delay } => {
+                            //             threads = Binance::subscribe_threads(
+                            //                 Arc::clone(&market),
+                            //                 pair,
+                            //                 delay,
+                            //             )
+                            //         }
+                            //         _ => {}
+                            //     };
+                            // }
+                        }
+                        MarketName::Bitfinex => {
+                            println!("market is Bitfinex.");
 
                             for action in actions {
                                 match action {
                                     Action::SubscribeTickerTradesDepth { pair, delay } => {
-                                        threads = Binance::subscribe_threads(
+                                        threads = Bitfinex::subscribe_threads(
                                             Arc::clone(&market),
                                             pair,
                                             delay,
@@ -400,6 +428,8 @@ impl Worker {
                                 };
                             }
                         }
+                        MarketName::Bittrex => {}
+                        MarketName::Poloniex => {}
                         _ => {}
                     }
 
