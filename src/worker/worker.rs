@@ -1,4 +1,3 @@
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
@@ -26,8 +25,7 @@ pub struct Worker {
     config_path: Option<String>,
     coins: HashMap<String, String>,
     fiats: HashMap<String, String>,
-    markets_box: Vec<Box<RefCell<dyn Market + Send>>>,
-    markets_arc: Vec<Arc<Mutex<Box<RefCell<dyn Market + Send>>>>>,
+    markets: Vec<Arc<Mutex<dyn Market + Send>>>,
     threads: Vec<JoinHandle<()>>,
 }
 
@@ -37,8 +35,7 @@ impl Worker {
             config_path,
             coins: HashMap::new(),
             fiats: HashMap::new(),
-            markets_box: Vec::new(),
-            markets_arc: Vec::new(),
+            markets: Vec::new(),
             threads: Vec::new(),
         }
     }
@@ -52,7 +49,7 @@ impl Worker {
         let success: bool = true;
         let fail_count: i32 = 0;
 
-        for market in &self.markets_arc {}
+        for market in &self.markets {}
     }
 
     fn configure(&mut self) {
@@ -262,7 +259,8 @@ impl Worker {
                 let pair_string = child.as_element().unwrap().get_text().unwrap().to_string();
                 let parts: Vec<&str> = pair_string.split(':').collect();
                 market
-                    .borrow_mut()
+                    .lock()
+                    .unwrap()
                     .get_spine_mut()
                     .add_mask_pair((parts[0], parts[1]));
             }
@@ -275,7 +273,7 @@ impl Worker {
                 "postgresHelper->dropToDB()",
                 "exchanges",
                 "name",
-                market.borrow().get_spine().name
+                market.lock().unwrap().get_spine().name
             );
 
             println!("Get exchange_pairs from xml BEGIN.");
@@ -312,7 +310,8 @@ impl Worker {
 
                 let conversion: String = get_node_child_text(exchange_pair, "conversion");
                 market
-                    .borrow_mut()
+                    .lock()
+                    .unwrap()
                     .add_exchange_pair((parts[0], parts[1]), &conversion);
 
                 // C++: if (postgresHelper->isEnabled()) {
@@ -342,10 +341,10 @@ impl Worker {
             // C++: loggingHelper->printLog("general", 1, market->getName() + " configured successfully.");
             println!(
                 "{} configured successfully.",
-                market.borrow().get_spine().name
+                market.lock().unwrap().get_spine().name
             );
 
-            self.markets_box.push(market);
+            self.markets.push(market);
         }
         println!("Get entities from xml END.");
         // C++: loggingHelper->printLog("general", 1, "Configuration done.");
@@ -368,19 +367,12 @@ impl Worker {
 
         // C++: this->pool.perform();
 
-        while !self.markets_box.is_empty() {
-            let market = self.markets_box.swap_remove(0);
-            println!(
-                "{} {}",
-                market.borrow().get_spine().name,
-                market.borrow().get_spine().status
-            );
+        for market in self.markets.iter().map(|a| Arc::clone(a)) {
+            let market_name = market.lock().unwrap().get_spine().name.clone();
+            let market_status = market.lock().unwrap().get_spine().status;
+            let market_is_active = market.lock().unwrap().get_spine().status.is_active();
 
-            let market_is_active = market.borrow().get_spine().status.is_active();
-            let market_name = market.borrow().get_spine().name.clone();
-
-            let market = Arc::new(Mutex::new(market));
-            self.markets_arc.push(Arc::clone(&market));
+            println!("{} {}", market_name, market_status);
 
             if market_is_active
                 && (market_startup.contains(&market_name) || market_startup == "all")
@@ -388,10 +380,10 @@ impl Worker {
                 let thread = thread::spawn(move || {
                     let market = Arc::clone(&market);
 
-                    let actions = market.lock().unwrap().borrow_mut().perform();
+                    let actions = market.lock().unwrap().perform();
                     println!("actions.len(): {:?}", &actions.len());
 
-                    let market_name = market.lock().unwrap().borrow().get_name();
+                    let market_name = market.lock().unwrap().get_name();
 
                     let mut threads = Vec::new();
 
