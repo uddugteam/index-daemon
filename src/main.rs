@@ -1,3 +1,4 @@
+use crate::worker::worker::Worker;
 use std::env;
 
 mod worker;
@@ -6,15 +7,12 @@ mod worker;
 mod tests;
 
 const VERSION: &str = "1.0";
-static mut DAEMON_MODE: bool = false;
 
 // TODO: Implement
-fn daemonize() {
+fn daemonize() -> bool {
     println!("daemonize called.");
 
-    unsafe {
-        DAEMON_MODE = true;
-    }
+    true
 }
 
 fn main() {
@@ -36,10 +34,12 @@ fn main() {
         return;
     }
 
-    match args.iter().position(|s| s == "-nodaemon") {
+    let daemon_mode = match args.iter().position(|s| s == "-nodaemon") {
         Some(index) => {
             let _ = args.remove(index);
             println!("daemonize NOT called.");
+
+            false
         }
         _ => daemonize(),
     };
@@ -53,14 +53,16 @@ fn main() {
         }
     }
 
-    let mut worker = worker::worker::Worker::new(config);
-    if args.contains(&"all".to_string()) || args.len() == 1 {
-        unsafe {
-            worker.start("all", DAEMON_MODE);
-        }
+    let worker = Worker::new(config);
+
+    let mut threads = if args.contains(&"all".to_string()) || args.len() == 1 {
+        worker.lock().unwrap().start("all", daemon_mode)
     } else {
-        unsafe {
-            worker.start(&args[1], DAEMON_MODE);
-        }
+        worker.lock().unwrap().start(&args[1], daemon_mode)
+    };
+
+    while !threads.is_empty() {
+        let thread = threads.swap_remove(0);
+        thread.join().unwrap();
     }
 }

@@ -6,14 +6,8 @@ use std::thread;
 use std::thread::JoinHandle;
 use xmltree::Element;
 
-use crate::worker::market_helpers::action::Action;
 use crate::worker::market_helpers::market::{market_factory, Market};
-use crate::worker::market_helpers::market_name::MarketName;
 use crate::worker::market_helpers::market_spine::MarketSpine;
-// use crate::worker::markets::binance::Binance;
-use crate::worker::markets::bitfinex::Bitfinex;
-// use crate::worker::markets::bittrex::Bittrex;
-// use crate::worker::markets::poloniex::Poloniex;
 use crate::worker::other_helpers::config_parser::ConfigParser;
 use crate::worker::xml_reader::*;
 
@@ -26,22 +20,31 @@ pub struct Worker {
     coins: HashMap<String, String>,
     fiats: HashMap<String, String>,
     markets: Vec<Arc<Mutex<dyn Market + Send>>>,
-    threads: Vec<JoinHandle<()>>,
+    arc: Option<Arc<Mutex<Self>>>,
 }
 
 impl Worker {
-    pub fn new(config_path: Option<String>) -> Self {
-        Worker {
+    pub fn new(config_path: Option<String>) -> Arc<Mutex<Self>> {
+        let worker = Worker {
             config_path,
             coins: HashMap::new(),
             fiats: HashMap::new(),
             markets: Vec::new(),
-            threads: Vec::new(),
-        }
+            arc: None,
+        };
+
+        let worker = Arc::new(Mutex::new(worker));
+        worker.lock().unwrap().set_arc(Arc::clone(&worker));
+
+        worker
+    }
+
+    pub fn set_arc(&mut self, arc: Arc<Mutex<Self>>) {
+        self.arc = Some(arc);
     }
 
     // TODO: Implement
-    fn recalculate_total_volume(&self, currency: &str) {
+    fn recalculate_total_volume(worker: Arc<Mutex<Self>>, currency: String) {
         let volume_val: f64 = 0.0;
         let markets_count: i32 = 0;
         let vol: Vec<f64> = Vec::new();
@@ -49,7 +52,7 @@ impl Worker {
         let success: bool = true;
         let fail_count: i32 = 0;
 
-        for market in &self.markets {}
+        for market in &worker.lock().unwrap().markets {}
     }
 
     fn configure(&mut self) {
@@ -65,32 +68,33 @@ impl Worker {
         println!("MainConfig path = {}", path);
 
         let config_parser = ConfigParser::new(&path)
-            .map_err(|err| panic!("Config file open/read error: {}.", err.to_string()))
+            .map_err(|err| panic!("Config file open/read error: {}.", err))
             .unwrap();
 
         let pq_enabled: bool = config_parser.get_param("postgres.enabled") == Some("1");
         // C++: postgresHelper->setEnabled(pq_enabled);
         if pq_enabled {
-            let pq_host = config_parser
-                .get_param("postgres.host")
-                .expect("Param postgres.host not found");
-            let pq_port = config_parser
-                .get_param("postgres.port")
-                .expect("Param postgres.port not found")
-                .parse::<u32>()
-                .expect("Param postgres.port parse error");
-            let pq_dbname = config_parser
-                .get_param("postgres.dbname")
-                .expect("Param postgres.dbname not found");
-            let pq_user = config_parser
-                .get_param("postgres.username")
-                .expect("Param postgres.username not found");
-            let pq_pass = config_parser
-                .get_param("postgres.password")
-                .expect("Param postgres.password not found");
-            let pq_max_conns = config_parser
-                .get_param("postgres.maxConnections")
-                .and_then(|v| v.parse::<u32>().ok());
+            // let pq_host = config_parser
+            //     .get_param("postgres.host")
+            //     .expect("Param postgres.host not found");
+            // let pq_port = config_parser
+            //     .get_param("postgres.port")
+            //     .expect("Param postgres.port not found")
+            //     .parse::<u32>()
+            //     .expect("Param postgres.port parse error");
+            // let pq_dbname = config_parser
+            //     .get_param("postgres.dbname")
+            //     .expect("Param postgres.dbname not found");
+            // let pq_user = config_parser
+            //     .get_param("postgres.username")
+            //     .expect("Param postgres.username not found");
+            // let pq_pass = config_parser
+            //     .get_param("postgres.password")
+            //     .expect("Param postgres.password not found");
+            // let pq_max_conns = config_parser
+            //     .get_param("postgres.maxConnections")
+            //     .and_then(|v| v.parse::<u32>().ok());
+
             // C++: postgresHelper->setLoggingHelper(this->loggingHelper);
             // C++: postgresHelper->init(pqHost, pqPort, pqDBName, pqUser, pqPass, pqMaxConns);
         }
@@ -230,6 +234,8 @@ impl Worker {
             let error_message: String = get_node_child_text_as(entity, "error-message").unwrap();
             let delay: u32 = get_node_child_text_as(entity, "delay").unwrap();
 
+            let worker_2 = Arc::clone(self.arc.as_ref().unwrap());
+
             let market_spine = MarketSpine::new(
                 status.parse().unwrap_or_else(|_| {
                     panic!(
@@ -245,10 +251,10 @@ impl Worker {
                 update_last_trade,
                 update_depth,
                 fiat_refresh_time,
+                Box::new(|currency: String| Self::recalculate_total_volume(worker_2, currency)),
             );
 
-            let market = market_factory(market_spine)
-                .unwrap_or_else(|| panic!("Market not found: {}", name));
+            let market = market_factory(market_spine);
 
             let currency_mask_pairs = entity
                 .as_element()
@@ -328,8 +334,6 @@ impl Worker {
             // C++: market->setAddOrUpdateIndexHandler(this->addOrUpdateIndex);
             // C++: market->setReCalculateIndexHandler(this->reCalculate);
 
-            // C++: market->setReCalculateTotalVolumeHandler(this->reCalculateTotalVolume);
-
             // C++: market->setGetIndexHandler(this->getValue);
             // C++: market->setAddRedisKeyHandler(this->addRedisKey);
             // C++: market->setRequestPool(&pool);
@@ -351,7 +355,7 @@ impl Worker {
         println!("Configuration done.");
     }
 
-    pub fn start(&mut self, market_startup: &str, daemon: bool) {
+    pub fn start(&mut self, market_startup: &str, daemon: bool) -> Vec<JoinHandle<()>> {
         // C++: sqlitePool = new ThreadPool(20);
         println!("market_startup: {}", market_startup);
         if !daemon {
@@ -367,6 +371,8 @@ impl Worker {
 
         // C++: this->pool.perform();
 
+        let mut threads: Vec<JoinHandle<()>> = Vec::new();
+
         for market in self.markets.iter().map(|a| Arc::clone(a)) {
             let market_name = market.lock().unwrap().get_spine().name.clone();
             let market_status = market.lock().unwrap().get_spine().status;
@@ -378,52 +384,9 @@ impl Worker {
                 && (market_startup.contains(&market_name) || market_startup == "all")
             {
                 let thread = thread::spawn(move || {
-                    let market = Arc::clone(&market);
-
-                    let actions = market.lock().unwrap().perform();
-                    println!("actions.len(): {:?}", &actions.len());
-
-                    let market_name = market.lock().unwrap().get_name();
-
-                    let mut threads = Vec::new();
-
-                    match market_name {
-                        MarketName::Binance => {
-                            // println!("market is Binance.");
-                            //
-                            // for action in actions {
-                            //     match action {
-                            //         Action::SubscribeTickerTradesDepth { pair, delay } => {
-                            //             threads = Binance::subscribe_threads(
-                            //                 Arc::clone(&market),
-                            //                 pair,
-                            //                 delay,
-                            //             )
-                            //         }
-                            //         _ => {}
-                            //     };
-                            // }
-                        }
-                        MarketName::Bitfinex => {
-                            println!("market is Bitfinex.");
-
-                            for action in actions {
-                                match action {
-                                    Action::SubscribeTickerTradesDepth { pair, delay } => {
-                                        threads = Bitfinex::subscribe_threads(
-                                            Arc::clone(&market),
-                                            pair,
-                                            delay,
-                                        )
-                                    }
-                                    _ => {}
-                                };
-                            }
-                        }
-                        MarketName::Bittrex => {}
-                        MarketName::Poloniex => {}
-                        _ => {}
-                    }
+                    println!("Before market lock 1");
+                    let mut threads = market.lock().unwrap().perform();
+                    println!("After market lock 1");
 
                     while !threads.is_empty() {
                         let thread = threads.swap_remove(0);
@@ -431,13 +394,10 @@ impl Worker {
                     }
                 });
 
-                self.threads.push(thread);
+                threads.push(thread);
             }
         }
 
-        while !self.threads.is_empty() {
-            let thread = self.threads.swap_remove(0);
-            thread.join().unwrap();
-        }
+        threads
     }
 }

@@ -2,6 +2,8 @@ use crate::worker::market_helpers::exchange_pair_info::ExchangePairInfo;
 use crate::worker::market_helpers::status::Status;
 use std::collections::HashMap;
 
+const EPS: f64 = 0.00001;
+
 pub struct MarketSpine {
     pub status: Status,
     pub name: String,
@@ -18,6 +20,7 @@ pub struct MarketSpine {
     update_depth: bool,
     fiat_refresh_time: u64,
     pub socket_enabled: bool,
+    recalculate_total_volume_handler: Box<dyn FnOnce(String) + Send>,
 }
 impl MarketSpine {
     pub fn new(
@@ -30,6 +33,7 @@ impl MarketSpine {
         update_last_trade: bool,
         update_depth: bool,
         fiat_refresh_time: u64,
+        recalculate_total_volume_handler: Box<dyn FnOnce(String) + Send>,
     ) -> Self {
         Self {
             status,
@@ -47,6 +51,7 @@ impl MarketSpine {
             update_depth,
             fiat_refresh_time,
             socket_enabled: false,
+            recalculate_total_volume_handler,
         }
     }
 
@@ -55,6 +60,10 @@ impl MarketSpine {
             .insert(pair.0.to_string(), pair.1.to_string());
         self.unmask_pairs
             .insert(pair.1.to_string(), pair.0.to_string());
+    }
+
+    pub fn get_pairs(&self) -> &HashMap<String, (String, String)> {
+        &self.pairs
     }
 
     pub fn get_exchange_pairs(&self) -> &HashMap<String, ExchangePairInfo> {
@@ -84,4 +93,29 @@ impl MarketSpine {
 
     // TODO: Implement
     pub fn refresh_capitalization(&self) {}
+
+    // TODO: Implement
+    pub fn get_conversion_coef(&mut self, currency: &str, conversion: &str) -> f64 {
+        1.0
+    }
+
+    // TODO: Implement
+    pub fn set_total_volume(&mut self, pair: &str, value: f64) {
+        if value != 0.0 {
+            let old_value: f64 = self.exchange_pairs.get(pair).unwrap().get_total_volume();
+
+            if (old_value - value).abs() > EPS {
+                self.exchange_pairs
+                    .get_mut(pair)
+                    .unwrap()
+                    .set_total_volume(value.abs());
+                self.update_market_pair(pair, "totalValues", false);
+
+                // C++: this->reCalculateTotalVolumeHandler(pairs.at(pair).first);
+            }
+        }
+    }
+
+    // TODO: Implement
+    fn update_market_pair(&mut self, pair: &str, scope: &str, price_changed: bool) {}
 }

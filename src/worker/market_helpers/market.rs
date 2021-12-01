@@ -1,33 +1,39 @@
-use crate::worker::market_helpers::action::Action;
-use crate::worker::markets::binance::Binance;
+use crate::worker::market_helpers::market_spine::MarketSpine;
+// use crate::worker::markets::binance::Binance;
+use crate::worker::markets::bitfinex::Bitfinex;
 // use crate::worker::markets::bittrex::Bittrex;
 // use crate::worker::markets::poloniex::Poloniex;
-use crate::worker::market_helpers::market_name::MarketName;
-use crate::worker::market_helpers::market_spine::MarketSpine;
-use std::cell::RefCell;
+use std::sync::{Arc, Mutex};
+use std::thread::JoinHandle;
 
-pub fn market_factory(spine: MarketSpine) -> Option<Box<RefCell<dyn Market + Send>>> {
-    match spine.name.as_ref() {
-        // "poloniex" => Some(Box::new(RefCell::new(Poloniex { spine }))),
-        // "bittrex" => Some(Box::new(RefCell::new(Bittrex { spine }))),
-        "binance" => Some(Box::new(RefCell::new(Binance { spine }))),
-        _ => None,
-    }
+pub fn market_factory(spine: MarketSpine) -> Arc<Mutex<dyn Market + Send>> {
+    let market: Arc<Mutex<dyn Market + Send>> = match spine.name.as_ref() {
+        // "binance" => Box::new(RefCell::new(Binance { spine, arc: None })),
+        "bitfinex" => Arc::new(Mutex::new(Bitfinex { spine, arc: None })),
+        // "bittrex" => Box::new(RefCell::new(Bittrex { spine, arc: None })),
+        // "poloniex" => Box::new(RefCell::new(Poloniex { spine, arc: None })),
+        _ => panic!("Market not found: {}", spine.name),
+    };
+
+    market.lock().unwrap().set_arc(Arc::clone(&market));
+
+    market
 }
 
 pub trait Market {
-    fn get_name(&self) -> MarketName;
+    fn set_arc(&mut self, arc: Arc<Mutex<dyn Market + Send>>);
     fn get_spine(&self) -> &MarketSpine;
     fn get_spine_mut(&mut self) -> &mut MarketSpine;
     fn make_pair(&self, pair: (&str, &str)) -> String {
         pair.0.to_string() + pair.1
     }
     fn add_exchange_pair(&mut self, pair: (&str, &str), conversion: &str);
-    fn update(&mut self) -> Vec<Action>;
-    fn perform(&mut self) -> Vec<Action> {
+    fn update(&mut self) -> Vec<JoinHandle<()>>;
+    fn perform(&mut self) -> Vec<JoinHandle<()>> {
         println!("called Market::perform()");
 
         self.get_spine().refresh_capitalization();
         self.update()
     }
+    fn parse_ticker_info__socket(&mut self, pair: String, info: String);
 }
