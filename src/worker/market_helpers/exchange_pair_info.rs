@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Utc, MIN_DATETIME};
 use std::fmt::{Display, Formatter};
 
 pub struct ExchangePairInfo {
@@ -18,7 +18,7 @@ impl ExchangePairInfo {
             volume: 0.0,
             total_ask: 0.0,
             total_bid: 0.0,
-            timestamp: Utc::now(),
+            timestamp: MIN_DATETIME,
         }
     }
 
