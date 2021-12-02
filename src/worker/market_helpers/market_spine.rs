@@ -1,14 +1,17 @@
 use crate::worker::market_helpers::exchange_pair_info::ExchangePairInfo;
 use crate::worker::market_helpers::status::Status;
+use crate::worker::worker::Worker;
 use chrono::{DateTime, Utc, MIN_DATETIME};
 use reqwest::blocking::multipart::{Form, Part};
 use reqwest::blocking::Client;
 use rustc_serialize::json::Json;
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
 const EPS: f64 = 0.00001;
 
 pub struct MarketSpine {
+    worker: Arc<Mutex<Worker>>,
     pub status: Status,
     pub name: String,
     api_url: String,
@@ -24,12 +27,12 @@ pub struct MarketSpine {
     update_depth: bool,
     fiat_refresh_time: u64,
     pub socket_enabled: bool,
-    recalculate_total_volume_handler: Box<dyn FnOnce(String) + Send>,
     capitalization: HashMap<String, f64>,
     last_capitalization_refresh: DateTime<Utc>,
 }
 impl MarketSpine {
     pub fn new(
+        worker: Arc<Mutex<Worker>>,
         status: Status,
         name: String,
         api_url: String,
@@ -39,9 +42,9 @@ impl MarketSpine {
         update_last_trade: bool,
         update_depth: bool,
         fiat_refresh_time: u64,
-        recalculate_total_volume_handler: Box<dyn FnOnce(String) + Send>,
     ) -> Self {
         Self {
+            worker,
             status,
             name,
             api_url,
@@ -57,7 +60,6 @@ impl MarketSpine {
             update_depth,
             fiat_refresh_time,
             socket_enabled: false,
-            recalculate_total_volume_handler,
             capitalization: HashMap::new(),
             last_capitalization_refresh: MIN_DATETIME,
         }
@@ -137,11 +139,21 @@ impl MarketSpine {
     }
 
     // TODO: Implement
+    /// Cannot be implemented, because it depends on https://api.icex.ch/api/coins/
+    /// which is no working
+    /// Temporary solution: hardcode two coins: BTC and ETH
     pub fn get_conversion_coef(&mut self, currency: &str, conversion: &str) -> f64 {
         1.0
     }
 
-    // TODO: Implement
+    pub fn get_total_volume(&self, pair: &str) -> f64 {
+        if self.exchange_pairs.contains_key(pair) {
+            self.exchange_pairs.get(pair).unwrap().get_total_volume()
+        } else {
+            0.0
+        }
+    }
+
     pub fn set_total_volume(&mut self, pair: &str, value: f64) {
         if value != 0.0 {
             let old_value: f64 = self.exchange_pairs.get(pair).unwrap().get_total_volume();
@@ -151,9 +163,13 @@ impl MarketSpine {
                     .get_mut(pair)
                     .unwrap()
                     .set_total_volume(value.abs());
+
                 self.update_market_pair(pair, "totalValues", false);
 
-                // C++: this->reCalculateTotalVolumeHandler(pairs.at(pair).first);
+                self.worker
+                    .lock()
+                    .unwrap()
+                    .recalculate_total_volume(self.pairs.get(pair).unwrap().0.clone(), &self.pairs);
             }
         }
     }

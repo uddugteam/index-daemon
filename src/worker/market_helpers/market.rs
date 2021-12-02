@@ -28,6 +28,7 @@ pub trait Market {
         pair.0.to_string() + pair.1
     }
     fn add_exchange_pair(&mut self, pair: (&str, &str), conversion: &str);
+    fn get_total_volume(&self, first_currency: &str, second_currency: &str) -> f64;
     fn update(&mut self) -> Vec<JoinHandle<()>>;
     fn perform(&mut self) -> Vec<JoinHandle<()>> {
         println!("called Market::perform()");

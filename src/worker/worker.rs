@@ -44,15 +44,73 @@ impl Worker {
     }
 
     // TODO: Implement
-    fn recalculate_total_volume(worker: Arc<Mutex<Self>>, currency: String) {
-        let volume_val: f64 = 0.0;
-        let markets_count: i32 = 0;
-        let vol: Vec<f64> = Vec::new();
-        let buf: String = String::new();
-        let success: bool = true;
-        let fail_count: i32 = 0;
+    pub fn recalculate_total_volume(
+        &self,
+        currency: String,
+        pairs: &HashMap<String, (String, String)>,
+    ) {
+        // println!("called Worker::recalculate_total_volume()");
 
-        for market in &worker.lock().unwrap().markets {}
+        let mut volume_val: f64 = 0.0;
+        let mut markets_count: i32 = 0;
+        let mut buf: String = String::new();
+        let mut success: bool = true;
+        let mut fail_count: i32 = 0;
+
+        for market in &self.markets {
+            for pair in pairs {
+                if pair.1 .0 == currency {
+                    markets_count += 1;
+                    let volume: f64 = market
+                        .lock()
+                        .unwrap()
+                        .get_total_volume(&pair.1 .0, &pair.1 .1);
+
+                    if volume.eq(&-1_f64) {
+                        fail_count += 1;
+                        success = false;
+
+                        // C++: loggingHelper->printLog("volume", 2, currency + " " + market->getName() + " " + pair.first);
+                        println!(
+                            "{} {} {}",
+                            currency,
+                            market.lock().unwrap().get_spine().name,
+                            pair.0
+                        );
+                    }
+
+                    volume_val += volume;
+
+                    buf = format!(
+                        "{}: {}_{} {} ",
+                        market.lock().unwrap().get_spine().name,
+                        pair.1 .0,
+                        pair.1 .1,
+                        volume
+                    );
+                }
+            }
+        }
+
+        if !success {
+            // C++: loggingHelper->printLog("volume", 2, currency + " NOT ENOUGH VALUES " + std::to_string(markets_count - failCount) + " OUT OF " + std::to_string(markets_count));
+            println!(
+                "{} NOT ENOUGH VALUES {} OUT OF {}",
+                currency,
+                markets_count - fail_count,
+                markets_count
+            );
+
+            return;
+        }
+
+        // C++: loggingHelper->printLog("volume", 1, currency + ": " + std::to_string(volume_val));
+        // C++: loggingHelper->printLog("volume", 3, currency + ": " + buf);
+        println!("{}: {}", currency, volume_val);
+        println!("{}: {}", currency, buf);
+
+        // C++: code, associated with Redis
+        // C++: code, associated with candles
     }
 
     fn configure(&mut self) {
@@ -237,13 +295,14 @@ impl Worker {
             let worker_2 = Arc::clone(self.arc.as_ref().unwrap());
 
             let market_spine = MarketSpine::new(
+                worker_2,
                 status.parse().unwrap_or_else(|_| {
                     panic!(
                         "Parse status error. Market: {}. Status not found: {}",
                         name, status
                     )
                 }),
-                name.clone(),
+                name,
                 api_url,
                 error_message,
                 delay,
@@ -251,7 +310,6 @@ impl Worker {
                 update_last_trade,
                 update_depth,
                 fiat_refresh_time,
-                Box::new(|currency: String| Self::recalculate_total_volume(worker_2, currency)),
             );
 
             let market = market_factory(market_spine);
