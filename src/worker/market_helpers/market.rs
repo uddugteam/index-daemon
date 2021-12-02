@@ -32,7 +32,7 @@ pub trait Market {
     fn perform(&mut self) -> Vec<JoinHandle<()>> {
         println!("called Market::perform()");
 
-        self.get_spine().refresh_capitalization();
+        self.get_spine_mut().refresh_capitalization();
         self.update()
     }
     fn parse_ticker_info__socket(&mut self, pair: String, info: String);

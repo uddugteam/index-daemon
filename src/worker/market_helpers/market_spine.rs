@@ -1,5 +1,9 @@
 use crate::worker::market_helpers::exchange_pair_info::ExchangePairInfo;
 use crate::worker::market_helpers::status::Status;
+use chrono::{DateTime, Utc, MIN_DATETIME};
+use reqwest::blocking::multipart::{Form, Part};
+use reqwest::blocking::Client;
+use rustc_serialize::json::Json;
 use std::collections::HashMap;
 
 const EPS: f64 = 0.00001;
@@ -21,6 +25,8 @@ pub struct MarketSpine {
     fiat_refresh_time: u64,
     pub socket_enabled: bool,
     recalculate_total_volume_handler: Box<dyn FnOnce(String) + Send>,
+    capitalization: HashMap<String, f64>,
+    last_capitalization_refresh: DateTime<Utc>,
 }
 impl MarketSpine {
     pub fn new(
@@ -52,6 +58,8 @@ impl MarketSpine {
             fiat_refresh_time,
             socket_enabled: false,
             recalculate_total_volume_handler,
+            capitalization: HashMap::new(),
+            last_capitalization_refresh: MIN_DATETIME,
         }
     }
 
@@ -91,8 +99,42 @@ impl MarketSpine {
         self.unmask_pairs.get(a).map(|s| s.as_ref()).unwrap_or(a)
     }
 
-    // TODO: Implement
-    pub fn refresh_capitalization(&self) {}
+    pub fn refresh_capitalization(&mut self) {
+        // println!("called MarketSpine::refresh_capitalization()");
+
+        let response_text = Client::new()
+            .get("https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest")
+            .header("Accepts", "application/json")
+            .header("X-CMC_PRO_API_KEY", "388b6445-3e65-4b86-913e-f0534596068b")
+            .multipart(
+                Form::new()
+                    .part("start", Part::text("1"))
+                    .part("limit", Part::text("10"))
+                    .part("convert", Part::text("USD")),
+            )
+            .send()
+            .unwrap()
+            .text()
+            .unwrap();
+
+        let json = Json::from_str(&response_text).unwrap();
+        let json_object = json.as_object().unwrap();
+        let coins = json_object.get("data").unwrap().as_array().unwrap();
+
+        for coin in coins.iter().map(|j| j.as_object().unwrap()) {
+            let mut curr = coin.get("symbol").unwrap().as_string().unwrap();
+            if curr == "MIOTA" {
+                curr = "IOT";
+            }
+
+            let total_supply = coin.get("total_supply").unwrap().as_string().unwrap();
+
+            self.capitalization
+                .insert(curr.to_string(), total_supply.parse().unwrap());
+        }
+
+        self.last_capitalization_refresh = Utc::now();
+    }
 
     // TODO: Implement
     pub fn get_conversion_coef(&mut self, currency: &str, conversion: &str) -> f64 {
