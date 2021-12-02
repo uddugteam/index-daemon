@@ -34,9 +34,7 @@ impl Bitfinex {
             ),
             pair,
             |pair: String, info: String| {
-                println!("Before market lock 2");
                 market.lock().unwrap().parse_ticker_info__socket(pair, info);
-                println!("After market lock 2");
             },
         );
         socker_helper.start();
@@ -89,7 +87,6 @@ impl Market for Bitfinex {
         for exchange_pair in self.spine.get_exchange_pairs() {
             let market_2 = Arc::clone(self.arc.as_ref().unwrap());
             let pair_2 = exchange_pair.0.to_string();
-            println!("Before thread spawn 1");
             let thread = thread::spawn(move || {
                 let market_3 = Arc::clone(&market_2);
                 let pair_3 = pair_2.clone();
@@ -98,13 +95,11 @@ impl Market for Bitfinex {
                     thread::sleep(time::Duration::from_millis(10000));
                 }
             });
-            println!("After thread spawn 1");
             thread::sleep(time::Duration::from_millis(12000));
             threads.push(thread);
 
             let market_2 = Arc::clone(self.arc.as_ref().unwrap());
             let pair_2 = exchange_pair.0.to_string();
-            println!("Before thread spawn 2");
             let thread = thread::spawn(move || {
                 let market_3 = Arc::clone(&market_2);
                 let pair_3 = pair_2.clone();
@@ -113,13 +108,11 @@ impl Market for Bitfinex {
                     thread::sleep(time::Duration::from_millis(10000));
                 }
             });
-            println!("After thread spawn 2");
             thread::sleep(time::Duration::from_millis(12000));
             threads.push(thread);
 
             let market_2 = Arc::clone(self.arc.as_ref().unwrap());
             let pair_2 = exchange_pair.0.to_string();
-            println!("Before thread spawn 3");
             let thread = thread::spawn(move || {
                 let market_3 = Arc::clone(&market_2);
                 let pair_3 = pair_2.clone();
@@ -128,7 +121,6 @@ impl Market for Bitfinex {
                     thread::sleep(time::Duration::from_millis(10000));
                 }
             });
-            println!("After thread spawn 3");
             thread::sleep(time::Duration::from_millis(12000));
             threads.push(thread);
         }

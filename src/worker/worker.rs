@@ -384,9 +384,7 @@ impl Worker {
                 && (market_startup.contains(&market_name) || market_startup == "all")
             {
                 let thread = thread::spawn(move || {
-                    println!("Before market lock 1");
                     let mut threads = market.lock().unwrap().perform();
-                    println!("After market lock 1");
 
                     while !threads.is_empty() {
                         let thread = threads.swap_remove(0);
