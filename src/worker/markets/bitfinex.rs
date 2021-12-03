@@ -14,40 +14,27 @@ pub struct Bitfinex {
 }
 
 impl Bitfinex {
-    // TODO: Implement
-    fn update_ticker(&self, pair: &str) {}
-
-    // TODO: Implement
-    fn update_trades(&self, pair: &str) {}
-
-    // TODO: Implement
-    fn update_depth(&self, pair: &str) {}
-
-    pub fn subscribe_ticker(market: Arc<Mutex<dyn Market + Send>>, pair: String) {
-        // println!("called Bitfinex::subscribe_ticker()");
+    pub fn subscribe_channel(market: Arc<Mutex<dyn Market + Send>>, pair: String, channel: &str) {
+        // println!("called Bitfinex::subscribe_channel()");
 
         let socker_helper = SocketHelper::new(
             "wss://api-pub.bitfinex.com/ws/2".to_string(),
             format!(
-                "{{\"event\":\"subscribe\", \"channel\":\"ticker\", \"symbol\":\"{}\"}}",
-                pair
+                "{{\"event\":\"subscribe\", \"channel\":\"{}\", \"symbol\":\"{}\"}}",
+                channel, pair
             ),
             pair,
-            |pair: String, info: String| {
-                market.lock().unwrap().parse_ticker_info__socket(pair, info);
+            |pair: String, info: String| match channel {
+                "ticker" => market.lock().unwrap().parse_ticker_info__socket(pair, info),
+                "trades" => market
+                    .lock()
+                    .unwrap()
+                    .parse_last_trade_info__socket(pair, info),
+                "book" => market.lock().unwrap().parse_depth_info__socket(pair, info),
+                _ => println!("Error: channel not supported."),
             },
         );
         socker_helper.start();
-    }
-
-    // TODO: Implement
-    pub fn subscribe_trades(market: Arc<Mutex<dyn Market + Send>>, pair: String) {
-        // println!("called Bitfinex::subscribe_trades()");
-    }
-
-    // TODO: Implement
-    pub fn subscribe_depth(market: Arc<Mutex<dyn Market + Send>>, pair: String) {
-        // println!("called Bitfinex::subscribe_depth()");
     }
 }
 
@@ -87,47 +74,25 @@ impl Market for Bitfinex {
 
         self.spine.socket_enabled = true;
 
+        let channels = ["ticker", "trades", "book"];
+
         let mut threads: Vec<JoinHandle<()>> = Vec::new();
 
         for exchange_pair in self.spine.get_exchange_pairs() {
-            let market_2 = Arc::clone(self.arc.as_ref().unwrap());
-            let pair_2 = exchange_pair.0.to_string();
-            let thread = thread::spawn(move || {
-                let market_3 = Arc::clone(&market_2);
-                let pair_3 = pair_2.clone();
-                loop {
-                    Self::subscribe_ticker(Arc::clone(&market_3), pair_3.clone());
-                    thread::sleep(time::Duration::from_millis(10000));
-                }
-            });
-            thread::sleep(time::Duration::from_millis(12000));
-            threads.push(thread);
-
-            let market_2 = Arc::clone(self.arc.as_ref().unwrap());
-            let pair_2 = exchange_pair.0.to_string();
-            let thread = thread::spawn(move || {
-                let market_3 = Arc::clone(&market_2);
-                let pair_3 = pair_2.clone();
-                loop {
-                    Self::subscribe_trades(Arc::clone(&market_3), pair_3.clone());
-                    thread::sleep(time::Duration::from_millis(10000));
-                }
-            });
-            thread::sleep(time::Duration::from_millis(12000));
-            threads.push(thread);
-
-            let market_2 = Arc::clone(self.arc.as_ref().unwrap());
-            let pair_2 = exchange_pair.0.to_string();
-            let thread = thread::spawn(move || {
-                let market_3 = Arc::clone(&market_2);
-                let pair_3 = pair_2.clone();
-                loop {
-                    Self::subscribe_depth(Arc::clone(&market_3), pair_3.clone());
-                    thread::sleep(time::Duration::from_millis(10000));
-                }
-            });
-            thread::sleep(time::Duration::from_millis(12000));
-            threads.push(thread);
+            for channel in channels {
+                let market_2 = Arc::clone(self.arc.as_ref().unwrap());
+                let pair_2 = exchange_pair.0.to_string();
+                let thread = thread::spawn(move || {
+                    let market_3 = Arc::clone(&market_2);
+                    let pair_3 = pair_2.clone();
+                    loop {
+                        Self::subscribe_channel(Arc::clone(&market_3), pair_3.clone(), channel);
+                        thread::sleep(time::Duration::from_millis(10000));
+                    }
+                });
+                thread::sleep(time::Duration::from_millis(3000));
+                threads.push(thread);
+            }
         }
 
         threads
@@ -152,7 +117,7 @@ impl Market for Bitfinex {
             if array.len() > 1 {
                 if let Some(array) = array[1].as_array() {
                     if array.len() >= 8 {
-                        println!("called Bitfinex::parseTickerInfo_socket()");
+                        println!("called Bitfinex::parse_ticker_info__socket()");
                         println!("pair: {}", pair);
                         println!("json: {}", json);
 
@@ -175,5 +140,21 @@ impl Market for Bitfinex {
                 }
             }
         }
+    }
+
+    // TODO: Implement
+    fn parse_last_trade_info__socket(&mut self, pair: String, info: String) {
+        println!("called Bitfinex::parse_last_trade_info__socket()");
+
+        let json = Json::from_str(&info).unwrap();
+        println!("json: {}", json);
+    }
+
+    // TODO: Implement
+    fn parse_depth_info__socket(&mut self, pair: String, info: String) {
+        println!("called Bitfinex::parse_depth_info__socket()");
+
+        let json = Json::from_str(&info).unwrap();
+        println!("json: {}", json);
     }
 }

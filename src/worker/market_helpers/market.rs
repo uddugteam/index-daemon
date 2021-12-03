@@ -37,4 +37,6 @@ pub trait Market {
         self.update()
     }
     fn parse_ticker_info__socket(&mut self, pair: String, info: String);
+    fn parse_last_trade_info__socket(&mut self, pair: String, info: String);
+    fn parse_depth_info__socket(&mut self, pair: String, info: String);
 }
