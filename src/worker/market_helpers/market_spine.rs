@@ -6,12 +6,15 @@ use reqwest::blocking::multipart::{Form, Part};
 use reqwest::blocking::Client;
 use rustc_serialize::json::Json;
 use std::collections::HashMap;
+use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
+use std::thread::JoinHandle;
 
 const EPS: f64 = 0.00001;
 
 pub struct MarketSpine {
     worker: Arc<Mutex<Worker>>,
+    pub tx: Sender<JoinHandle<()>>,
     pub status: Status,
     pub name: String,
     api_url: String,
@@ -33,6 +36,7 @@ pub struct MarketSpine {
 impl MarketSpine {
     pub fn new(
         worker: Arc<Mutex<Worker>>,
+        tx: Sender<JoinHandle<()>>,
         status: Status,
         name: String,
         api_url: String,
@@ -45,6 +49,7 @@ impl MarketSpine {
     ) -> Self {
         Self {
             worker,
+            tx,
             status,
             name,
             api_url,
@@ -168,7 +173,7 @@ impl MarketSpine {
                 self.worker
                     .lock()
                     .unwrap()
-                    .recalculate_total_volume(self.pairs.get(pair).unwrap().0.clone(), &self.pairs);
+                    .recalculate_total_volume(self.pairs.get(pair).unwrap().0.clone());
             }
         }
     }

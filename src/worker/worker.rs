@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
+use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::thread::JoinHandle;
@@ -21,16 +22,18 @@ pub struct Worker {
     fiats: HashMap<String, String>,
     markets: Vec<Arc<Mutex<dyn Market + Send>>>,
     arc: Option<Arc<Mutex<Self>>>,
+    tx: Sender<JoinHandle<()>>,
 }
 
 impl Worker {
-    pub fn new(config_path: Option<String>) -> Arc<Mutex<Self>> {
+    pub fn new(config_path: Option<String>, tx: Sender<JoinHandle<()>>) -> Arc<Mutex<Self>> {
         let worker = Worker {
             config_path,
             coins: HashMap::new(),
             fiats: HashMap::new(),
             markets: Vec::new(),
             arc: None,
+            tx,
         };
 
         let worker = Arc::new(Mutex::new(worker));
@@ -43,13 +46,8 @@ impl Worker {
         self.arc = Some(arc);
     }
 
-    // TODO: Implement
-    pub fn recalculate_total_volume(
-        &self,
-        currency: String,
-        pairs: &HashMap<String, (String, String)>,
-    ) {
-        // println!("called Worker::recalculate_total_volume()");
+    fn recalculate_total_volume__inner(&self, currency: String) {
+        // println!("called Worker::recalculate_total_volume__inner()");
 
         let mut volume_val: f64 = 0.0;
         let mut markets_count: i32 = 0;
@@ -58,7 +56,7 @@ impl Worker {
         let mut fail_count: i32 = 0;
 
         for market in &self.markets {
-            for pair in pairs {
+            for pair in market.lock().unwrap().get_spine().get_pairs() {
                 if pair.1 .0 == currency {
                     markets_count += 1;
                     let volume: f64 = market
@@ -111,6 +109,20 @@ impl Worker {
 
         // C++: code, associated with Redis
         // C++: code, associated with candles
+    }
+
+    pub fn recalculate_total_volume(&self, currency: String) {
+        // println!("called Worker::recalculate_total_volume()");
+
+        let worker = Arc::clone(self.arc.as_ref().unwrap());
+
+        let thread = thread::spawn(move || {
+            worker
+                .lock()
+                .unwrap()
+                .recalculate_total_volume__inner(currency);
+        });
+        self.tx.send(thread).unwrap();
     }
 
     fn configure(&mut self) {
@@ -296,6 +308,7 @@ impl Worker {
 
             let market_spine = MarketSpine::new(
                 worker_2,
+                self.tx.clone(),
                 status.parse().unwrap_or_else(|_| {
                     panic!(
                         "Parse status error. Market: {}. Status not found: {}",
@@ -413,7 +426,7 @@ impl Worker {
         println!("Configuration done.");
     }
 
-    pub fn start(&mut self, market_startup: &str, daemon: bool) -> Vec<JoinHandle<()>> {
+    pub fn start(&mut self, market_startup: &str, daemon: bool) {
         // C++: sqlitePool = new ThreadPool(20);
         println!("market_startup: {}", market_startup);
         if !daemon {
@@ -429,8 +442,6 @@ impl Worker {
 
         // C++: this->pool.perform();
 
-        let mut threads: Vec<JoinHandle<()>> = Vec::new();
-
         for market in self.markets.iter().map(|a| Arc::clone(a)) {
             let market_name = market.lock().unwrap().get_spine().name.clone();
             let market_status = market.lock().unwrap().get_spine().status;
@@ -442,18 +453,10 @@ impl Worker {
                 && (market_startup.contains(&market_name) || market_startup == "all")
             {
                 let thread = thread::spawn(move || {
-                    let mut threads = market.lock().unwrap().perform();
-
-                    while !threads.is_empty() {
-                        let thread = threads.swap_remove(0);
-                        thread.join().unwrap();
-                    }
+                    market.lock().unwrap().perform();
                 });
-
-                threads.push(thread);
+                self.tx.send(thread).unwrap();
             }
         }
-
-        threads
     }
 }

@@ -4,7 +4,6 @@ use crate::worker::markets::bitfinex::Bitfinex;
 // use crate::worker::markets::bittrex::Bittrex;
 // use crate::worker::markets::poloniex::Poloniex;
 use std::sync::{Arc, Mutex};
-use std::thread::JoinHandle;
 
 pub fn market_factory(spine: MarketSpine) -> Arc<Mutex<dyn Market + Send>> {
     let market: Arc<Mutex<dyn Market + Send>> = match spine.name.as_ref() {
@@ -29,12 +28,12 @@ pub trait Market {
     }
     fn add_exchange_pair(&mut self, pair: (&str, &str), conversion: &str);
     fn get_total_volume(&self, first_currency: &str, second_currency: &str) -> f64;
-    fn update(&mut self) -> Vec<JoinHandle<()>>;
-    fn perform(&mut self) -> Vec<JoinHandle<()>> {
+    fn update(&mut self);
+    fn perform(&mut self) {
         println!("called Market::perform()");
 
         self.get_spine_mut().refresh_capitalization();
-        self.update()
+        self.update();
     }
     fn parse_ticker_info__socket(&mut self, pair: String, info: String);
     fn parse_last_trade_info__socket(&mut self, pair: String, info: String);

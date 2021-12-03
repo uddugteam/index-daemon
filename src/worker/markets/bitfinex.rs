@@ -1,7 +1,6 @@
 use rustc_serialize::json::Json;
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::thread::JoinHandle;
 use std::time;
 
 use crate::worker::market_helpers::market::Market;
@@ -69,14 +68,12 @@ impl Market for Bitfinex {
     }
 
     // TODO: Replace `delay` constants with parameters
-    fn update(&mut self) -> Vec<JoinHandle<()>> {
+    fn update(&mut self) {
         // println!("called Bitfinex::update()");
 
         self.spine.socket_enabled = true;
 
         let channels = ["ticker", "trades", "book"];
-
-        let mut threads: Vec<JoinHandle<()>> = Vec::new();
 
         for exchange_pair in self.spine.get_exchange_pairs() {
             for channel in channels {
@@ -91,11 +88,10 @@ impl Market for Bitfinex {
                     }
                 });
                 thread::sleep(time::Duration::from_millis(3000));
-                threads.push(thread);
+
+                self.spine.tx.send(thread).unwrap();
             }
         }
-
-        threads
     }
 
     /// Bitfinex server response description:
@@ -118,8 +114,8 @@ impl Market for Bitfinex {
                 if let Some(array) = array[1].as_array() {
                     if array.len() >= 8 {
                         println!("called Bitfinex::parse_ticker_info__socket()");
-                        println!("pair: {}", pair);
-                        println!("json: {}", json);
+                        // println!("pair: {}", pair);
+                        // println!("json: {}", json);
 
                         let currency = self
                             .spine
@@ -133,7 +129,7 @@ impl Market for Bitfinex {
                             self.spine.get_conversion_coef(&currency, "crypto");
 
                         let volume: f64 = array[7].as_f64().unwrap();
-                        println!("volume: {}", volume);
+                        // println!("volume: {}", volume);
 
                         self.spine.set_total_volume(&pair, volume * conversion_coef);
                     }
@@ -146,15 +142,15 @@ impl Market for Bitfinex {
     fn parse_last_trade_info__socket(&mut self, pair: String, info: String) {
         println!("called Bitfinex::parse_last_trade_info__socket()");
 
-        let json = Json::from_str(&info).unwrap();
-        println!("json: {}", json);
+        // let json = Json::from_str(&info).unwrap();
+        // println!("json: {}", json);
     }
 
     // TODO: Implement
     fn parse_depth_info__socket(&mut self, pair: String, info: String) {
         println!("called Bitfinex::parse_depth_info__socket()");
 
-        let json = Json::from_str(&info).unwrap();
-        println!("json: {}", json);
+        // let json = Json::from_str(&info).unwrap();
+        // println!("json: {}", json);
     }
 }

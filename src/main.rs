@@ -1,5 +1,6 @@
 use crate::worker::worker::Worker;
 use std::env;
+use std::sync::mpsc;
 
 mod worker;
 
@@ -53,16 +54,17 @@ fn main() {
         }
     }
 
-    let worker = Worker::new(config);
+    let (tx, rx) = mpsc::channel();
 
-    let mut threads = if args.contains(&"all".to_string()) || args.len() == 1 {
-        worker.lock().unwrap().start("all", daemon_mode)
+    let worker = Worker::new(config, tx);
+
+    if args.contains(&"all".to_string()) || args.len() == 1 {
+        worker.lock().unwrap().start("all", daemon_mode);
     } else {
-        worker.lock().unwrap().start(&args[1], daemon_mode)
+        worker.lock().unwrap().start(&args[1], daemon_mode);
     };
 
-    while !threads.is_empty() {
-        let thread = threads.swap_remove(0);
-        thread.join().unwrap();
+    for received_thread in rx {
+        let _ = received_thread.join();
     }
 }
