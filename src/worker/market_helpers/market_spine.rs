@@ -129,10 +129,9 @@ impl MarketSpine {
                 curr = "IOT";
             }
 
-            let total_supply = coin.get("total_supply").unwrap().as_string().unwrap();
+            let total_supply = coin.get("total_supply").unwrap().as_f64().unwrap();
 
-            self.capitalization
-                .insert(curr.to_string(), total_supply.parse().unwrap());
+            self.capitalization.insert(curr.to_string(), total_supply);
         }
 
         self.last_capitalization_refresh = Utc::now();
