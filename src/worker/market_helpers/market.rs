@@ -9,19 +9,22 @@ use std::sync::{Arc, Mutex};
 pub fn market_factory(spine: MarketSpine) -> Arc<Mutex<dyn Market + Send>> {
     let market: Arc<Mutex<dyn Market + Send>> = match spine.name.as_ref() {
         // "binance" => Box::new(RefCell::new(Binance { spine, arc: None })),
-        "bitfinex" => Arc::new(Mutex::new(Bitfinex { spine, arc: None })),
+        "bitfinex" => Arc::new(Mutex::new(Bitfinex { spine })),
         // "bittrex" => Box::new(RefCell::new(Bittrex { spine, arc: None })),
         // "poloniex" => Box::new(RefCell::new(Poloniex { spine, arc: None })),
         _ => panic!("Market not found: {}", spine.name),
     };
 
-    market.lock().unwrap().set_arc(Arc::clone(&market));
+    market
+        .lock()
+        .unwrap()
+        .get_spine_mut()
+        .set_arc(Arc::clone(&market));
 
     market
 }
 
 pub trait Market {
-    fn set_arc(&mut self, arc: Arc<Mutex<dyn Market + Send>>);
     fn get_spine(&self) -> &MarketSpine;
     fn get_spine_mut(&mut self) -> &mut MarketSpine;
     fn make_pair(&self, pair: (&str, &str)) -> String {

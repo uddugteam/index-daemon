@@ -1,5 +1,6 @@
 use crate::worker::market_helpers::conversion_type::ConversionType;
 use crate::worker::market_helpers::exchange_pair_info::ExchangePairInfo;
+use crate::worker::market_helpers::market::Market;
 use crate::worker::market_helpers::status::Status;
 use crate::worker::worker::Worker;
 use chrono::{DateTime, Utc, MIN_DATETIME};
@@ -16,6 +17,7 @@ const EPS: f64 = 0.00001;
 
 pub struct MarketSpine {
     worker: Arc<Mutex<Worker>>,
+    pub arc: Option<Arc<Mutex<dyn Market + Send>>>,
     pub tx: Sender<JoinHandle<()>>,
     pub status: Status,
     pub name: String,
@@ -51,6 +53,7 @@ impl MarketSpine {
     ) -> Self {
         Self {
             worker,
+            arc: None,
             tx,
             status,
             name,
@@ -70,6 +73,10 @@ impl MarketSpine {
             capitalization: HashMap::new(),
             last_capitalization_refresh: MIN_DATETIME,
         }
+    }
+
+    pub fn set_arc(&mut self, arc: Arc<Mutex<dyn Market + Send>>) {
+        self.arc = Some(arc);
     }
 
     pub fn add_mask_pair(&mut self, pair: (&str, &str)) {

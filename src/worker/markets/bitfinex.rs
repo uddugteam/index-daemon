@@ -10,7 +10,6 @@ use crate::worker::network_helpers::socket_helper::SocketHelper;
 
 pub struct Bitfinex {
     pub spine: MarketSpine,
-    pub arc: Option<Arc<Mutex<dyn Market + Send>>>,
 }
 
 impl Bitfinex {
@@ -39,10 +38,6 @@ impl Bitfinex {
 }
 
 impl Market for Bitfinex {
-    fn set_arc(&mut self, arc: Arc<Mutex<dyn Market + Send>>) {
-        self.arc = Some(arc);
-    }
-
     fn get_spine(&self) -> &MarketSpine {
         &self.spine
     }
@@ -78,7 +73,7 @@ impl Market for Bitfinex {
 
         for exchange_pair in self.spine.get_exchange_pairs() {
             for channel in channels {
-                let market_2 = Arc::clone(self.arc.as_ref().unwrap());
+                let market_2 = Arc::clone(self.spine.arc.as_ref().unwrap());
                 let pair_2 = exchange_pair.0.to_string();
                 let thread = thread::spawn(move || {
                     let market_3 = Arc::clone(&market_2);
