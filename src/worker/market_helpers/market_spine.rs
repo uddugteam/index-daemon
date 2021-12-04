@@ -1,3 +1,4 @@
+use crate::worker::market_helpers::conversion_type::ConversionType;
 use crate::worker::market_helpers::exchange_pair_info::ExchangePairInfo;
 use crate::worker::market_helpers::status::Status;
 use crate::worker::worker::Worker;
@@ -23,7 +24,7 @@ pub struct MarketSpine {
     mask_pairs: HashMap<String, String>,
     unmask_pairs: HashMap<String, String>,
     exchange_pairs: HashMap<String, ExchangePairInfo>,
-    conversions: HashMap<String, String>,
+    conversions: HashMap<String, ConversionType>,
     pairs: HashMap<String, (String, String)>,
     update_ticker: bool,
     update_last_trade: bool,
@@ -81,7 +82,7 @@ impl MarketSpine {
         &self.pairs
     }
 
-    pub fn get_conversions(&self) -> &HashMap<String, String> {
+    pub fn get_conversions(&self) -> &HashMap<String, ConversionType> {
         &self.conversions
     }
 
@@ -93,11 +94,15 @@ impl MarketSpine {
         &mut self.exchange_pairs
     }
 
-    pub fn add_exchange_pair(&mut self, pair_string: String, pair: (&str, &str), conversion: &str) {
+    pub fn add_exchange_pair(
+        &mut self,
+        pair_string: String,
+        pair: (&str, &str),
+        conversion: ConversionType,
+    ) {
         self.exchange_pairs
             .insert(pair_string.clone(), ExchangePairInfo::new());
-        self.conversions
-            .insert(pair_string.clone(), conversion.to_string());
+        self.conversions.insert(pair_string.clone(), conversion);
         self.pairs
             .insert(pair_string, (pair.0.to_string(), pair.1.to_string()));
     }
@@ -150,7 +155,7 @@ impl MarketSpine {
     /// Cannot be implemented, because it depends on https://api.icex.ch/api/coins/
     /// which is no working
     /// Temporary solution: hardcode two coins: BTC and ETH
-    pub fn get_conversion_coef(&mut self, currency: &str, conversion: &str) -> f64 {
+    pub fn get_conversion_coef(&mut self, currency: &str, conversion: ConversionType) -> f64 {
         1.0
     }
 

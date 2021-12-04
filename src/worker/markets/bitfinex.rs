@@ -1,3 +1,4 @@
+use crate::worker::market_helpers::conversion_type::ConversionType;
 use rustc_serialize::json::Json;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -57,7 +58,7 @@ impl Market for Bitfinex {
             .to_uppercase()
     }
 
-    fn add_exchange_pair(&mut self, pair: (&str, &str), conversion: &str) {
+    fn add_exchange_pair(&mut self, pair: (&str, &str), conversion: ConversionType) {
         let pair_string = self.make_pair(pair);
         self.spine.add_exchange_pair(pair_string, pair, conversion);
     }
@@ -114,8 +115,9 @@ impl Market for Bitfinex {
                             .0
                             .clone();
 
-                        let conversion_coef: f64 =
-                            self.spine.get_conversion_coef(&currency, "crypto");
+                        let conversion_coef: f64 = self
+                            .spine
+                            .get_conversion_coef(&currency, ConversionType::Crypto);
 
                         let volume: f64 = array[7].as_f64().unwrap();
                         // println!("volume: {}", volume);
@@ -142,10 +144,10 @@ impl Market for Bitfinex {
 
                         let conversion = self.spine.get_conversions().get(&pair).unwrap().clone();
 
-                        let conversion_coef: f64 = if conversion != "none" {
+                        let conversion_coef: f64 = if let ConversionType::None = conversion {
                             let p = self.spine.get_pairs().get(&pair).unwrap().1.clone();
 
-                            self.spine.get_conversion_coef(&p, &conversion)
+                            self.spine.get_conversion_coef(&p, conversion)
                         } else {
                             1.0
                         };

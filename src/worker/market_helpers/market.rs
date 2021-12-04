@@ -3,6 +3,7 @@ use crate::worker::market_helpers::market_spine::MarketSpine;
 use crate::worker::markets::bitfinex::Bitfinex;
 // use crate::worker::markets::bittrex::Bittrex;
 // use crate::worker::markets::poloniex::Poloniex;
+use crate::worker::market_helpers::conversion_type::ConversionType;
 use std::sync::{Arc, Mutex};
 
 pub fn market_factory(spine: MarketSpine) -> Arc<Mutex<dyn Market + Send>> {
@@ -26,7 +27,7 @@ pub trait Market {
     fn make_pair(&self, pair: (&str, &str)) -> String {
         pair.0.to_string() + pair.1
     }
-    fn add_exchange_pair(&mut self, pair: (&str, &str), conversion: &str);
+    fn add_exchange_pair(&mut self, pair: (&str, &str), conversion: ConversionType);
     fn get_total_volume(&self, first_currency: &str, second_currency: &str) -> f64;
     fn update(&mut self);
     fn perform(&mut self) {

@@ -315,7 +315,7 @@ impl Worker {
                         name, status
                     )
                 }),
-                name,
+                name.clone(),
                 api_url,
                 error_message,
                 delay,
@@ -386,10 +386,17 @@ impl Worker {
                 }
 
                 let conversion: String = get_node_child_text(exchange_pair, "conversion");
+                let conversion = conversion.parse().unwrap_or_else(|_| {
+                    panic!(
+                        "Parse conversion type error. Market: {}. Conversion type not found: {}",
+                        name, conversion
+                    )
+                });
+
                 market
                     .lock()
                     .unwrap()
-                    .add_exchange_pair((parts[0], parts[1]), &conversion);
+                    .add_exchange_pair((parts[0], parts[1]), conversion);
 
                 // C++: if (postgresHelper->isEnabled()) {
                 // C++: threadPool->runAsync([postgresHelper, a, b, market] {
