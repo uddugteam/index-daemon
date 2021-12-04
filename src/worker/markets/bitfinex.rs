@@ -107,13 +107,7 @@ impl Market for Bitfinex {
                         // println!("pair: {}", pair);
                         // println!("json: {}", json);
 
-                        let currency = self
-                            .spine
-                            .get_pairs()
-                            .get_key_value(&pair)
-                            .unwrap()
-                            .0
-                            .clone();
+                        let currency = self.spine.get_pairs().get(&pair).unwrap().0.clone();
 
                         let conversion_coef: f64 = self
                             .spine
@@ -161,7 +155,7 @@ impl Market for Bitfinex {
         }
     }
 
-    // TODO: Implement
+    /// Response description: https://docs.bitfinex.com/reference?ref=https://coder.social#rest-public-book
     fn parse_depth_info__socket(&mut self, pair: String, info: String) {
         // println!("called Bitfinex::parse_depth_info__socket()");
 
