@@ -81,6 +81,10 @@ impl MarketSpine {
         &self.pairs
     }
 
+    pub fn get_conversions(&self) -> &HashMap<String, String> {
+        &self.conversions
+    }
+
     pub fn get_exchange_pairs(&self) -> &HashMap<String, ExchangePairInfo> {
         &self.exchange_pairs
     }
@@ -180,4 +184,14 @@ impl MarketSpine {
 
     // TODO: Implement
     fn update_market_pair(&mut self, pair: &str, scope: &str, price_changed: bool) {}
+
+    // TODO: Implement
+    pub fn set_last_trade_volume(&mut self, pair: &str, value: f64) {
+        // println!("called MarketSpine::set_last_trade_volume()");
+    }
+
+    // TODO: Implement
+    pub fn set_last_trade_price(&mut self, pair: &str, value: f64) {
+        // println!("called MarketSpine::set_last_trade_price()");
+    }
 }

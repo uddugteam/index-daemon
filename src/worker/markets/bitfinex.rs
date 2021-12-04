@@ -94,26 +94,15 @@ impl Market for Bitfinex {
         }
     }
 
-    /// Bitfinex server response description:
-    ///
-    /// If `json` is array Then If json[1] is array
-    ///
-    /// Then:
-    ///
-    /// bid:        json[1][0]
-    /// ask:        json[1][2]
-    /// last_price: json[1][6]
-    /// volume:     json[1][7]
-    ///
-    /// Source: https://steemit.com/utopian-io/@imwatsi/websocket-trading-on-bitfinex-using-python-part-1-create-a-basic-authenticated-connection
+    /// Response description: https://docs.bitfinex.com/reference?ref=https://coder.social#rest-public-ticker
     fn parse_ticker_info__socket(&mut self, pair: String, info: String) {
         let json = Json::from_str(&info).unwrap();
 
         if let Some(array) = json.as_array() {
-            if array.len() > 1 {
+            if array.len() >= 2 {
                 if let Some(array) = array[1].as_array() {
                     if array.len() >= 8 {
-                        println!("called Bitfinex::parse_ticker_info__socket()");
+                        // println!("called Bitfinex::parse_ticker_info__socket()");
                         // println!("pair: {}", pair);
                         // println!("json: {}", json);
 
@@ -138,17 +127,41 @@ impl Market for Bitfinex {
         }
     }
 
-    // TODO: Implement
+    /// Response description: https://docs.bitfinex.com/reference?ref=https://coder.social#rest-public-trades
     fn parse_last_trade_info__socket(&mut self, pair: String, info: String) {
-        println!("called Bitfinex::parse_last_trade_info__socket()");
+        // println!("called Bitfinex::parse_last_trade_info__socket()");
 
-        // let json = Json::from_str(&info).unwrap();
-        // println!("json: {}", json);
+        let json = Json::from_str(&info).unwrap();
+
+        if let Some(array) = json.as_array() {
+            if array.len() >= 3 {
+                if let Some(array) = array[2].as_array() {
+                    if array.len() >= 4 {
+                        let last_trade_volume: f64 = array[2].as_f64().unwrap().abs();
+                        let last_trade_price: f64 = array[3].as_f64().unwrap();
+
+                        let conversion = self.spine.get_conversions().get(&pair).unwrap().clone();
+
+                        let conversion_coef: f64 = if conversion != "none" {
+                            let p = self.spine.get_pairs().get(&pair).unwrap().1.clone();
+
+                            self.spine.get_conversion_coef(&p, &conversion)
+                        } else {
+                            1.0
+                        };
+
+                        self.spine.set_last_trade_volume(&pair, last_trade_volume);
+                        self.spine
+                            .set_last_trade_price(&pair, last_trade_price * conversion_coef);
+                    }
+                }
+            }
+        }
     }
 
     // TODO: Implement
     fn parse_depth_info__socket(&mut self, pair: String, info: String) {
-        println!("called Bitfinex::parse_depth_info__socket()");
+        // println!("called Bitfinex::parse_depth_info__socket()");
 
         // let json = Json::from_str(&info).unwrap();
         // println!("json: {}", json);
