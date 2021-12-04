@@ -9,6 +9,7 @@ use rustc_serialize::json::Json;
 use std::collections::HashMap;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
+use std::thread;
 use std::thread::JoinHandle;
 
 const EPS: f64 = 0.00001;
@@ -179,12 +180,21 @@ impl MarketSpine {
 
                 self.update_market_pair(pair, "totalValues", false);
 
-                self.worker
-                    .lock()
-                    .unwrap()
-                    .recalculate_total_volume(self.pairs.get(pair).unwrap().0.clone());
+                // Never lock Worker inside methods of Market
+                self.recalculate_total_volume(self.pairs.get(pair).unwrap().0.clone());
             }
         }
+    }
+
+    fn recalculate_total_volume(&self, currency: String) {
+        // println!("called MarketSpine::recalculate_total_volume()");
+
+        let worker = Arc::clone(&self.worker);
+
+        let thread = thread::spawn(move || {
+            worker.lock().unwrap().recalculate_total_volume(currency);
+        });
+        self.tx.send(thread).unwrap();
     }
 
     // TODO: Implement

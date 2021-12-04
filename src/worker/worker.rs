@@ -46,7 +46,8 @@ impl Worker {
         self.arc = Some(arc);
     }
 
-    fn recalculate_total_volume__inner(&self, currency: String) {
+    /// Never lock Worker inside methods of Market
+    pub fn recalculate_total_volume(&self, currency: String) {
         // println!("called Worker::recalculate_total_volume__inner()");
 
         let mut volume_val: f64 = 0.0;
@@ -56,32 +57,26 @@ impl Worker {
         let mut fail_count: i32 = 0;
 
         for market in &self.markets {
-            for pair in market.lock().unwrap().get_spine().get_pairs() {
+            let market = market.lock().unwrap();
+
+            for pair in market.get_spine().get_pairs() {
                 if pair.1 .0 == currency {
                     markets_count += 1;
-                    let volume: f64 = market
-                        .lock()
-                        .unwrap()
-                        .get_total_volume(&pair.1 .0, &pair.1 .1);
+                    let volume: f64 = market.get_total_volume(&pair.1 .0, &pair.1 .1);
 
                     if volume.eq(&-1_f64) {
                         fail_count += 1;
                         success = false;
 
                         // C++: loggingHelper->printLog("volume", 2, currency + " " + market->getName() + " " + pair.first);
-                        println!(
-                            "{} {} {}",
-                            currency,
-                            market.lock().unwrap().get_spine().name,
-                            pair.0
-                        );
+                        println!("{} {} {}", currency, market.get_spine().name, pair.0);
                     }
 
                     volume_val += volume;
 
                     buf = format!(
                         "{}: {}_{} {} ",
-                        market.lock().unwrap().get_spine().name,
+                        market.get_spine().name,
                         pair.1 .0,
                         pair.1 .1,
                         volume
@@ -109,20 +104,6 @@ impl Worker {
 
         // C++: code, associated with Redis
         // C++: code, associated with candles
-    }
-
-    pub fn recalculate_total_volume(&self, currency: String) {
-        // println!("called Worker::recalculate_total_volume()");
-
-        let worker = Arc::clone(self.arc.as_ref().unwrap());
-
-        let thread = thread::spawn(move || {
-            worker
-                .lock()
-                .unwrap()
-                .recalculate_total_volume__inner(currency);
-        });
-        self.tx.send(thread).unwrap();
     }
 
     fn configure(&mut self) {
