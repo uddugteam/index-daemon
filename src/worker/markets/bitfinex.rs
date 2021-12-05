@@ -53,16 +53,6 @@ impl Market for Bitfinex {
             .to_uppercase()
     }
 
-    fn add_exchange_pair(&mut self, pair: (&str, &str), conversion: ConversionType) {
-        let pair_string = self.make_pair(pair);
-        self.spine.add_exchange_pair(pair_string, pair, conversion);
-    }
-
-    fn get_total_volume(&self, first_currency: &str, second_currency: &str) -> f64 {
-        let pair: String = self.make_pair((first_currency, second_currency));
-        self.spine.get_total_volume(&pair)
-    }
-
     // TODO: Replace `delay` constants with parameters
     fn update(&mut self) {
         // println!("called Bitfinex::update()");

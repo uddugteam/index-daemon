@@ -30,8 +30,18 @@ pub trait Market {
     fn make_pair(&self, pair: (&str, &str)) -> String {
         pair.0.to_string() + pair.1
     }
-    fn add_exchange_pair(&mut self, pair: (&str, &str), conversion: ConversionType);
-    fn get_total_volume(&self, first_currency: &str, second_currency: &str) -> f64;
+
+    fn add_exchange_pair(&mut self, pair: (&str, &str), conversion: ConversionType) {
+        let pair_string = self.make_pair(pair);
+        self.get_spine_mut()
+            .add_exchange_pair(pair_string, pair, conversion);
+    }
+
+    fn get_total_volume(&self, first_currency: &str, second_currency: &str) -> f64 {
+        let pair: String = self.make_pair((first_currency, second_currency));
+        self.get_spine().get_total_volume(&pair)
+    }
+
     fn update(&mut self);
     fn perform(&mut self) {
         println!("called Market::perform()");
