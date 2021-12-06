@@ -13,7 +13,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::thread::JoinHandle;
 
-const EPS: f64 = 0.00001;
+pub const EPS: f64 = 0.00001;
 
 pub struct MarketSpine {
     worker: Arc<Mutex<Worker>>,
@@ -205,7 +205,7 @@ impl MarketSpine {
     }
 
     // TODO: Implement
-    fn update_market_pair(&mut self, pair: &str, scope: &str, price_changed: bool) {}
+    pub fn update_market_pair(&mut self, pair: &str, scope: &str, price_changed: bool) {}
 
     // TODO: Implement
     pub fn set_last_trade_volume(&mut self, pair: &str, value: f64) {
@@ -215,5 +215,31 @@ impl MarketSpine {
     // TODO: Implement
     pub fn set_last_trade_price(&mut self, pair: &str, value: f64) {
         // println!("called MarketSpine::set_last_trade_price()");
+    }
+
+    pub fn set_total_ask(&mut self, pair: &str, value: f64) {
+        let old_value: f64 = self.get_exchange_pairs().get(pair).unwrap().get_total_ask();
+
+        if (old_value - value).abs() > EPS {
+            self.get_exchange_pairs_mut()
+                .get_mut(pair)
+                .unwrap()
+                .set_total_ask(value);
+
+            self.update_market_pair(pair, "totalValues", false);
+        }
+    }
+
+    pub fn set_total_bid(&mut self, pair: &str, value: f64) {
+        let old_value: f64 = self.get_exchange_pairs().get(pair).unwrap().get_total_bid();
+
+        if (old_value - value).abs() > EPS {
+            self.get_exchange_pairs_mut()
+                .get_mut(pair)
+                .unwrap()
+                .set_total_bid(value);
+
+            self.update_market_pair(pair, "totalValues", false);
+        }
     }
 }

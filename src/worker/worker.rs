@@ -48,7 +48,7 @@ impl Worker {
 
     /// Never lock Worker inside methods of Market
     pub fn recalculate_total_volume(&self, currency: String) {
-        // println!("called Worker::recalculate_total_volume__inner()");
+        // println!("called Worker::recalculate_total_volume()");
 
         let mut volume_val: f64 = 0.0;
         let mut markets_count: i32 = 0;
@@ -69,7 +69,7 @@ impl Worker {
                         success = false;
 
                         // C++: loggingHelper->printLog("volume", 2, currency + " " + market->getName() + " " + pair.first);
-                        println!("{} {} {}", currency, market.get_spine().name, pair.0);
+                        // println!("{} {} {}", currency, market.get_spine().name, pair.0);
                     }
 
                     volume_val += volume;
@@ -99,8 +99,8 @@ impl Worker {
 
         // C++: loggingHelper->printLog("volume", 1, currency + ": " + std::to_string(volume_val));
         // C++: loggingHelper->printLog("volume", 3, currency + ": " + buf);
-        println!("{}: {}", currency, volume_val);
-        println!("{}: {}", currency, buf);
+        // println!("{}: {}", currency, volume_val);
+        // println!("{}: {}", currency, buf);
 
         // C++: code, associated with Redis
         // C++: code, associated with candles

@@ -42,6 +42,32 @@ pub trait Market {
         self.get_spine().get_total_volume(&pair)
     }
 
+    fn get_total_ask(&self, first_currency: &str, second_currency: &str) -> f64 {
+        let pair: String = self.make_pair((first_currency, second_currency));
+
+        let ask_sum: f64 = self
+            .get_spine()
+            .get_exchange_pairs()
+            .get(&pair)
+            .unwrap()
+            .get_total_ask();
+
+        ask_sum
+    }
+
+    fn get_total_bid(&self, first_currency: &str, second_currency: &str) -> f64 {
+        let pair: String = self.make_pair((first_currency, second_currency));
+
+        let bid_sum: f64 = self
+            .get_spine()
+            .get_exchange_pairs()
+            .get(&pair)
+            .unwrap()
+            .get_total_bid();
+
+        bid_sum
+    }
+
     fn update(&mut self);
     fn perform(&mut self) {
         println!("called Market::perform()");

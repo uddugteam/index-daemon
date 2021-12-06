@@ -1,4 +1,5 @@
 use crate::worker::market_helpers::conversion_type::ConversionType;
+use chrono::Utc;
 use rustc_serialize::json::Json;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -110,23 +111,23 @@ impl Market for Bitfinex {
 
     /// Response description: https://docs.bitfinex.com/reference?ref=https://coder.social#rest-public-trades
     fn parse_last_trade_info__socket(&mut self, pair: String, info: String) {
-        // println!("called Bitfinex::parse_last_trade_info__socket()");
-
         let json = Json::from_str(&info).unwrap();
 
         if let Some(array) = json.as_array() {
             if array.len() >= 3 {
                 if let Some(array) = array[2].as_array() {
                     if array.len() >= 4 {
+                        // println!("called Bitfinex::parse_last_trade_info__socket()");
+
                         let last_trade_volume: f64 = array[2].as_f64().unwrap().abs();
                         let last_trade_price: f64 = array[3].as_f64().unwrap();
 
                         let conversion = self.spine.get_conversions().get(&pair).unwrap().clone();
 
                         let conversion_coef: f64 = if let ConversionType::None = conversion {
-                            let p = self.spine.get_pairs().get(&pair).unwrap().1.clone();
+                            let currency = self.spine.get_pairs().get(&pair).unwrap().1.clone();
 
-                            self.spine.get_conversion_coef(&p, conversion)
+                            self.spine.get_conversion_coef(&currency, conversion)
                         } else {
                             1.0
                         };
@@ -142,9 +143,69 @@ impl Market for Bitfinex {
 
     /// Response description: https://docs.bitfinex.com/reference?ref=https://coder.social#rest-public-book
     fn parse_depth_info__socket(&mut self, pair: String, info: String) {
-        // println!("called Bitfinex::parse_depth_info__socket()");
+        let json = Json::from_str(&info).unwrap();
 
-        // let json = Json::from_str(&info).unwrap();
-        // println!("json: {}", json);
+        if let Some(array) = json.as_array() {
+            if array.len() >= 2 {
+                if let Some(array) = array[1].as_array() {
+                    if array.len() >= 3 {
+                        if let Some(price) = array[0].as_f64() {
+                            if let Some(amount) = array[2].as_f64() {
+                                // println!("called Bitfinex::parse_depth_info__socket()");
+
+                                let mut ask_sum: f64 = self
+                                    .spine
+                                    .get_exchange_pairs()
+                                    .get(&pair)
+                                    .unwrap()
+                                    .get_total_ask();
+
+                                let mut bid_sum: f64 = self
+                                    .spine
+                                    .get_exchange_pairs()
+                                    .get(&pair)
+                                    .unwrap()
+                                    .get_total_bid();
+
+                                let conversion =
+                                    self.spine.get_conversions().get(&pair).unwrap().clone();
+
+                                let conversion_coef: f64 = if let ConversionType::None = conversion
+                                {
+                                    let currency =
+                                        self.spine.get_pairs().get(&pair).unwrap().1.clone();
+
+                                    self.spine.get_conversion_coef(&currency, conversion)
+                                } else {
+                                    1.0
+                                };
+
+                                let timestamp = Utc::now();
+
+                                if amount > 0.0 {
+                                    // bid
+                                    let x: f64 = -(price * amount);
+
+                                    bid_sum += x * conversion_coef;
+
+                                    self.spine.set_total_bid(&pair, bid_sum);
+                                } else {
+                                    // ask
+                                    ask_sum += amount;
+
+                                    self.spine.set_total_ask(&pair, ask_sum);
+                                }
+
+                                self.spine
+                                    .get_exchange_pairs_mut()
+                                    .get_mut(&pair)
+                                    .unwrap()
+                                    .set_timestamp(timestamp);
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }

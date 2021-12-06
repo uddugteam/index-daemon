@@ -25,9 +25,29 @@ impl ExchangePairInfo {
     pub fn get_total_volume(&self) -> f64 {
         self.volume
     }
-
     pub fn set_total_volume(&mut self, value: f64) {
         self.volume = value;
+        self.timestamp = Utc::now();
+    }
+
+    pub fn get_total_ask(&self) -> f64 {
+        self.total_ask
+    }
+    pub fn set_total_ask(&mut self, value: f64) {
+        self.total_ask = value;
+        self.timestamp = Utc::now();
+    }
+
+    pub fn get_total_bid(&self) -> f64 {
+        self.total_bid
+    }
+    pub fn set_total_bid(&mut self, value: f64) {
+        self.total_bid = value;
+        self.timestamp = Utc::now();
+    }
+
+    pub fn set_timestamp(&mut self, timestamp: DateTime<Utc>) {
+        self.timestamp = timestamp;
     }
 }
 
