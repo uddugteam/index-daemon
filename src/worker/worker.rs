@@ -46,6 +46,7 @@ impl Worker {
         self.arc = Some(arc);
     }
 
+    // TODO: Implement
     /// Never lock Worker inside methods of Market
     pub fn recalculate_total_volume(&self, currency: String) {
         // println!("called Worker::recalculate_total_volume()");
@@ -185,13 +186,13 @@ impl Worker {
 
             // C++: calcIndex.emplace(indexName, getCustomIndexesSummary(indexName, curl));
             // C++: postgresHelper->dropToDB({"short, name"}, {"'" + indexName + "'", "'" + indexName + "'"}, "tickers", true);
-            println!(
-                "Called {} with params: table={}; keys={}; values={}",
-                "postgresHelper->dropToDB()",
-                "tickers",
-                "short, name",
-                index_name.clone() + ", " + index_name
-            );
+            // println!(
+            //     "Called {} with params: table={}; keys={}; values={}",
+            //     "postgresHelper->dropToDB()",
+            //     "tickers",
+            //     "short, name",
+            //     index_name.clone() + ", " + index_name
+            // );
         }
 
         // C++: loggingHelper->printLog("general", 1, "CustomIndexes configured successfully.");
@@ -228,13 +229,13 @@ impl Worker {
             self.coins.insert(short.clone(), full.clone());
 
             // C++: postgresHelper->dropToDB({"short, name"}, {"'" + shrt + "'", "'" + full + "'"}, "tickers", true);
-            println!(
-                "Called {} with params: table={}; keys={}; values={}",
-                "postgresHelper->dropToDB()",
-                "tickers",
-                "short, name",
-                short + ", " + &full
-            );
+            // println!(
+            //     "Called {} with params: table={}; keys={}; values={}",
+            //     "postgresHelper->dropToDB()",
+            //     "tickers",
+            //     "short, name",
+            //     short + ", " + &full
+            // );
         }
         println!("Get coins from xml END.");
 
@@ -247,13 +248,13 @@ impl Worker {
             self.fiats.insert(short.clone(), full.clone());
 
             // C++: postgresHelper->dropToDB({"short, name"}, {"'" + shrt + "'", "'" + full + "'"}, "tickers", true);
-            println!(
-                "Called {} with params: table={}; keys={}; values={}",
-                "postgresHelper->dropToDB()",
-                "tickers",
-                "short, name",
-                short + ", " + &full
-            );
+            // println!(
+            //     "Called {} with params: table={}; keys={}; values={}",
+            //     "postgresHelper->dropToDB()",
+            //     "tickers",
+            //     "short, name",
+            //     short + ", " + &full
+            // );
         }
         println!("Get fiats from xml END.");
 
@@ -263,18 +264,18 @@ impl Worker {
         // C++: postgresHelper->dropToDB({"name"}, {"'vol'"}, "data_types", true);
         // C++: postgresHelper->dropToDB({"name"}, {"'cap'"}, "data_types", true);
         // C++: postgresHelper->dropToDB({"name"}, {"'price'"}, "data_types", true);
-        println!(
-            "Called {} with params: table={}; keys={}; values={}",
-            "postgresHelper->dropToDB()", "data_types", "name", "vol"
-        );
-        println!(
-            "Called {} with params: table={}; keys={}; values={}",
-            "postgresHelper->dropToDB()", "data_types", "name", "cap"
-        );
-        println!(
-            "Called {} with params: table={}; keys={}; values={}",
-            "postgresHelper->dropToDB()", "data_types", "name", "price"
-        );
+        // println!(
+        //     "Called {} with params: table={}; keys={}; values={}",
+        //     "postgresHelper->dropToDB()", "data_types", "name", "vol"
+        // );
+        // println!(
+        //     "Called {} with params: table={}; keys={}; values={}",
+        //     "postgresHelper->dropToDB()", "data_types", "name", "cap"
+        // );
+        // println!(
+        //     "Called {} with params: table={}; keys={}; values={}",
+        //     "postgresHelper->dropToDB()", "data_types", "name", "price"
+        // );
 
         println!("Get entities from xml BEGIN.");
         let entities = xml_config_reader.get_child("entities").unwrap();
@@ -326,13 +327,13 @@ impl Worker {
             // C++: ThreadPool *threadPool = new ThreadPool(30);
 
             // C++: postgresHelper->dropToDB({"name"}, {"'" + market->getName() + "'"}, "exchanges", true);
-            println!(
-                "Called {} with params: table={}; keys={}; values={}",
-                "postgresHelper->dropToDB()",
-                "exchanges",
-                "name",
-                market.lock().unwrap().get_spine().name
-            );
+            // println!(
+            //     "Called {} with params: table={}; keys={}; values={}",
+            //     "postgresHelper->dropToDB()",
+            //     "exchanges",
+            //     "name",
+            //     market.lock().unwrap().get_spine().name
+            // );
 
             println!("Get exchange_pairs from xml BEGIN.");
             let exchange_pairs = entity
@@ -346,24 +347,24 @@ impl Worker {
 
                 if !self.fiats.contains_key(parts[0]) && !self.coins.contains_key(parts[0]) {
                     // C++: postgresHelper->dropToDB({"short, name"}, {"'" + a + "'", "'" + a + "'"}, "tickers", true);
-                    println!(
-                        "Called {} with params: table={}; keys={}; values={}",
-                        "postgresHelper->dropToDB()",
-                        "tickers",
-                        "short, name",
-                        parts[0].to_string() + ", " + parts[0]
-                    );
+                    // println!(
+                    //     "Called {} with params: table={}; keys={}; values={}",
+                    //     "postgresHelper->dropToDB()",
+                    //     "tickers",
+                    //     "short, name",
+                    //     parts[0].to_string() + ", " + parts[0]
+                    // );
                 }
 
                 if !self.fiats.contains_key(parts[1]) && !self.coins.contains_key(parts[1]) {
                     // C++: postgresHelper->dropToDB({"short, name"}, {"'" + b + "'", "'" + b + "'"}, "tickers", true);
-                    println!(
-                        "Called {} with params: table={}; keys={}; values={}",
-                        "postgresHelper->dropToDB()",
-                        "tickers",
-                        "short, name",
-                        parts[1].to_string() + ", " + parts[1]
-                    );
+                    // println!(
+                    //     "Called {} with params: table={}; keys={}; values={}",
+                    //     "postgresHelper->dropToDB()",
+                    //     "tickers",
+                    //     "short, name",
+                    //     parts[1].to_string() + ", " + parts[1]
+                    // );
                 }
 
                 let conversion: String = get_node_child_text(exchange_pair, "conversion");

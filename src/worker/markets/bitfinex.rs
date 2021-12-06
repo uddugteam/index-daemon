@@ -89,9 +89,8 @@ impl Market for Bitfinex {
             if array.len() >= 2 {
                 if let Some(array) = array[1].as_array() {
                     if array.len() >= 8 {
-                        // println!("called Bitfinex::parse_ticker_info__socket()");
-                        // println!("pair: {}", pair);
-                        // println!("json: {}", json);
+                        println!("called Bitfinex::parse_ticker_info__socket()");
+                        println!("pair: {}", pair);
 
                         let currency = self.spine.get_pairs().get(&pair).unwrap().0.clone();
 
@@ -100,7 +99,7 @@ impl Market for Bitfinex {
                             .get_conversion_coef(&currency, ConversionType::Crypto);
 
                         let volume: f64 = array[7].as_f64().unwrap();
-                        // println!("volume: {}", volume);
+                        println!("volume: {}", volume);
 
                         self.spine.set_total_volume(&pair, volume * conversion_coef);
                     }
@@ -117,10 +116,14 @@ impl Market for Bitfinex {
             if array.len() >= 3 {
                 if let Some(array) = array[2].as_array() {
                     if array.len() >= 4 {
-                        // println!("called Bitfinex::parse_last_trade_info__socket()");
+                        println!("called Bitfinex::parse_last_trade_info__socket()");
+                        println!("pair: {}", pair);
 
                         let last_trade_volume: f64 = array[2].as_f64().unwrap().abs();
+                        println!("Last trade volume: {}", last_trade_volume);
+
                         let last_trade_price: f64 = array[3].as_f64().unwrap();
+                        println!("Last trade price: {}", last_trade_price);
 
                         let conversion = self.spine.get_conversions().get(&pair).unwrap().clone();
 
@@ -151,7 +154,8 @@ impl Market for Bitfinex {
                     if array.len() >= 3 {
                         if let Some(price) = array[0].as_f64() {
                             if let Some(amount) = array[2].as_f64() {
-                                // println!("called Bitfinex::parse_depth_info__socket()");
+                                println!("called Bitfinex::parse_depth_info__socket()");
+                                println!("pair: {}", pair);
 
                                 let mut ask_sum: f64 = self
                                     .spine
@@ -187,11 +191,13 @@ impl Market for Bitfinex {
                                     let x: f64 = -(price * amount);
 
                                     bid_sum += x * conversion_coef;
+                                    println!("Bid sum: {}", bid_sum);
 
                                     self.spine.set_total_bid(&pair, bid_sum);
                                 } else {
                                     // ask
                                     ask_sum += amount;
+                                    println!("Ask sum: {}", ask_sum);
 
                                     self.spine.set_total_ask(&pair, ask_sum);
                                 }
