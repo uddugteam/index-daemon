@@ -1,41 +1,12 @@
 use crate::worker::market_helpers::conversion_type::ConversionType;
 use chrono::Utc;
 use rustc_serialize::json::Json;
-use std::sync::{Arc, Mutex};
-use std::thread;
-use std::time;
 
 use crate::worker::market_helpers::market::Market;
 use crate::worker::market_helpers::market_spine::MarketSpine;
-use crate::worker::network_helpers::socket_helper::SocketHelper;
 
 pub struct Bitfinex {
     pub spine: MarketSpine,
-}
-
-impl Bitfinex {
-    pub fn subscribe_channel(market: Arc<Mutex<dyn Market + Send>>, pair: String, channel: &str) {
-        // println!("called Bitfinex::subscribe_channel()");
-
-        let socker_helper = SocketHelper::new(
-            "wss://api-pub.bitfinex.com/ws/2".to_string(),
-            format!(
-                "{{\"event\":\"subscribe\", \"channel\":\"{}\", \"symbol\":\"{}\"}}",
-                channel, pair
-            ),
-            pair,
-            |pair: String, info: String| match channel {
-                "ticker" => market.lock().unwrap().parse_ticker_info__socket(pair, info),
-                "trades" => market
-                    .lock()
-                    .unwrap()
-                    .parse_last_trade_info__socket(pair, info),
-                "book" => market.lock().unwrap().parse_depth_info__socket(pair, info),
-                _ => println!("Error: channel not supported."),
-            },
-        );
-        socker_helper.start();
-    }
 }
 
 impl Market for Bitfinex {
@@ -54,31 +25,15 @@ impl Market for Bitfinex {
             .to_uppercase()
     }
 
-    // TODO: Replace `delay` constants with parameters
-    fn update(&mut self) {
-        // println!("called Bitfinex::update()");
+    fn get_websocket_url(&self, pair: &str, channel: &str) -> String {
+        "wss://api-pub.bitfinex.com/ws/2".to_string()
+    }
 
-        self.spine.socket_enabled = true;
-
-        let channels = ["ticker", "trades", "book"];
-
-        for exchange_pair in self.spine.get_exchange_pairs() {
-            for channel in channels {
-                let market_2 = Arc::clone(self.spine.arc.as_ref().unwrap());
-                let pair_2 = exchange_pair.0.to_string();
-                let thread = thread::spawn(move || {
-                    let market_3 = Arc::clone(&market_2);
-                    let pair_3 = pair_2.clone();
-                    loop {
-                        Self::subscribe_channel(Arc::clone(&market_3), pair_3.clone(), channel);
-                        thread::sleep(time::Duration::from_millis(10000));
-                    }
-                });
-                thread::sleep(time::Duration::from_millis(3000));
-
-                self.spine.tx.send(thread).unwrap();
-            }
-        }
+    fn get_websocket_on_open_msg(&self, pair: &str, channel: &str) -> String {
+        format!(
+            "{{\"event\":\"subscribe\", \"channel\":\"{}\", \"symbol\":\"{}\"}}",
+            channel, pair
+        )
     }
 
     /// Response description: https://docs.bitfinex.com/reference?ref=https://coder.social#rest-public-ticker

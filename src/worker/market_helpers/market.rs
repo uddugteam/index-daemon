@@ -4,7 +4,10 @@ use crate::worker::markets::bitfinex::Bitfinex;
 // use crate::worker::markets::bittrex::Bittrex;
 // use crate::worker::markets::poloniex::Poloniex;
 use crate::worker::market_helpers::conversion_type::ConversionType;
+use crate::worker::network_helpers::socket_helper::SocketHelper;
 use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time;
 
 pub fn market_factory(spine: MarketSpine) -> Arc<Mutex<dyn Market + Send>> {
     let market: Arc<Mutex<dyn Market + Send>> = match spine.name.as_ref() {
@@ -22,6 +25,33 @@ pub fn market_factory(spine: MarketSpine) -> Arc<Mutex<dyn Market + Send>> {
         .set_arc(Arc::clone(&market));
 
     market
+}
+
+fn subscribe_channel(
+    market: Arc<Mutex<dyn Market + Send>>,
+    pair: String,
+    channel: &str,
+    url: String,
+    on_open_msg: String,
+) {
+    // println!("called subscribe_channel()");
+
+    let socker_helper =
+        SocketHelper::new(
+            url,
+            on_open_msg,
+            pair,
+            |pair: String, info: String| match channel {
+                "ticker" => market.lock().unwrap().parse_ticker_info__socket(pair, info),
+                "trades" => market
+                    .lock()
+                    .unwrap()
+                    .parse_last_trade_info__socket(pair, info),
+                "book" => market.lock().unwrap().parse_depth_info__socket(pair, info),
+                _ => println!("Error: channel not supported."),
+            },
+        );
+    socker_helper.start();
 }
 
 pub trait Market {
@@ -68,7 +98,40 @@ pub trait Market {
         bid_sum
     }
 
-    fn update(&mut self);
+    fn get_websocket_url(&self, pair: &str, channel: &str) -> String;
+    fn get_websocket_on_open_msg(&self, pair: &str, channel: &str) -> String;
+
+    // TODO: Replace `delay` constants with parameters
+    fn update(&mut self) {
+        // println!("called Market::update()");
+
+        self.get_spine_mut().socket_enabled = true;
+
+        let channels = ["ticker", "trades", "book"];
+
+        for exchange_pair in self.get_spine().get_exchange_pairs() {
+            for channel in channels {
+                let market = Arc::clone(self.get_spine().arc.as_ref().unwrap());
+                let pair = exchange_pair.0.to_string();
+                let url = self.get_websocket_url(&pair, channel);
+                let on_open_msg = self.get_websocket_on_open_msg(&pair, channel);
+                let thread = thread::spawn(move || loop {
+                    subscribe_channel(
+                        Arc::clone(&market),
+                        pair.clone(),
+                        channel,
+                        url.clone(),
+                        on_open_msg.clone(),
+                    );
+                    thread::sleep(time::Duration::from_millis(10000));
+                });
+                thread::sleep(time::Duration::from_millis(3000));
+
+                self.get_spine().tx.send(thread).unwrap();
+            }
+        }
+    }
+
     fn perform(&mut self) {
         println!("called Market::perform()");
 
