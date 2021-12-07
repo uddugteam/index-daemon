@@ -253,6 +253,31 @@
     <entities>
         <entity>
             <status>active</status>
+            <name>binance</name>
+            <api-url>https://www.binance.com/api/v1</api-url>
+            <error-message>message</error-message>
+            <delay>4000</delay>
+            <currency_mask_pairs>
+                <mask-pair>IOT:IOTA</mask-pair>
+                <mask-pair>USD:USDT</mask-pair>
+            </currency_mask_pairs>
+            <exchange_pairs>
+                <pair>
+                    <value>BTC:USD</value>
+                    <conversion>none</conversion>
+                </pair>
+                <pair>
+                    <value>ETH:USD</value>
+                    <conversion>none</conversion>
+                </pair>
+                <pair>
+                    <value>ETH:BTC</value>
+                    <conversion>crypto</conversion>
+                </pair>
+            </exchange_pairs>
+        </entity>
+        <entity>
+            <status>active</status>
             <name>bitfinex</name>
             <api-url>https://api.bitfinex.com/v1</api-url>
             <error-message>error</error-message>

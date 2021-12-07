@@ -30,11 +30,12 @@ impl Market for Bitfinex {
         "wss://api-pub.bitfinex.com/ws/2".to_string()
     }
 
-    fn get_websocket_on_open_msg(&self, pair: &str, channel: MarketChannels) -> String {
-        format!(
+    fn get_websocket_on_open_msg(&self, pair: &str, channel: MarketChannels) -> Option<String> {
+        Some(format!(
             "{{\"event\":\"subscribe\", \"channel\":\"{}\", \"symbol\":\"{}\"}}",
-            channel, pair
-        )
+            self.get_channel_text_view(channel),
+            pair
+        ))
     }
 
     /// Response description: https://docs.bitfinex.com/reference?ref=https://coder.social#rest-public-ticker

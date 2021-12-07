@@ -1,5 +1,5 @@
 use crate::worker::market_helpers::market_spine::MarketSpine;
-// use crate::worker::markets::binance::Binance;
+use crate::worker::markets::binance::Binance;
 use crate::worker::markets::bitfinex::Bitfinex;
 // use crate::worker::markets::bittrex::Bittrex;
 // use crate::worker::markets::poloniex::Poloniex;
@@ -12,7 +12,7 @@ use std::time;
 
 pub fn market_factory(spine: MarketSpine) -> Arc<Mutex<dyn Market + Send>> {
     let market: Arc<Mutex<dyn Market + Send>> = match spine.name.as_ref() {
-        // "binance" => Box::new(RefCell::new(Binance { spine, arc: None })),
+        "binance" => Arc::new(Mutex::new(Binance { spine })),
         "bitfinex" => Arc::new(Mutex::new(Bitfinex { spine })),
         // "bittrex" => Box::new(RefCell::new(Bittrex { spine, arc: None })),
         // "poloniex" => Box::new(RefCell::new(Poloniex { spine, arc: None })),
@@ -33,7 +33,7 @@ fn subscribe_channel(
     pair: String,
     channel: MarketChannels,
     url: String,
-    on_open_msg: String,
+    on_open_msg: Option<String>,
 ) {
     // println!("called subscribe_channel()");
 
@@ -145,8 +145,11 @@ pub trait Market {
         bid_sum
     }
 
+    fn get_channel_text_view(&self, channel: MarketChannels) -> String {
+        channel.to_string()
+    }
     fn get_websocket_url(&self, pair: &str, channel: MarketChannels) -> String;
-    fn get_websocket_on_open_msg(&self, pair: &str, channel: MarketChannels) -> String;
+    fn get_websocket_on_open_msg(&self, pair: &str, channel: MarketChannels) -> Option<String>;
 
     fn perform(&mut self) {
         println!("called Market::perform()");

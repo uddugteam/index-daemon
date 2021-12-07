@@ -10,7 +10,7 @@ where
     F: Fn(String, String),
 {
     uri: String,
-    on_open_msg: String,
+    on_open_msg: Option<String>,
     pair: String,
     callback: F,
 }
@@ -19,7 +19,7 @@ impl<F> SocketHelper<F>
 where
     F: Fn(String, String),
 {
-    pub fn new(uri: String, on_open_msg: String, pair: String, callback: F) -> Self {
+    pub fn new(uri: String, on_open_msg: Option<String>, pair: String, callback: F) -> Self {
         Self {
             uri,
             on_open_msg,
@@ -48,10 +48,14 @@ where
         .expect("Websocket: Failed to connect");
     // println!("WebSocket handshake has been successfully completed");
 
-    // println!("Message sent: {}", socket_helper.on_open_msg);
-    stdin_tx
-        .unbounded_send(Message::binary(socket_helper.on_open_msg))
-        .unwrap();
+    if let Some(on_open_msg) = socket_helper.on_open_msg {
+        // println!("Message sent: {}", on_open_msg);
+        stdin_tx
+            .unbounded_send(Message::binary(on_open_msg))
+            .unwrap();
+    } else {
+        // println!("Message NOT sent, because it's empty");
+    }
 
     let (write, read) = ws_stream.split();
 
