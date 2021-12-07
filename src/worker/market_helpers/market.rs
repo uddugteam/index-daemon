@@ -4,6 +4,7 @@ use crate::worker::markets::bitfinex::Bitfinex;
 // use crate::worker::markets::bittrex::Bittrex;
 // use crate::worker::markets::poloniex::Poloniex;
 use crate::worker::market_helpers::conversion_type::ConversionType;
+use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::network_helpers::socket_helper::SocketHelper;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -30,7 +31,7 @@ pub fn market_factory(spine: MarketSpine) -> Arc<Mutex<dyn Market + Send>> {
 fn subscribe_channel(
     market: Arc<Mutex<dyn Market + Send>>,
     pair: String,
-    channel: &str,
+    channel: MarketChannels,
     url: String,
     on_open_msg: String,
 ) {
@@ -42,13 +43,14 @@ fn subscribe_channel(
             on_open_msg,
             pair,
             |pair: String, info: String| match channel {
-                "ticker" => market.lock().unwrap().parse_ticker_info__socket(pair, info),
-                "trades" => market
+                MarketChannels::Ticker => {
+                    market.lock().unwrap().parse_ticker_info__socket(pair, info)
+                }
+                MarketChannels::Trades => market
                     .lock()
                     .unwrap()
                     .parse_last_trade_info__socket(pair, info),
-                "book" => market.lock().unwrap().parse_depth_info__socket(pair, info),
-                _ => println!("Error: channel not supported."),
+                MarketChannels::Book => market.lock().unwrap().parse_depth_info__socket(pair, info),
             },
         );
     socker_helper.start();
@@ -60,7 +62,7 @@ fn update(market: Arc<Mutex<dyn Market + Send>>) {
 
     market.lock().unwrap().get_spine_mut().socket_enabled = true;
 
-    let channels = ["ticker", "trades", "book"];
+    let channels = MarketChannels::get_all();
 
     let exchange_pairs: Vec<String> = market
         .lock()
@@ -143,8 +145,8 @@ pub trait Market {
         bid_sum
     }
 
-    fn get_websocket_url(&self, pair: &str, channel: &str) -> String;
-    fn get_websocket_on_open_msg(&self, pair: &str, channel: &str) -> String;
+    fn get_websocket_url(&self, pair: &str, channel: MarketChannels) -> String;
+    fn get_websocket_on_open_msg(&self, pair: &str, channel: MarketChannels) -> String;
 
     fn perform(&mut self) {
         println!("called Market::perform()");

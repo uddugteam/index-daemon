@@ -3,6 +3,7 @@ use chrono::Utc;
 use rustc_serialize::json::Json;
 
 use crate::worker::market_helpers::market::Market;
+use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
 
 pub struct Bitfinex {
@@ -25,11 +26,11 @@ impl Market for Bitfinex {
             .to_uppercase()
     }
 
-    fn get_websocket_url(&self, pair: &str, channel: &str) -> String {
+    fn get_websocket_url(&self, pair: &str, channel: MarketChannels) -> String {
         "wss://api-pub.bitfinex.com/ws/2".to_string()
     }
 
-    fn get_websocket_on_open_msg(&self, pair: &str, channel: &str) -> String {
+    fn get_websocket_on_open_msg(&self, pair: &str, channel: MarketChannels) -> String {
         format!(
             "{{\"event\":\"subscribe\", \"channel\":\"{}\", \"symbol\":\"{}\"}}",
             channel, pair
