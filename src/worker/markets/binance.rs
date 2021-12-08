@@ -148,9 +148,9 @@ impl Market for Binance {
 
                     for bid in bids {
                         if let Some(bid) = bid.as_array() {
-                            let coef = bid[0].as_string().unwrap().parse::<f64>().unwrap();
-                            let bid = bid[1].as_string().unwrap().parse::<f64>().unwrap();
-                            bid_sum += bid * coef;
+                            let price = bid[0].as_string().unwrap().parse::<f64>().unwrap();
+                            let size = bid[1].as_string().unwrap().parse::<f64>().unwrap();
+                            bid_sum += size * price;
                         }
                     }
 

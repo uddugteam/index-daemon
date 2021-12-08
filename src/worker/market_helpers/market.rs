@@ -3,6 +3,7 @@ use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
 use crate::worker::markets::binance::Binance;
 use crate::worker::markets::bitfinex::Bitfinex;
+use crate::worker::markets::coinbase::Coinbase;
 use crate::worker::network_helpers::socket_helper::SocketHelper;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -12,6 +13,7 @@ pub fn market_factory(spine: MarketSpine) -> Arc<Mutex<dyn Market + Send>> {
     let market: Arc<Mutex<dyn Market + Send>> = match spine.name.as_ref() {
         "binance" => Arc::new(Mutex::new(Binance { spine })),
         "bitfinex" => Arc::new(Mutex::new(Bitfinex { spine })),
+        "coinbase" => Arc::new(Mutex::new(Coinbase { spine })),
         _ => panic!("Market not found: {}", spine.name),
     };
 

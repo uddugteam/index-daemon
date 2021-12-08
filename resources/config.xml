@@ -295,5 +295,24 @@
                 </pair>
             </exchange_pairs>
         </entity>
+        <entity>
+            <status>active</status>
+            <name>coinbase</name>
+            <currency_mask_pairs></currency_mask_pairs>
+            <exchange_pairs>
+                <pair>
+                    <value>BTC:USD</value>
+                    <conversion>none</conversion>
+                </pair>
+                <pair>
+                    <value>ETH:USD</value>
+                    <conversion>none</conversion>
+                </pair>
+                <pair>
+                    <value>ETH:BTC</value>
+                    <conversion>crypto</conversion>
+                </pair>
+            </exchange_pairs>
+        </entity>
     </entities>
 </config>
