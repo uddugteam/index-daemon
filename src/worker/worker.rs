@@ -65,7 +65,7 @@ impl Worker {
                     markets_count += 1;
                     let volume: f64 = market.get_total_volume(&pair.1 .0, &pair.1 .1);
 
-                    if volume.eq(&-1_f64) {
+                    if volume.eq(&-1.0) {
                         fail_count += 1;
                         success = false;
 

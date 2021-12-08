@@ -207,14 +207,54 @@ impl MarketSpine {
     // TODO: Implement
     pub fn update_market_pair(&mut self, pair: &str, scope: &str, price_changed: bool) {}
 
-    // TODO: Implement
     pub fn set_last_trade_volume(&mut self, pair: &str, value: f64) {
-        // println!("called MarketSpine::set_last_trade_volume()");
+        if value != 0.0 {
+            let old_value: f64 = self
+                .exchange_pairs
+                .get(pair)
+                .unwrap()
+                .get_last_trade_volume();
+
+            if (old_value - value).abs() > EPS {
+                self.exchange_pairs
+                    .get_mut(pair)
+                    .unwrap()
+                    .set_last_trade_volume(value);
+
+                self.update_market_pair(pair, "lastTrade", false);
+            }
+        }
     }
 
-    // TODO: Implement
     pub fn set_last_trade_price(&mut self, pair: &str, value: f64) {
-        // println!("called MarketSpine::set_last_trade_price()");
+        let old_value: f64 = self
+            .exchange_pairs
+            .get(pair)
+            .unwrap()
+            .get_last_trade_price();
+
+        // If new value is a Real price
+        if value <= 0.0 {
+            return;
+        }
+        // If old_value was defined
+        if !old_value.eq(&-1.0) {
+            // If new value is not equal to the old value
+            if (old_value - value).abs() < EPS {
+                return;
+            }
+            // If new value is inside Real sequence
+            if value > old_value * 1.5 || value < old_value / 1.5 {
+                return;
+            }
+        }
+
+        self.exchange_pairs
+            .get_mut(pair)
+            .unwrap()
+            .set_last_trade_price(value);
+
+        self.update_market_pair(pair, "lastTrade", false);
     }
 
     pub fn set_total_ask(&mut self, pair: &str, value: f64) {
