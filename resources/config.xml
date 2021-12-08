@@ -254,9 +254,6 @@
         <entity>
             <status>active</status>
             <name>binance</name>
-            <api-url>https://www.binance.com/api/v1</api-url>
-            <error-message>message</error-message>
-            <delay>4000</delay>
             <currency_mask_pairs>
                 <mask-pair>IOT:IOTA</mask-pair>
                 <mask-pair>USD:USDT</mask-pair>
@@ -279,9 +276,6 @@
         <entity>
             <status>active</status>
             <name>bitfinex</name>
-            <api-url>https://api.bitfinex.com/v1</api-url>
-            <error-message>error</error-message>
-            <delay>3000</delay>
             <currency_mask_pairs>
                 <mask-pair>DASH:dsh</mask-pair>
                 <mask-pair>QTUM:QTM</mask-pair>

@@ -282,9 +282,6 @@ impl Worker {
         for entity in entities.children.iter() {
             let status: String = get_node_child_text_as(entity, "status").unwrap();
             let name: String = get_node_child_text_as(entity, "name").unwrap();
-            let api_url: String = get_node_child_text_as(entity, "api-url").unwrap();
-            let error_message: String = get_node_child_text_as(entity, "error-message").unwrap();
-            let delay: u32 = get_node_child_text_as(entity, "delay").unwrap();
 
             let worker_2 = Arc::clone(self.arc.as_ref().unwrap());
 
@@ -298,9 +295,6 @@ impl Worker {
                     )
                 }),
                 name.clone(),
-                api_url,
-                error_message,
-                delay,
                 update_ticker,
                 update_last_trade,
                 update_depth,
