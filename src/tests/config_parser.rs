@@ -9,21 +9,21 @@ const TEST_CONFIG_PATH_4: &str = "./test/resources/curr_daemon__bad__no_equal_si
 fn test_config_parser() {
     let config_parser = ConfigParser::new(TEST_CONFIG_PATH).unwrap();
     assert_eq!(
-        config_parser.getParam("param_code_1"),
+        config_parser.get_param("param_code_1"),
         Some("param_value_1")
     );
     assert_eq!(
-        config_parser.getParam("param_code_2"),
+        config_parser.get_param("param_code_2"),
         Some("param_value_2")
     );
     assert_eq!(
-        config_parser.getParam("param_code_3"),
+        config_parser.get_param("param_code_3"),
         Some("param_value_3")
     );
-    assert_eq!(config_parser.getParam("param_code_4"), Some(""));
-    assert_eq!(config_parser.getParam("param_code_5"), Some(""));
+    assert_eq!(config_parser.get_param("param_code_4"), Some(""));
+    assert_eq!(config_parser.get_param("param_code_5"), Some(""));
     assert_eq!(
-        config_parser.getParam("param_code_6"),
+        config_parser.get_param("param_code_6"),
         Some("param_value 2")
     );
 }

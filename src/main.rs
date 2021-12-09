@@ -1,4 +1,6 @@
+use crate::worker::worker::Worker;
 use std::env;
+use std::sync::mpsc;
 
 mod worker;
 
@@ -6,19 +8,16 @@ mod worker;
 mod tests;
 
 const VERSION: &str = "1.0";
-static mut DAEMON_MODE: bool = false;
 
 // TODO: Implement
-fn daemonize() {
+fn daemonize() -> bool {
     println!("daemonize called.");
 
-    unsafe {
-        DAEMON_MODE = true;
-    }
+    true
 }
 
 fn main() {
-    let mut args: Vec<_> = env::args().collect();
+    let mut args: Vec<String> = env::args().collect();
 
     if args.len() > 1 && args[1] == "-v" {
         println!("Current version {}", VERSION);
@@ -36,10 +35,12 @@ fn main() {
         return;
     }
 
-    match args.iter().position(|s| s == "-nodaemon") {
+    let daemon_mode = match args.iter().position(|s| s == "-nodaemon") {
         Some(index) => {
             let _ = args.remove(index);
             println!("daemonize NOT called.");
+
+            false
         }
         _ => daemonize(),
     };
@@ -53,14 +54,17 @@ fn main() {
         }
     }
 
-    let mut worker = worker::worker::Worker::new();
-    if args.contains(&String::from("all")) || args.len() == 1 {
-        unsafe {
-            worker.start("all", DAEMON_MODE, config);
-        }
+    let (tx, rx) = mpsc::channel();
+
+    let worker = Worker::new(config, tx);
+
+    if args.contains(&"all".to_string()) || args.len() == 1 {
+        worker.lock().unwrap().start("all", daemon_mode);
     } else {
-        unsafe {
-            worker.start(&args[1], DAEMON_MODE, config);
-        }
+        worker.lock().unwrap().start(&args[1], daemon_mode);
+    };
+
+    for received_thread in rx {
+        let _ = received_thread.join();
     }
 }

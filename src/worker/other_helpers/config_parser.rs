@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::env;
 use std::fs::File;
 use std::io::{self, prelude::*, BufReader};
 
@@ -8,7 +7,7 @@ pub struct ConfigParser {
 }
 
 impl ConfigParser {
-    pub fn new(path: &str) -> Result<ConfigParser, io::Error> {
+    pub fn new(path: &str) -> Result<Self, io::Error> {
         let mut params: HashMap<String, String> = HashMap::new();
 
         let file = File::open(path)?;
@@ -44,7 +43,7 @@ impl ConfigParser {
                                 panic!("Param value read error, line number: {}", line_number);
                             });
 
-                        params.insert(String::from(param_code), String::from(param_value));
+                        params.insert(param_code.to_string(), param_value.to_string());
                     }
                 }
             }
@@ -53,7 +52,7 @@ impl ConfigParser {
         Ok(ConfigParser { params })
     }
 
-    pub fn getParam(&self, name: &str) -> Option<&str> {
+    pub fn get_param(&self, name: &str) -> Option<&str> {
         self.params.get(name).map(|v| &v[..])
     }
 }
