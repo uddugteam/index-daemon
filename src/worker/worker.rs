@@ -17,7 +17,8 @@ pub const DEFAULT_CONFIG_PATH_2: &str = "/etc/curr_daemon/curr_daemon.config";
 pub const XML_CONFIG_FILE_PATH: &str = "./resources/config.xml";
 
 pub struct Worker {
-    config_path: Option<String>,
+    main_config_path: Option<String>,
+    coins_config_path: Option<String>,
     coins: HashMap<String, String>,
     fiats: HashMap<String, String>,
     markets: Vec<Arc<Mutex<dyn Market + Send>>>,
@@ -26,9 +27,14 @@ pub struct Worker {
 }
 
 impl Worker {
-    pub fn new(config_path: Option<String>, tx: Sender<JoinHandle<()>>) -> Arc<Mutex<Self>> {
+    pub fn new(
+        main_config_path: Option<String>,
+        coins_config_path: Option<String>,
+        tx: Sender<JoinHandle<()>>,
+    ) -> Arc<Mutex<Self>> {
         let worker = Worker {
-            config_path,
+            main_config_path,
+            coins_config_path,
             coins: HashMap::new(),
             fiats: HashMap::new(),
             markets: Vec::new(),
@@ -108,7 +114,7 @@ impl Worker {
     }
 
     fn configure(&mut self) {
-        let path: String = match &self.config_path {
+        let path: String = match &self.main_config_path {
             Some(config_path_str) if Path::new(config_path_str).exists() => {
                 config_path_str.to_string()
             }
@@ -151,33 +157,21 @@ impl Worker {
             // C++: postgresHelper->init(pqHost, pqPort, pqDBName, pqUser, pqPass, pqMaxConns);
         }
 
-        let coins_path = config_parser
-            .get_param("coins.config")
-            .expect("Param coins.config not found");
-
-        // C++: TiXmlDocument doc("../resources/config.xml");
+        let coins_path = self
+            .coins_config_path
+            .as_deref()
+            .unwrap_or(XML_CONFIG_FILE_PATH);
 
         let xml_config_reader =
-            match Element::parse(fs::read_to_string(XML_CONFIG_FILE_PATH).unwrap().as_bytes()) {
+            match Element::parse(fs::read_to_string(coins_path).unwrap().as_bytes()) {
                 Ok(xml_reader) => xml_reader,
                 Err(err) => {
-                    // C++: loggingHelper->printLog("default", 1, "Basic Config not Found. Checking alternative config.");
-                    println!("Basic Config open error: {}.", err.to_string());
+                    println!("Config open error: {}.", err);
                     println!("Checking alternative config.");
-
-                    match Element::parse(fs::read_to_string(coins_path).unwrap().as_bytes()) {
-                        Ok(xml_reader) => xml_reader,
-                        Err(err) => {
-                            // C++: loggingHelper->printLog("default", 1, "Config not Found. Abort.");
-                            println!("Config open error: {}.", err.to_string());
-                            println!("Abort.");
-                            panic!("NoConfig");
-                        }
-                    }
+                    panic!("NoConfig");
                 }
             };
 
-        // C++: loggingHelper->printLog("default", 1, "CoinsConfig path = " + coins_path);
         println!("CoinsConfig path = {}", coins_path);
 
         let custom_index = xml_config_reader.get_child("custom-index").unwrap();
@@ -409,21 +403,8 @@ impl Worker {
         println!("Configuration done.");
     }
 
-    pub fn start(&mut self, market_startup: &str, daemon: bool) {
-        // C++: sqlitePool = new ThreadPool(20);
-        println!("market_startup: {}", market_startup);
-        if !daemon {
-            println!("daemon interface disabled");
-        }
-        // C++: curl = curl_easy_init();
-
+    pub fn start(&mut self, market_startup: Option<Vec<&str>>, daemon: bool) {
         self.configure();
-
-        // C++: auto ping_thread = std::async(std::launch::async, [this] {
-        // C++:    this->pingPong.perform();
-        // C++: });
-
-        // C++: this->pool.perform();
 
         for market in self.markets.iter().map(|a| Arc::clone(a)) {
             let market_name = market.lock().unwrap().get_spine().name.clone();
@@ -433,7 +414,11 @@ impl Worker {
             println!("{} {}", market_name, market_status);
 
             if market_is_active
-                && (market_startup.contains(&market_name) || market_startup == "all")
+                && (market_startup.as_ref().is_none()
+                    || market_startup
+                        .as_ref()
+                        .unwrap()
+                        .contains(&market_name.as_str()))
             {
                 let thread = thread::spawn(move || {
                     market.lock().unwrap().perform();
