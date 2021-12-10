@@ -35,7 +35,7 @@ impl Market for Coinbase {
         }
     }
 
-    fn get_websocket_url(&self, pair: &str, channel: MarketChannels) -> String {
+    fn get_websocket_url(&self, _pair: &str, _channel: MarketChannels) -> String {
         "wss://ws-feed.pro.coinbase.com".to_string()
     }
 
@@ -48,14 +48,14 @@ impl Market for Coinbase {
     }
 
     // TODO: Check whether key `volume_24h` is right
-    fn parse_ticker_info__socket(&mut self, pair: String, info: String) {
+    fn parse_ticker_info(&mut self, pair: String, info: String) {
         let json = Json::from_str(&info).unwrap();
 
         if let Some(object) = json.as_object() {
             if let Some(volume) = object.get("volume_24h") {
                 if let Some(volume) = volume.as_string() {
                     if let Ok(volume) = volume.parse::<f64>() {
-                        println!("called Coinbase::parse_ticker_info__socket()");
+                        println!("called Coinbase::parse_ticker_info()");
                         println!("pair: {}", pair);
                         println!("volume: {}", volume);
 
@@ -72,13 +72,13 @@ impl Market for Coinbase {
         }
     }
 
-    fn parse_last_trade_info__socket(&mut self, pair: String, info: String) {
+    fn parse_last_trade_info(&mut self, pair: String, info: String) {
         let json = Json::from_str(&info).unwrap();
 
         if let Some(object) = json.as_object() {
             if let Some(last_trade_volume) = object.get("size") {
                 if let Some(last_trade_price) = object.get("price") {
-                    println!("called Coinbase::parse_last_trade_info__socket()");
+                    println!("called Coinbase::parse_last_trade_info()");
                     println!("pair: {}", pair);
 
                     let last_trade_volume: f64 =
@@ -107,13 +107,13 @@ impl Market for Coinbase {
         }
     }
 
-    fn parse_depth_info__socket(&mut self, pair: String, info: String) {
+    fn parse_depth_info(&mut self, pair: String, info: String) {
         let json = Json::from_str(&info).unwrap();
 
         if let Some(object) = json.as_object() {
             if let Some(asks) = object.get("asks") {
                 if let Some(bids) = object.get("bids") {
-                    println!("called Coinbase::parse_depth_info__socket()");
+                    println!("called Coinbase::parse_depth_info()");
                     println!("pair: {}", pair);
 
                     let conversion = self.spine.get_conversions().get(&pair).unwrap().clone();

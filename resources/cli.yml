@@ -1,22 +1,15 @@
 name: ICEX
 version: "1.0"
 args:
-  - main-config:
-      long: main-config
-      value_name: FILE
-      help: Sets a custom mainconfig file
-      takes_value: true
-  - coins-config:
-      long: coins-config
-      value_name: FILE
-      help: Sets a custom coins config file
-      takes_value: true
   - market:
       long: market
       value_name: MARKET
       help: Select markets (default - all markets)
       takes_value: true
       multiple: true
-  - nodaemon:
-      long: nodaemon
-      help: Turns off daemon mode
+  - coin:
+      long: coin
+      value_name: COIN
+      help: Select coins (default - all coins)
+      takes_value: true
+      multiple: true
