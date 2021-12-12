@@ -1,15 +1,8 @@
 name: ICEX
 version: "1.0"
 args:
-  - market:
-      long: market
-      value_name: MARKET
-      help: Select markets (default - all markets)
+  - market_config:
+      long: market_config
+      value_name: PATH
+      help: Market config file path
       takes_value: true
-      multiple: true
-  - coin:
-      long: coin
-      value_name: COIN
-      help: Select coins (default - all coins)
-      takes_value: true
-      multiple: true

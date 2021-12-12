@@ -1,0 +1,7 @@
+markets:
+  - binance
+  - bitfinex
+  - coinbase
+coins:
+  - BTC
+  - ETH
