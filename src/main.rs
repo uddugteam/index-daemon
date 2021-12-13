@@ -16,15 +16,14 @@ fn get_config_file_path(key: &str) -> Option<String> {
 
 fn get_config(key: &str) -> config::Config {
     let mut market_config = config::Config::default();
-    market_config
-        .merge(config::File::with_name("./resources/market_config_default"))
-        .unwrap();
 
     if let Some(path) = get_config_file_path(key) {
         market_config.merge(config::File::with_name(&path)).unwrap();
     } else {
+        let env_key = "APP_".to_string() + &key.to_uppercase();
+
         market_config
-            .merge(config::Environment::with_prefix("APP_MARKET").separator("_"))
+            .merge(config::Environment::with_prefix(&env_key).separator("_"))
             .unwrap();
     }
 
