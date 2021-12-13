@@ -44,7 +44,8 @@ fn get_param_value_as_vec_of_string(config: &config::Config, key: &str) -> Optio
 fn main() {
     let market_config = get_config("market_config");
 
-    let markets: Option<Vec<String>> = get_param_value_as_vec_of_string(&market_config, "markets");
+    let markets: Option<Vec<String>> =
+        get_param_value_as_vec_of_string(&market_config, "exchanges");
     let markets: Option<Vec<&str>> = markets
         .as_ref()
         .map(|v| v.iter().map(|v| v.as_str()).collect());

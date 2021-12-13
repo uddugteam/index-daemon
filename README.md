@@ -12,17 +12,17 @@ You can use _env vars_ or _config file_. You can specify _config file_ in _CLI p
 
 #### market_config
 
-- **markets** - array (contains market names in _lowercase_. E.g. "binance")
+- **exchanges** - array (contains market names in _lowercase_. E.g. "binance")
 - **coins** - array (contains coin name abbreviations in _uppercase_. E.g. "BTC")
 
 ### Env vars format description
 
 - env var name must be uppercase
 - env var name must have prefix "APP_"
-- env var name is a concatenation of _config group name_ (e.g. "market_config") and _config name_ (e.g. "markets"), separated by underscore "_". E.g. "APP_MARKET_CONFIG_MARKETS"
+- env var name is a concatenation of _config group name_ (e.g. "market_config") and _config name_ (e.g. "exchanges"), separated by underscore "_". E.g. "APP_MARKET_CONFIG_EXCHANGES"
 - if param is array, env var value must contain string with comma-separated array values. E.g. "1,2,3"
 
-## Supported markets
+## Supported exchanges
 
 - binance
 - bitfinex
