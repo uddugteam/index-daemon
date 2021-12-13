@@ -22,6 +22,12 @@ You can use _env vars_ or _config file_. You can specify _config file_ in _CLI p
 - env var name is a concatenation of _config group name_ (e.g. "market_config") and _config name_ (e.g. "markets"), separated by underscore "_". E.g. "APP_MARKET_CONFIG_MARKETS"
 - if param is array, env var value must contain string with comma-separated array values. E.g. "1,2,3"
 
+## Supported markets
+
+- binance
+- bitfinex
+- coinbase
+
 ## Note
 
 There's only one fiat currency supported - "USD", and it's hardcoded.
