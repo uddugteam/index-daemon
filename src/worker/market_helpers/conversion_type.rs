@@ -1,6 +1,7 @@
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 
+#[derive(Debug)]
 pub enum ConversionType {
     None,
     Fiat,

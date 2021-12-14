@@ -34,80 +34,12 @@ impl Worker {
 
     // TODO: Implement
     /// Never lock Worker inside methods of Market
-    pub fn recalculate_total_volume(&self, currency: String) {
+    pub fn recalculate_total_volume(&self, _currency: String) {
         // println!("called Worker::recalculate_total_volume()");
-
-        let mut volume_val: f64 = 0.0;
-        let mut markets_count: i32 = 0;
-        let mut buf: String = String::new();
-        let mut success: bool = true;
-        let mut fail_count: i32 = 0;
-
-        for market in &self.markets {
-            let market = market.lock().unwrap();
-
-            for pair in market.get_spine().get_pairs() {
-                if pair.1 .0 == currency {
-                    markets_count += 1;
-                    let volume: f64 = market.get_total_volume(&pair.1 .0, &pair.1 .1);
-
-                    if volume.eq(&-1.0) {
-                        fail_count += 1;
-                        success = false;
-
-                        // C++: loggingHelper->printLog("volume", 2, currency + " " + market->getName() + " " + pair.first);
-                        // println!("{} {} {}", currency, market.get_spine().name, pair.0);
-                    }
-
-                    volume_val += volume;
-
-                    buf = format!(
-                        "{}: {}_{} {} ",
-                        market.get_spine().name,
-                        pair.1 .0,
-                        pair.1 .1,
-                        volume
-                    );
-                }
-            }
-        }
-
-        if !success {
-            // C++: loggingHelper->printLog("volume", 2, currency + " NOT ENOUGH VALUES " + std::to_string(markets_count - failCount) + " OUT OF " + std::to_string(markets_count));
-            println!(
-                "{} NOT ENOUGH VALUES {} OUT OF {}",
-                currency,
-                markets_count - fail_count,
-                markets_count
-            );
-
-            return;
-        }
-
-        // C++: loggingHelper->printLog("volume", 1, currency + ": " + std::to_string(volume_val));
-        // C++: loggingHelper->printLog("volume", 3, currency + ": " + buf);
-        // println!("{}: {}", currency, volume_val);
-        // println!("{}: {}", currency, buf);
-
-        // C++: code, associated with Redis
-        // C++: code, associated with candles
     }
 
     fn make_exchange_pairs(coins: Vec<&str>, fiats: Vec<&str>) -> Vec<ExchangePair> {
         let mut exchange_pairs = Vec::new();
-
-        for (key_1, coin_1) in coins.iter().enumerate() {
-            for key_2 in key_1 + 1..coins.len() {
-                let coin_2 = coins[key_2];
-
-                if *coin_1 != coin_2 {
-                    exchange_pairs.push(ExchangePair {
-                        pair: (coin_1.to_string(), coin_2.to_string()),
-                        conversion: ConversionType::Crypto,
-                    });
-                }
-            }
-        }
 
         for coin in coins {
             for fiat in &fiats {
@@ -151,9 +83,16 @@ impl Worker {
         self.configure(markets, coins);
 
         for market in self.markets.iter().cloned() {
-            let thread = thread::spawn(move || {
-                market.lock().unwrap().perform();
-            });
+            let thread_name = format!(
+                "fn: perform, market: {}",
+                market.lock().unwrap().get_spine().name,
+            );
+            let thread = thread::Builder::new()
+                .name(thread_name)
+                .spawn(move || {
+                    market.lock().unwrap().perform();
+                })
+                .unwrap();
             self.tx.send(thread).unwrap();
         }
     }
