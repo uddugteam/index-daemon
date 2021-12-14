@@ -1,5 +1,3 @@
-use std::borrow::Borrow;
-
 use async_std::task;
 use async_tungstenite::async_std::connect_async;
 use async_tungstenite::tungstenite::protocol::Message;
@@ -61,7 +59,7 @@ where
                 let message = message.unwrap().into_text().unwrap();
                 // println!("Got message: {:?}", mess);
 
-                socket_helper.callback.borrow()(socket_helper.pair.clone(), message);
+                (socket_helper.callback)(socket_helper.pair.clone(), message);
             })
         };
 
