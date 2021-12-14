@@ -43,6 +43,7 @@ where
 {
     let (stdin_tx, stdin_rx) = futures::channel::mpsc::unbounded();
 
+    // TODO: Remove panic
     let (ws_stream, _) = connect_async(socket_helper.uri)
         .await
         .expect("Websocket: Failed to connect");

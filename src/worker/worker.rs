@@ -151,9 +151,16 @@ impl Worker {
         self.configure(markets, coins);
 
         for market in self.markets.iter().cloned() {
-            let thread = thread::spawn(move || {
-                market.lock().unwrap().perform();
-            });
+            let thread_name = format!(
+                "fn: perform, market: {}",
+                market.lock().unwrap().get_spine().name,
+            );
+            let thread = thread::Builder::new()
+                .name(thread_name)
+                .spawn(move || {
+                    market.lock().unwrap().perform();
+                })
+                .unwrap();
             self.tx.send(thread).unwrap();
         }
     }

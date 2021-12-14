@@ -58,7 +58,6 @@ fn subscribe_channel(
     socker_helper.start();
 }
 
-// TODO: Replace `delay` constants with parameters
 fn update(market: Arc<Mutex<dyn Market + Send>>) {
     // println!("called update()");
 
@@ -86,16 +85,25 @@ fn update(market: Arc<Mutex<dyn Market + Send>>) {
                 .unwrap()
                 .get_websocket_on_open_msg(&pair, channel);
 
-            let thread = thread::spawn(move || loop {
-                subscribe_channel(
-                    Arc::clone(&market_2),
-                    pair.clone(),
-                    channel,
-                    url.clone(),
-                    on_open_msg.clone(),
-                );
-                thread::sleep(time::Duration::from_millis(10000));
-            });
+            let thread_name = format!(
+                "fn: subscribe_channel, market: {}, pair: {}, channel: {}",
+                market.lock().unwrap().get_spine().name,
+                pair,
+                channel
+            );
+            let thread = thread::Builder::new()
+                .name(thread_name)
+                .spawn(move || loop {
+                    subscribe_channel(
+                        Arc::clone(&market_2),
+                        pair.clone(),
+                        channel,
+                        url.clone(),
+                        on_open_msg.clone(),
+                    );
+                    thread::sleep(time::Duration::from_millis(10000));
+                })
+                .unwrap();
             thread::sleep(time::Duration::from_millis(12000));
 
             market.lock().unwrap().get_spine().tx.send(thread).unwrap();
@@ -159,7 +167,12 @@ pub trait Market {
         self.get_spine_mut().refresh_capitalization();
 
         let market = Arc::clone(self.get_spine().arc.as_ref().unwrap());
-        let thread = thread::spawn(move || update(market));
+
+        let thread_name = format!("fn: update, market: {}", self.get_spine().name,);
+        let thread = thread::Builder::new()
+            .name(thread_name)
+            .spawn(move || update(market))
+            .unwrap();
         self.get_spine().tx.send(thread).unwrap();
     }
     fn parse_ticker_info(&mut self, pair: String, info: String);

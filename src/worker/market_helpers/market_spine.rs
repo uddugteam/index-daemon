@@ -173,9 +173,16 @@ impl MarketSpine {
 
         let worker = Arc::clone(&self.worker);
 
-        let thread = thread::spawn(move || {
-            worker.lock().unwrap().recalculate_total_volume(currency);
-        });
+        let thread_name = format!(
+            "fn: recalculate_total_volume, market: {}, currency: {}",
+            self.name, currency,
+        );
+        let thread = thread::Builder::new()
+            .name(thread_name)
+            .spawn(move || {
+                worker.lock().unwrap().recalculate_total_volume(currency);
+            })
+            .unwrap();
         self.tx.send(thread).unwrap();
     }
 
