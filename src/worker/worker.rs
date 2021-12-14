@@ -96,19 +96,6 @@ impl Worker {
     fn make_exchange_pairs(coins: Vec<&str>, fiats: Vec<&str>) -> Vec<ExchangePair> {
         let mut exchange_pairs = Vec::new();
 
-        for (key_1, coin_1) in coins.iter().enumerate() {
-            for key_2 in key_1 + 1..coins.len() {
-                let coin_2 = coins[key_2];
-
-                if *coin_1 != coin_2 {
-                    exchange_pairs.push(ExchangePair {
-                        pair: (coin_1.to_string(), coin_2.to_string()),
-                        conversion: ConversionType::Crypto,
-                    });
-                }
-            }
-        }
-
         for coin in coins {
             for fiat in &fiats {
                 exchange_pairs.push(ExchangePair {
