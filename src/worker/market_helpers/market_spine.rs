@@ -93,7 +93,7 @@ impl MarketSpine {
         self.mask_pairs.get(a).map(|s| s.as_ref()).unwrap_or(a)
     }
 
-    pub fn get_unmasked_value<'a>(&'a self, a: &'a str) -> &str {
+    pub fn _get_unmasked_value<'a>(&'a self, a: &'a str) -> &str {
         self.unmask_pairs.get(a).map(|s| s.as_ref()).unwrap_or(a)
     }
 
@@ -137,8 +137,7 @@ impl MarketSpine {
     // TODO: Implement
     /// Cannot be implemented, because it depends on https://api.icex.ch/api/coins/
     /// which is no working
-    /// Temporary solution: hardcode two coins: BTC and ETH
-    pub fn get_conversion_coef(&mut self, currency: &str, conversion: ConversionType) -> f64 {
+    pub fn get_conversion_coef(&mut self, _currency: &str, _conversion: ConversionType) -> f64 {
         1.0
     }
 
@@ -187,7 +186,7 @@ impl MarketSpine {
     }
 
     // TODO: Implement
-    pub fn update_market_pair(&mut self, pair: &str, scope: &str, price_changed: bool) {}
+    pub fn update_market_pair(&mut self, _pair: &str, _scope: &str, _price_changed: bool) {}
 
     pub fn set_last_trade_volume(&mut self, pair: &str, value: f64) {
         if value != 0.0 {
