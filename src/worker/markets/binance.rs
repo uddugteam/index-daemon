@@ -40,18 +40,18 @@ impl Market for Binance {
         )
     }
 
-    fn get_websocket_on_open_msg(&self, pair: &str, channel: MarketChannels) -> Option<String> {
+    fn get_websocket_on_open_msg(&self, _pair: &str, _channel: MarketChannels) -> Option<String> {
         None
     }
 
-    fn parse_ticker_info__socket(&mut self, pair: String, info: String) {
+    fn parse_ticker_info(&mut self, pair: String, info: String) {
         let json = Json::from_str(&info).unwrap();
 
         if let Some(object) = json.as_object() {
             if let Some(volume) = object.get("v") {
                 if let Some(volume) = volume.as_string() {
                     if let Ok(volume) = volume.parse::<f64>() {
-                        println!("called Binance::parse_ticker_info__socket()");
+                        println!("called Binance::parse_ticker_info()");
                         println!("pair: {}", pair);
                         println!("volume: {}", volume);
 
@@ -68,11 +68,11 @@ impl Market for Binance {
         }
     }
 
-    fn parse_last_trade_info__socket(&mut self, pair: String, info: String) {
+    fn parse_last_trade_info(&mut self, pair: String, info: String) {
         let json = Json::from_str(&info).unwrap();
 
         if let Some(object) = json.as_object() {
-            println!("called Binance::parse_last_trade_info__socket()");
+            println!("called Binance::parse_last_trade_info()");
             println!("pair: {}", pair);
 
             let last_trade_volume: f64 = object
@@ -109,11 +109,11 @@ impl Market for Binance {
         }
     }
 
-    fn parse_depth_info__socket(&mut self, pair: String, info: String) {
+    fn parse_depth_info(&mut self, pair: String, info: String) {
         let json = Json::from_str(&info).unwrap();
 
         if let Some(object) = json.as_object() {
-            println!("called Binance::parse_depth_info__socket()");
+            println!("called Binance::parse_depth_info()");
             println!("pair: {}", pair);
 
             let conversion = self.spine.get_conversions().get(&pair).unwrap().clone();

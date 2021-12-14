@@ -26,7 +26,7 @@ impl Market for Bitfinex {
             .to_uppercase()
     }
 
-    fn get_websocket_url(&self, pair: &str, channel: MarketChannels) -> String {
+    fn get_websocket_url(&self, _pair: &str, _channel: MarketChannels) -> String {
         "wss://api-pub.bitfinex.com/ws/2".to_string()
     }
 
@@ -39,14 +39,14 @@ impl Market for Bitfinex {
     }
 
     /// Response description: https://docs.bitfinex.com/reference?ref=https://coder.social#rest-public-ticker
-    fn parse_ticker_info__socket(&mut self, pair: String, info: String) {
+    fn parse_ticker_info(&mut self, pair: String, info: String) {
         let json = Json::from_str(&info).unwrap();
 
         if let Some(array) = json.as_array() {
             if array.len() >= 2 {
                 if let Some(array) = array[1].as_array() {
                     if array.len() >= 8 {
-                        println!("called Bitfinex::parse_ticker_info__socket()");
+                        println!("called Bitfinex::parse_ticker_info()");
                         println!("pair: {}", pair);
 
                         let currency = self.spine.get_pairs().get(&pair).unwrap().0.clone();
@@ -66,14 +66,14 @@ impl Market for Bitfinex {
     }
 
     /// Response description: https://docs.bitfinex.com/reference?ref=https://coder.social#rest-public-trades
-    fn parse_last_trade_info__socket(&mut self, pair: String, info: String) {
+    fn parse_last_trade_info(&mut self, pair: String, info: String) {
         let json = Json::from_str(&info).unwrap();
 
         if let Some(array) = json.as_array() {
             if array.len() >= 3 {
                 if let Some(array) = array[2].as_array() {
                     if array.len() >= 4 {
-                        println!("called Bitfinex::parse_last_trade_info__socket()");
+                        println!("called Bitfinex::parse_last_trade_info()");
                         println!("pair: {}", pair);
 
                         let last_trade_volume: f64 = array[2].as_f64().unwrap().abs();
@@ -102,7 +102,7 @@ impl Market for Bitfinex {
     }
 
     /// Response description: https://docs.bitfinex.com/reference?ref=https://coder.social#rest-public-book
-    fn parse_depth_info__socket(&mut self, pair: String, info: String) {
+    fn parse_depth_info(&mut self, pair: String, info: String) {
         let json = Json::from_str(&info).unwrap();
 
         if let Some(array) = json.as_array() {
@@ -111,7 +111,7 @@ impl Market for Bitfinex {
                     if array.len() >= 3 {
                         if let Some(price) = array[0].as_f64() {
                             if let Some(amount) = array[2].as_f64() {
-                                println!("called Bitfinex::parse_depth_info__socket()");
+                                println!("called Bitfinex::parse_depth_info()");
                                 println!("pair: {}", pair);
 
                                 let mut ask_sum: f64 = self

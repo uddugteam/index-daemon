@@ -1,7 +1,7 @@
 use crate::worker::market_helpers::conversion_type::ConversionType;
+use crate::worker::market_helpers::exchange_pair::ExchangePair;
 use crate::worker::market_helpers::exchange_pair_info::ExchangePairInfo;
 use crate::worker::market_helpers::market::Market;
-use crate::worker::market_helpers::status::Status;
 use crate::worker::worker::Worker;
 use chrono::{DateTime, Utc, MIN_DATETIME};
 use reqwest::blocking::multipart::{Form, Part};
@@ -19,47 +19,28 @@ pub struct MarketSpine {
     worker: Arc<Mutex<Worker>>,
     pub arc: Option<Arc<Mutex<dyn Market + Send>>>,
     pub tx: Sender<JoinHandle<()>>,
-    pub status: Status,
     pub name: String,
     mask_pairs: HashMap<String, String>,
     unmask_pairs: HashMap<String, String>,
     exchange_pairs: HashMap<String, ExchangePairInfo>,
     conversions: HashMap<String, ConversionType>,
     pairs: HashMap<String, (String, String)>,
-    update_ticker: bool,
-    update_last_trade: bool,
-    update_depth: bool,
-    fiat_refresh_time: u64,
     pub socket_enabled: bool,
     capitalization: HashMap<String, f64>,
     last_capitalization_refresh: DateTime<Utc>,
 }
 impl MarketSpine {
-    pub fn new(
-        worker: Arc<Mutex<Worker>>,
-        tx: Sender<JoinHandle<()>>,
-        status: Status,
-        name: String,
-        update_ticker: bool,
-        update_last_trade: bool,
-        update_depth: bool,
-        fiat_refresh_time: u64,
-    ) -> Self {
+    pub fn new(worker: Arc<Mutex<Worker>>, tx: Sender<JoinHandle<()>>, name: String) -> Self {
         Self {
             worker,
             arc: None,
             tx,
-            status,
             name,
             mask_pairs: HashMap::new(),
             unmask_pairs: HashMap::new(),
             exchange_pairs: HashMap::new(),
             conversions: HashMap::new(),
             pairs: HashMap::new(),
-            update_ticker,
-            update_last_trade,
-            update_depth,
-            fiat_refresh_time,
             socket_enabled: false,
             capitalization: HashMap::new(),
             last_capitalization_refresh: MIN_DATETIME,
@@ -68,6 +49,12 @@ impl MarketSpine {
 
     pub fn set_arc(&mut self, arc: Arc<Mutex<dyn Market + Send>>) {
         self.arc = Some(arc);
+    }
+
+    pub fn add_mask_pairs(&mut self, pairs: Vec<(&str, &str)>) {
+        for pair in pairs {
+            self.add_mask_pair(pair);
+        }
     }
 
     pub fn add_mask_pair(&mut self, pair: (&str, &str)) {
@@ -93,17 +80,13 @@ impl MarketSpine {
         &mut self.exchange_pairs
     }
 
-    pub fn add_exchange_pair(
-        &mut self,
-        pair_string: String,
-        pair: (&str, &str),
-        conversion: ConversionType,
-    ) {
+    pub fn add_exchange_pair(&mut self, pair_string: String, exchange_pair: ExchangePair) {
         self.exchange_pairs
             .insert(pair_string.clone(), ExchangePairInfo::new());
-        self.conversions.insert(pair_string.clone(), conversion);
+        self.conversions
+            .insert(pair_string.clone(), exchange_pair.conversion);
         self.pairs
-            .insert(pair_string, (pair.0.to_string(), pair.1.to_string()));
+            .insert(pair_string, (exchange_pair.pair.0, exchange_pair.pair.1));
     }
 
     pub fn get_masked_value<'a>(&'a self, a: &'a str) -> &str {
@@ -132,22 +115,23 @@ impl MarketSpine {
             .text()
             .unwrap();
 
-        let json = Json::from_str(&response_text).unwrap();
-        let json_object = json.as_object().unwrap();
-        let coins = json_object.get("data").unwrap().as_array().unwrap();
+        if let Ok(json) = Json::from_str(&response_text) {
+            let json_object = json.as_object().unwrap();
+            let coins = json_object.get("data").unwrap().as_array().unwrap();
 
-        for coin in coins.iter().map(|j| j.as_object().unwrap()) {
-            let mut curr = coin.get("symbol").unwrap().as_string().unwrap();
-            if curr == "MIOTA" {
-                curr = "IOT";
+            for coin in coins.iter().map(|j| j.as_object().unwrap()) {
+                let mut curr = coin.get("symbol").unwrap().as_string().unwrap();
+                if curr == "MIOTA" {
+                    curr = "IOT";
+                }
+
+                let total_supply = coin.get("total_supply").unwrap().as_f64().unwrap();
+
+                self.capitalization.insert(curr.to_string(), total_supply);
             }
 
-            let total_supply = coin.get("total_supply").unwrap().as_f64().unwrap();
-
-            self.capitalization.insert(curr.to_string(), total_supply);
+            self.last_capitalization_refresh = Utc::now();
         }
-
-        self.last_capitalization_refresh = Utc::now();
     }
 
     // TODO: Implement

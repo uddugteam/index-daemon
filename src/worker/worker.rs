@@ -1,45 +1,25 @@
-use std::collections::HashMap;
-use std::fs;
-use std::path::Path;
+use crate::worker::market_helpers::conversion_type::ConversionType;
+use crate::worker::market_helpers::exchange_pair::ExchangePair;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::thread::JoinHandle;
-use xmltree::Element;
 
 use crate::worker::market_helpers::market::{market_factory, Market};
 use crate::worker::market_helpers::market_spine::MarketSpine;
-use crate::worker::other_helpers::config_parser::ConfigParser;
-use crate::worker::xml_reader::*;
-
-pub const DEFAULT_CONFIG_PATH: &str = "./resources/curr_daemon.config";
-pub const DEFAULT_CONFIG_PATH_2: &str = "/etc/curr_daemon/curr_daemon.config";
-pub const XML_CONFIG_FILE_PATH: &str = "./resources/config.xml";
 
 pub struct Worker {
-    main_config_path: Option<String>,
-    coins_config_path: Option<String>,
-    coins: HashMap<String, String>,
-    fiats: HashMap<String, String>,
-    markets: Vec<Arc<Mutex<dyn Market + Send>>>,
     arc: Option<Arc<Mutex<Self>>>,
     tx: Sender<JoinHandle<()>>,
+    markets: Vec<Arc<Mutex<dyn Market + Send>>>,
 }
 
 impl Worker {
-    pub fn new(
-        main_config_path: Option<String>,
-        coins_config_path: Option<String>,
-        tx: Sender<JoinHandle<()>>,
-    ) -> Arc<Mutex<Self>> {
+    pub fn new(tx: Sender<JoinHandle<()>>) -> Arc<Mutex<Self>> {
         let worker = Worker {
-            main_config_path,
-            coins_config_path,
-            coins: HashMap::new(),
-            fiats: HashMap::new(),
-            markets: Vec::new(),
             arc: None,
             tx,
+            markets: Vec::new(),
         };
 
         let worker = Arc::new(Mutex::new(worker));
@@ -113,318 +93,68 @@ impl Worker {
         // C++: code, associated with candles
     }
 
-    fn configure(&mut self) {
-        let path: String = match &self.main_config_path {
-            Some(config_path_str) if Path::new(config_path_str).exists() => {
-                config_path_str.to_string()
-            }
-            _ if Path::new(DEFAULT_CONFIG_PATH).exists() => DEFAULT_CONFIG_PATH.to_string(),
-            _ => DEFAULT_CONFIG_PATH_2.to_string(),
-        };
+    fn make_exchange_pairs(coins: Vec<&str>, fiats: Vec<&str>) -> Vec<ExchangePair> {
+        let mut exchange_pairs = Vec::new();
 
-        // C++: loggingHelper->printLog("default", 1, "MainConfig path = " + path);
-        println!("MainConfig path = {}", path);
+        for (key_1, coin_1) in coins.iter().enumerate() {
+            for key_2 in key_1 + 1..coins.len() {
+                let coin_2 = coins[key_2];
 
-        let config_parser = ConfigParser::new(&path)
-            .map_err(|err| panic!("Config file open/read error: {}.", err))
-            .unwrap();
-
-        let pq_enabled: bool = config_parser.get_param("postgres.enabled") == Some("1");
-        // C++: postgresHelper->setEnabled(pq_enabled);
-        if pq_enabled {
-            // let pq_host = config_parser
-            //     .get_param("postgres.host")
-            //     .expect("Param postgres.host not found");
-            // let pq_port = config_parser
-            //     .get_param("postgres.port")
-            //     .expect("Param postgres.port not found")
-            //     .parse::<u32>()
-            //     .expect("Param postgres.port parse error");
-            // let pq_dbname = config_parser
-            //     .get_param("postgres.dbname")
-            //     .expect("Param postgres.dbname not found");
-            // let pq_user = config_parser
-            //     .get_param("postgres.username")
-            //     .expect("Param postgres.username not found");
-            // let pq_pass = config_parser
-            //     .get_param("postgres.password")
-            //     .expect("Param postgres.password not found");
-            // let pq_max_conns = config_parser
-            //     .get_param("postgres.maxConnections")
-            //     .and_then(|v| v.parse::<u32>().ok());
-
-            // C++: postgresHelper->setLoggingHelper(this->loggingHelper);
-            // C++: postgresHelper->init(pqHost, pqPort, pqDBName, pqUser, pqPass, pqMaxConns);
-        }
-
-        let coins_path = self
-            .coins_config_path
-            .as_deref()
-            .unwrap_or(XML_CONFIG_FILE_PATH);
-
-        let xml_config_reader =
-            match Element::parse(fs::read_to_string(coins_path).unwrap().as_bytes()) {
-                Ok(xml_reader) => xml_reader,
-                Err(err) => {
-                    println!("Config open error: {}.", err);
-                    println!("Checking alternative config.");
-                    panic!("NoConfig");
+                if *coin_1 != coin_2 {
+                    exchange_pairs.push(ExchangePair {
+                        pair: (coin_1.to_string(), coin_2.to_string()),
+                        conversion: ConversionType::Crypto,
+                    });
                 }
-            };
-
-        println!("CoinsConfig path = {}", coins_path);
-
-        let custom_index = xml_config_reader.get_child("custom-index").unwrap();
-        for child in custom_index.children.iter() {
-            let index_name = child.as_element().unwrap().get_text().unwrap();
-
-            // C++: calcIndex.emplace(indexName, getCustomIndexesSummary(indexName, curl));
-            // C++: postgresHelper->dropToDB({"short, name"}, {"'" + indexName + "'", "'" + indexName + "'"}, "tickers", true);
-            // println!(
-            //     "Called {} with params: table={}; keys={}; values={}",
-            //     "postgresHelper->dropToDB()",
-            //     "tickers",
-            //     "short, name",
-            //     index_name.clone() + ", " + index_name
-            // );
+            }
         }
 
-        // C++: loggingHelper->printLog("general", 1, "CustomIndexes configured successfully.");
-        // println!("CustomIndexes configured successfully.");
-
-        let markets_global = xml_config_reader.get_child("markets-global").unwrap();
-        let update_ticker: bool = get_el_child_text(markets_global, "update-ticker") == "1";
-        let update_last_trade: bool = get_el_child_text(markets_global, "update-last-trade") == "1";
-        let update_depth: bool = get_el_child_text(markets_global, "update-depth") == "1";
-        let fiat_refresh_time: u64 =
-            get_el_child_text_as(markets_global, "fiat-refresh-time").unwrap();
-
-        // C++: loggingHelper->printLog("general", 1, "GlobalMarketsParams configured successfully.");
-        // println!("GlobalMarketsParams configured successfully.");
-
-        // C++: pingPong.init(std::stoi(config_parser.get_param("network.pingPort")));
-        // C++: pingPong.setLoggingHelper(loggingHelper);
-
-        // C++: loggingHelper->printLog("general", 1, "Ping-Pong configured successfully.");
-        // println!("Ping-Pong configured successfully.");
-
-        // C++: code, associated with Redis
-        // C++: code, associated with candles
-
-        // C++: loggingHelper->printLog("general", 1, "RedisHelper configured successfully.");
-        // println!("RedisHelper configured successfully.");
-
-        println!("Get coins from xml BEGIN.");
-        let coins = xml_config_reader.get_child("coins").unwrap();
-        for coin in coins.children.iter() {
-            let short: String = get_node_child_text_as(coin, "short-name").unwrap();
-            let full: String = get_node_child_text_as(coin, "full-name").unwrap();
-
-            self.coins.insert(short.clone(), full.clone());
-
-            // C++: postgresHelper->dropToDB({"short, name"}, {"'" + shrt + "'", "'" + full + "'"}, "tickers", true);
-            // println!(
-            //     "Called {} with params: table={}; keys={}; values={}",
-            //     "postgresHelper->dropToDB()",
-            //     "tickers",
-            //     "short, name",
-            //     short + ", " + &full
-            // );
+        for coin in coins {
+            for fiat in &fiats {
+                exchange_pairs.push(ExchangePair {
+                    pair: (coin.to_string(), fiat.to_string()),
+                    conversion: ConversionType::None,
+                });
+            }
         }
-        println!("Get coins from xml END.");
 
-        println!("Get fiats from xml BEGIN.");
-        let fiats = xml_config_reader.get_child("fiats").unwrap();
-        for fiat in fiats.children.iter() {
-            let short: String = get_node_child_text_as(fiat, "short").unwrap();
-            let full: String = get_node_child_text_as(fiat, "name").unwrap();
+        exchange_pairs
+    }
 
-            self.fiats.insert(short.clone(), full.clone());
+    fn configure(&mut self, markets: Option<Vec<&str>>, coins: Option<Vec<&str>>) {
+        let market_names = markets.unwrap_or(vec!["binance", "bitfinex", "coinbase"]);
 
-            // C++: postgresHelper->dropToDB({"short, name"}, {"'" + shrt + "'", "'" + full + "'"}, "tickers", true);
-            // println!(
-            //     "Called {} with params: table={}; keys={}; values={}",
-            //     "postgresHelper->dropToDB()",
-            //     "tickers",
-            //     "short, name",
-            //     short + ", " + &full
-            // );
-        }
-        println!("Get fiats from xml END.");
+        let fiats = vec!["USD"];
+        let coins = coins.unwrap_or(vec!["BTC", "ETH"]);
 
-        // C++: loggingHelper->printLog("general", 1, "CoinsArray configured successfully.");
-        println!("CoinsArray configured successfully.");
+        let exchange_pairs = Self::make_exchange_pairs(coins, fiats);
 
-        // C++: postgresHelper->dropToDB({"name"}, {"'vol'"}, "data_types", true);
-        // C++: postgresHelper->dropToDB({"name"}, {"'cap'"}, "data_types", true);
-        // C++: postgresHelper->dropToDB({"name"}, {"'price'"}, "data_types", true);
-        // println!(
-        //     "Called {} with params: table={}; keys={}; values={}",
-        //     "postgresHelper->dropToDB()", "data_types", "name", "vol"
-        // );
-        // println!(
-        //     "Called {} with params: table={}; keys={}; values={}",
-        //     "postgresHelper->dropToDB()", "data_types", "name", "cap"
-        // );
-        // println!(
-        //     "Called {} with params: table={}; keys={}; values={}",
-        //     "postgresHelper->dropToDB()", "data_types", "name", "price"
-        // );
-
-        println!("Get entities from xml BEGIN.");
-        let entities = xml_config_reader.get_child("entities").unwrap();
-        for entity in entities.children.iter() {
-            let status: String = get_node_child_text_as(entity, "status").unwrap();
-            let name: String = get_node_child_text_as(entity, "name").unwrap();
-
+        for market_name in market_names {
             let worker_2 = Arc::clone(self.arc.as_ref().unwrap());
 
-            let market_spine = MarketSpine::new(
-                worker_2,
-                self.tx.clone(),
-                status.parse().unwrap_or_else(|_| {
-                    panic!(
-                        "Parse status error. Market: {}. Status not found: {}",
-                        name, status
-                    )
-                }),
-                name.clone(),
-                update_ticker,
-                update_last_trade,
-                update_depth,
-                fiat_refresh_time,
-            );
+            let market_spine = MarketSpine::new(worker_2, self.tx.clone(), market_name.to_string());
 
             let market = market_factory(market_spine);
 
-            let currency_mask_pairs = entity
-                .as_element()
-                .unwrap()
-                .get_child("currency_mask_pairs")
-                .unwrap();
-            for child in currency_mask_pairs.children.iter() {
-                let pair_string = child.as_element().unwrap().get_text().unwrap().to_string();
-                let parts: Vec<&str> = pair_string.split(':').collect();
+            for exchange_pair in &exchange_pairs {
                 market
                     .lock()
                     .unwrap()
-                    .get_spine_mut()
-                    .add_mask_pair((parts[0], parts[1]));
+                    .add_exchange_pair(exchange_pair.clone());
             }
-
-            // C++: ThreadPool *threadPool = new ThreadPool(30);
-
-            // C++: postgresHelper->dropToDB({"name"}, {"'" + market->getName() + "'"}, "exchanges", true);
-            // println!(
-            //     "Called {} with params: table={}; keys={}; values={}",
-            //     "postgresHelper->dropToDB()",
-            //     "exchanges",
-            //     "name",
-            //     market.lock().unwrap().get_spine().name
-            // );
-
-            println!("Get exchange_pairs from xml BEGIN.");
-            let exchange_pairs = entity
-                .as_element()
-                .unwrap()
-                .get_child("exchange_pairs")
-                .unwrap();
-            for exchange_pair in exchange_pairs.children.iter() {
-                let pair_string = get_node_child_text(exchange_pair, "value");
-                let parts: Vec<&str> = pair_string.split(':').collect();
-
-                if !self.fiats.contains_key(parts[0]) && !self.coins.contains_key(parts[0]) {
-                    // C++: postgresHelper->dropToDB({"short, name"}, {"'" + a + "'", "'" + a + "'"}, "tickers", true);
-                    // println!(
-                    //     "Called {} with params: table={}; keys={}; values={}",
-                    //     "postgresHelper->dropToDB()",
-                    //     "tickers",
-                    //     "short, name",
-                    //     parts[0].to_string() + ", " + parts[0]
-                    // );
-                }
-
-                if !self.fiats.contains_key(parts[1]) && !self.coins.contains_key(parts[1]) {
-                    // C++: postgresHelper->dropToDB({"short, name"}, {"'" + b + "'", "'" + b + "'"}, "tickers", true);
-                    // println!(
-                    //     "Called {} with params: table={}; keys={}; values={}",
-                    //     "postgresHelper->dropToDB()",
-                    //     "tickers",
-                    //     "short, name",
-                    //     parts[1].to_string() + ", " + parts[1]
-                    // );
-                }
-
-                let conversion: String = get_node_child_text(exchange_pair, "conversion");
-                let conversion = conversion.parse().unwrap_or_else(|_| {
-                    panic!(
-                        "Parse conversion type error. Market: {}. Conversion type not found: {}",
-                        name, conversion
-                    )
-                });
-
-                market
-                    .lock()
-                    .unwrap()
-                    .add_exchange_pair((parts[0], parts[1]), conversion);
-
-                // C++: if (postgresHelper->isEnabled()) {
-                // C++: threadPool->runAsync([postgresHelper, a, b, market] {
-                // C++: block of code, associated with asynchronous queries to postgres
-                // C++: }); // end threadPool->runAsync()
-                // C++: } // endif
-            }
-            println!("Get exchange_pairs from xml END.");
-
-            // C++: free(threadPool);
-
-            // C++: market->setCoinsArrayRef(&coins);
-            // C++: market->setAddOrUpdateIndexHandler(this->addOrUpdateIndex);
-            // C++: market->setReCalculateIndexHandler(this->reCalculate);
-
-            // C++: market->setGetIndexHandler(this->getValue);
-            // C++: market->setAddRedisKeyHandler(this->addRedisKey);
-            // C++: market->setRequestPool(&pool);
-            // C++: market->setLoggingHelper(loggingHelper);
-            // C++: market->setUpdateHashMarketDataHandler(this->updateHashForMarket);
-            // C++: market->setSQLitehelper(postgresHelper);
-            // C++: markets.emplace_back(market);
-
-            // C++: loggingHelper->printLog("general", 1, market->getName() + " configured successfully.");
-            println!(
-                "{} configured successfully.",
-                market.lock().unwrap().get_spine().name
-            );
 
             self.markets.push(market);
         }
-        println!("Get entities from xml END.");
-        // C++: loggingHelper->printLog("general", 1, "Configuration done.");
-        println!("Configuration done.");
     }
 
-    pub fn start(&mut self, market_startup: Option<Vec<&str>>, daemon: bool) {
-        self.configure();
+    pub fn start(&mut self, markets: Option<Vec<&str>>, coins: Option<Vec<&str>>) {
+        self.configure(markets, coins);
 
-        for market in self.markets.iter().map(|a| Arc::clone(a)) {
-            let market_name = market.lock().unwrap().get_spine().name.clone();
-            let market_status = market.lock().unwrap().get_spine().status;
-            let market_is_active = market.lock().unwrap().get_spine().status.is_active();
-
-            println!("{} {}", market_name, market_status);
-
-            if market_is_active
-                && (market_startup.as_ref().is_none()
-                    || market_startup
-                        .as_ref()
-                        .unwrap()
-                        .contains(&market_name.as_str()))
-            {
-                let thread = thread::spawn(move || {
-                    market.lock().unwrap().perform();
-                });
-                self.tx.send(thread).unwrap();
-            }
+        for market in self.markets.iter().cloned() {
+            let thread = thread::spawn(move || {
+                market.lock().unwrap().perform();
+            });
+            self.tx.send(thread).unwrap();
         }
     }
 }

@@ -1,4 +1,4 @@
-use crate::worker::market_helpers::conversion_type::ConversionType;
+use crate::worker::market_helpers::exchange_pair::ExchangePair;
 use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
 use crate::worker::markets::binance::Binance;
@@ -9,7 +9,16 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time;
 
-pub fn market_factory(spine: MarketSpine) -> Arc<Mutex<dyn Market + Send>> {
+pub fn market_factory(mut spine: MarketSpine) -> Arc<Mutex<dyn Market + Send>> {
+    let mask_pairs = match spine.name.as_ref() {
+        "binance" => vec![("IOT", "IOTA"), ("USD", "USDT")],
+        "bitfinex" => vec![("DASH", "dsh"), ("QTUM", "QTM")],
+        "coinbase" => vec![],
+        _ => panic!("Market not found: {}", spine.name),
+    };
+
+    spine.add_mask_pairs(mask_pairs);
+
     let market: Arc<Mutex<dyn Market + Send>> = match spine.name.as_ref() {
         "binance" => Arc::new(Mutex::new(Binance { spine })),
         "bitfinex" => Arc::new(Mutex::new(Bitfinex { spine })),
@@ -41,14 +50,9 @@ fn subscribe_channel(
             on_open_msg,
             pair,
             |pair: String, info: String| match channel {
-                MarketChannels::Ticker => {
-                    market.lock().unwrap().parse_ticker_info__socket(pair, info)
-                }
-                MarketChannels::Trades => market
-                    .lock()
-                    .unwrap()
-                    .parse_last_trade_info__socket(pair, info),
-                MarketChannels::Book => market.lock().unwrap().parse_depth_info__socket(pair, info),
+                MarketChannels::Ticker => market.lock().unwrap().parse_ticker_info(pair, info),
+                MarketChannels::Trades => market.lock().unwrap().parse_last_trade_info(pair, info),
+                MarketChannels::Book => market.lock().unwrap().parse_depth_info(pair, info),
             },
         );
     socker_helper.start();
@@ -106,10 +110,10 @@ pub trait Market {
         pair.0.to_string() + pair.1
     }
 
-    fn add_exchange_pair(&mut self, pair: (&str, &str), conversion: ConversionType) {
-        let pair_string = self.make_pair(pair);
+    fn add_exchange_pair(&mut self, exchange_pair: ExchangePair) {
+        let pair_string = self.make_pair(exchange_pair.get_pair_ref());
         self.get_spine_mut()
-            .add_exchange_pair(pair_string, pair, conversion);
+            .add_exchange_pair(pair_string, exchange_pair);
     }
 
     fn get_total_volume(&self, first_currency: &str, second_currency: &str) -> f64 {
@@ -158,7 +162,7 @@ pub trait Market {
         let thread = thread::spawn(move || update(market));
         self.get_spine().tx.send(thread).unwrap();
     }
-    fn parse_ticker_info__socket(&mut self, pair: String, info: String);
-    fn parse_last_trade_info__socket(&mut self, pair: String, info: String);
-    fn parse_depth_info__socket(&mut self, pair: String, info: String);
+    fn parse_ticker_info(&mut self, pair: String, info: String);
+    fn parse_last_trade_info(&mut self, pair: String, info: String);
+    fn parse_depth_info(&mut self, pair: String, info: String);
 }
