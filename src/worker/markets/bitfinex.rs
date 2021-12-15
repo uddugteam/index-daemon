@@ -119,16 +119,12 @@ impl Market for Bitfinex {
                                     .get_exchange_pairs()
                                     .get(&pair)
                                     .unwrap()
-                                    .lock()
-                                    .unwrap()
                                     .get_total_ask();
 
                                 let mut bid_sum: f64 = self
                                     .spine
                                     .get_exchange_pairs()
                                     .get(&pair)
-                                    .unwrap()
-                                    .lock()
                                     .unwrap()
                                     .get_total_bid();
 
@@ -166,8 +162,6 @@ impl Market for Bitfinex {
                                 self.spine
                                     .get_exchange_pairs_mut()
                                     .get_mut(&pair)
-                                    .unwrap()
-                                    .lock()
                                     .unwrap()
                                     .set_timestamp(timestamp);
                             }
