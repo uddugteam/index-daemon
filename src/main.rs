@@ -1,10 +1,12 @@
 use crate::worker::worker::Worker;
-use std::sync::mpsc;
+use std::sync::{mpsc, Arc, Mutex};
 
 #[macro_use]
 extern crate clap;
+use crate::repository::pair_average_trade_price::PairAverageTradePrice;
 use clap::App;
 
+mod repository;
 mod worker;
 
 fn get_config_file_path(key: &str) -> Option<String> {
@@ -56,7 +58,11 @@ fn main() {
         .map(|v| v.iter().map(|v| v.as_str()).collect());
 
     let (tx, rx) = mpsc::channel();
-    let worker = Worker::new(tx);
+    let pair_average_trade_price_repository = PairAverageTradePrice::new();
+    let worker = Worker::new(
+        tx,
+        Arc::new(Mutex::new(pair_average_trade_price_repository)),
+    );
     worker.lock().unwrap().start(markets, coins);
 
     for received_thread in rx {

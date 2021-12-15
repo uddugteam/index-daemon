@@ -1,3 +1,4 @@
+use crate::repository::repository::Repository;
 use crate::worker::market_helpers::conversion_type::ConversionType;
 use crate::worker::market_helpers::exchange_pair::ExchangePair;
 use std::collections::HashMap;
@@ -13,15 +14,22 @@ pub struct Worker {
     tx: Sender<JoinHandle<()>>,
     markets: Vec<Arc<Mutex<dyn Market + Send>>>,
     pair_average_trade_price: HashMap<(String, String), f64>,
+    pair_average_trade_price_repository: Arc<Mutex<dyn Repository<(String, String), f64> + Send>>,
 }
 
 impl Worker {
-    pub fn new(tx: Sender<JoinHandle<()>>) -> Arc<Mutex<Self>> {
+    pub fn new(
+        tx: Sender<JoinHandle<()>>,
+        pair_average_trade_price_repository: Arc<
+            Mutex<dyn Repository<(String, String), f64> + Send>,
+        >,
+    ) -> Arc<Mutex<Self>> {
         let worker = Worker {
             arc: None,
             tx,
             markets: Vec::new(),
             pair_average_trade_price: HashMap::new(),
+            pair_average_trade_price_repository,
         };
 
         let worker = Arc::new(Mutex::new(worker));
@@ -52,7 +60,12 @@ impl Worker {
         println!("pair: {:?}", pair);
         println!("avg: {}", new_avg);
 
-        self.pair_average_trade_price.insert(pair, new_avg);
+        self.pair_average_trade_price.insert(pair.clone(), new_avg);
+
+        self.pair_average_trade_price_repository
+            .lock()
+            .unwrap()
+            .insert(pair, new_avg);
     }
 
     fn make_exchange_pairs(coins: Vec<&str>, fiats: Vec<&str>) -> Vec<ExchangePair> {
