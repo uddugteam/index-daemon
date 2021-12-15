@@ -1,10 +1,15 @@
-use crate::worker::worker::Worker;
+use env_logger::{Env, DEFAULT_FILTER_ENV, DEFAULT_WRITE_STYLE_ENV};
 use std::sync::{mpsc, Arc, Mutex};
+
+use crate::repository::pair_average_trade_price::PairAverageTradePrice;
+use crate::worker::worker::Worker;
 
 #[macro_use]
 extern crate clap;
-use crate::repository::pair_average_trade_price::PairAverageTradePrice;
 use clap::App;
+
+#[macro_use]
+extern crate log;
 
 mod repository;
 mod worker;
@@ -44,6 +49,12 @@ fn get_param_value_as_vec_of_string(config: &config::Config, key: &str) -> Optio
 }
 
 fn main() {
+    let env = Env::default()
+        .filter_or(DEFAULT_FILTER_ENV, "index_daemon=trace")
+        .write_style_or(DEFAULT_WRITE_STYLE_ENV, "always");
+
+    env_logger::init_from_env(env);
+
     let market_config = get_config("market_config");
 
     let markets: Option<Vec<String>> =

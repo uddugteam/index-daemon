@@ -98,8 +98,6 @@ impl MarketSpine {
     }
 
     pub fn refresh_capitalization(&mut self) {
-        // println!("called MarketSpine::refresh_capitalization()");
-
         let response_text = Client::new()
             .get("https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest")
             .header("Accepts", "application/json")
@@ -168,8 +166,6 @@ impl MarketSpine {
     }
 
     fn recalculate_total_volume(&self, currency: String) {
-        // println!("called MarketSpine::recalculate_total_volume()");
-
         let worker = Arc::clone(&self.worker);
 
         let thread_name = format!(
@@ -186,8 +182,6 @@ impl MarketSpine {
     }
 
     fn recalculate_pair_average_trade_price(&self, pair: (String, String), value: f64) {
-        // println!("called MarketSpine::recalculate_pair_average_trade_price()");
-
         let worker = Arc::clone(&self.worker);
 
         let thread_name = format!(

@@ -46,17 +46,18 @@ impl Market for Bitfinex {
             if array.len() >= 2 {
                 if let Some(array) = array[1].as_array() {
                     if array.len() >= 8 {
-                        println!("called Bitfinex::parse_ticker_info()");
-                        println!("pair: {}", pair);
-
                         let currency = self.spine.get_pairs().get(&pair).unwrap().0.clone();
-
                         let conversion_coef: f64 = self
                             .spine
                             .get_conversion_coef(&currency, ConversionType::Crypto);
 
                         let volume: f64 = array[7].as_f64().unwrap();
-                        println!("volume: {}", volume);
+
+                        trace!(
+                            "called Bitfinex::parse_ticker_info(). Pair: {}, volume: {}",
+                            pair,
+                            volume,
+                        );
 
                         self.spine.set_total_volume(&pair, volume * conversion_coef);
                     }
@@ -73,20 +74,19 @@ impl Market for Bitfinex {
             if array.len() >= 3 {
                 if let Some(array) = array[2].as_array() {
                     if array.len() >= 4 {
-                        println!("called Bitfinex::parse_last_trade_info()");
-                        println!("pair: {}", pair);
-
                         let last_trade_volume: f64 = array[2].as_f64().unwrap().abs();
-                        println!("Last trade volume: {}", last_trade_volume);
-
                         let last_trade_price: f64 = array[3].as_f64().unwrap();
-                        println!("Last trade price: {}", last_trade_price);
+
+                        trace!(
+                            "called Bitfinex::parse_last_trade_info(). Pair: {}, last_trade_volume: {}, last_trade_price: {}",
+                            pair,
+                            last_trade_volume,
+                            last_trade_price,
+                        );
 
                         let conversion = self.spine.get_conversions().get(&pair).unwrap().clone();
-
                         let conversion_coef: f64 = if let ConversionType::None = conversion {
                             let currency = self.spine.get_pairs().get(&pair).unwrap().1.clone();
-
                             self.spine.get_conversion_coef(&currency, conversion)
                         } else {
                             1.0
@@ -111,9 +111,6 @@ impl Market for Bitfinex {
                     if array.len() >= 3 {
                         if let Some(price) = array[0].as_f64() {
                             if let Some(amount) = array[2].as_f64() {
-                                println!("called Bitfinex::parse_depth_info()");
-                                println!("pair: {}", pair);
-
                                 let mut ask_sum: f64 = self
                                     .spine
                                     .get_exchange_pairs()
@@ -141,24 +138,30 @@ impl Market for Bitfinex {
                                     1.0
                                 };
 
-                                let timestamp = Utc::now();
-
                                 if amount > 0.0 {
                                     // bid
                                     let x: f64 = -(price * amount);
-
                                     bid_sum += x * conversion_coef;
-                                    println!("Bid sum: {}", bid_sum);
-
                                     self.spine.set_total_bid(&pair, bid_sum);
+
+                                    trace!(
+                                        "called Bitfinex::parse_depth_info(). Pair: {}, bid_sum: {}",
+                                        pair,
+                                        bid_sum,
+                                    );
                                 } else {
                                     // ask
                                     ask_sum += amount;
-                                    println!("Ask sum: {}", ask_sum);
-
                                     self.spine.set_total_ask(&pair, ask_sum);
+
+                                    trace!(
+                                        "called Bitfinex::parse_depth_info(). Pair: {}, ask_sum: {}",
+                                        pair,
+                                        ask_sum,
+                                    );
                                 }
 
+                                let timestamp = Utc::now();
                                 self.spine
                                     .get_exchange_pairs_mut()
                                     .get_mut(&pair)

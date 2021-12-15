@@ -42,7 +42,11 @@ fn subscribe_channel(
     url: String,
     on_open_msg: Option<String>,
 ) {
-    // println!("called subscribe_channel()");
+    trace!(
+        "called subscribe_channel(). Market: {}, pair: {}",
+        market.lock().unwrap().get_spine().name,
+        pair
+    );
 
     let socker_helper =
         SocketHelper::new(
@@ -59,8 +63,6 @@ fn subscribe_channel(
 }
 
 fn update(market: Arc<Mutex<dyn Market + Send>>) {
-    // println!("called update()");
-
     market.lock().unwrap().get_spine_mut().socket_enabled = true;
 
     let channels = MarketChannels::get_all();
@@ -162,7 +164,10 @@ pub trait Market {
     fn get_websocket_on_open_msg(&self, pair: &str, channel: MarketChannels) -> Option<String>;
 
     fn perform(&mut self) {
-        println!("called Market::perform()");
+        trace!(
+            "called Market::perform(). Market: {}",
+            self.get_spine().name
+        );
 
         self.get_spine_mut().refresh_capitalization();
 

@@ -43,13 +43,9 @@ impl Worker {
     }
 
     // TODO: Implement
-    pub fn recalculate_total_volume(&self, _currency: String) {
-        // println!("called Worker::recalculate_total_volume()");
-    }
+    pub fn recalculate_total_volume(&self, _currency: String) {}
 
     pub fn recalculate_pair_average_trade_price(&mut self, pair: (String, String), new_price: f64) {
-        println!("called Worker::calculate_pair_average_trade_price()");
-
         let old_avg = *self
             .pair_average_trade_price
             .entry(pair.clone())
@@ -57,8 +53,12 @@ impl Worker {
 
         let new_avg = (new_price + old_avg) / 2.0;
 
-        println!("pair: {:?}", pair);
-        println!("avg: {}", new_avg);
+        trace!(
+            "called Worker::calculate_pair_average_trade_price(). Pair: ({},{}), avg: {}",
+            pair.0,
+            pair.1,
+            new_avg
+        );
 
         self.pair_average_trade_price.insert(pair.clone(), new_avg);
 
