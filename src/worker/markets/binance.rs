@@ -166,6 +166,8 @@ impl Market for Binance {
                 .get_exchange_pairs_mut()
                 .get_mut(&pair)
                 .unwrap()
+                .lock()
+                .unwrap()
                 .set_timestamp(timestamp);
         }
     }

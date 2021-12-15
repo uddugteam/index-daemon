@@ -157,6 +157,8 @@ impl Market for Coinbase {
                         .get_exchange_pairs_mut()
                         .get_mut(&pair)
                         .unwrap()
+                        .lock()
+                        .unwrap()
                         .set_timestamp(timestamp);
                 }
             }

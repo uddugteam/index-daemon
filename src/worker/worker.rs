@@ -1,5 +1,7 @@
 use crate::worker::market_helpers::conversion_type::ConversionType;
 use crate::worker::market_helpers::exchange_pair::ExchangePair;
+use crate::worker::market_helpers::exchange_pair_info::ExchangePairInfo;
+use std::collections::HashMap;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -12,6 +14,7 @@ pub struct Worker {
     arc: Option<Arc<Mutex<Self>>>,
     tx: Sender<JoinHandle<()>>,
     markets: Vec<Arc<Mutex<dyn Market + Send>>>,
+    exchange_pair_info: HashMap<(String, String), Vec<Arc<Mutex<ExchangePairInfo>>>>,
 }
 
 impl Worker {
@@ -20,6 +23,7 @@ impl Worker {
             arc: None,
             tx,
             markets: Vec::new(),
+            exchange_pair_info: HashMap::new(),
         };
 
         let worker = Arc::new(Mutex::new(worker));
@@ -73,6 +77,20 @@ impl Worker {
                     .lock()
                     .unwrap()
                     .add_exchange_pair(exchange_pair.clone());
+            }
+
+            for exchange_pair_info in market
+                .lock()
+                .unwrap()
+                .get_spine()
+                .get_exchange_pairs()
+                .values()
+            {
+                let pair = exchange_pair_info.lock().unwrap().get_pair().clone();
+                self.exchange_pair_info
+                    .entry(pair)
+                    .or_insert(vec![Arc::clone(exchange_pair_info)])
+                    .push(Arc::clone(exchange_pair_info));
             }
 
             self.markets.push(market);

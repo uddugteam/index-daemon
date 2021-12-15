@@ -2,6 +2,7 @@ use chrono::{DateTime, Utc, MIN_DATETIME};
 use std::fmt::{Display, Formatter};
 
 pub struct ExchangePairInfo {
+    pair: (String, String),
     last_trade_price: f64,
     last_trade_volume: f64,
     volume: f64,
@@ -11,8 +12,9 @@ pub struct ExchangePairInfo {
 }
 
 impl ExchangePairInfo {
-    pub fn new() -> Self {
+    pub fn new(pair: (String, String)) -> Self {
         ExchangePairInfo {
+            pair,
             last_trade_price: 0.0,
             last_trade_volume: 0.0,
             volume: 0.0,
@@ -20,6 +22,10 @@ impl ExchangePairInfo {
             total_bid: 0.0,
             timestamp: MIN_DATETIME,
         }
+    }
+
+    pub fn get_pair(&self) -> &(String, String) {
+        &self.pair
     }
 
     pub fn get_total_volume(&self) -> f64 {
@@ -69,11 +75,12 @@ impl ExchangePairInfo {
 
 impl Clone for ExchangePairInfo {
     fn clone(&self) -> Self {
-        Self { ..*self }
+        Self {
+            pair: self.pair.clone(),
+            ..*self
+        }
     }
 }
-
-impl Copy for ExchangePairInfo {}
 
 impl Display for ExchangePairInfo {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {

@@ -137,6 +137,8 @@ pub trait Market {
             .get_exchange_pairs()
             .get(&pair)
             .unwrap()
+            .lock()
+            .unwrap()
             .get_total_ask();
 
         ask_sum
@@ -149,6 +151,8 @@ pub trait Market {
             .get_spine()
             .get_exchange_pairs()
             .get(&pair)
+            .unwrap()
+            .lock()
             .unwrap()
             .get_total_bid();
 

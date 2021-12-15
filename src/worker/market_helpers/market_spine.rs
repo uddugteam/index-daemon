@@ -22,7 +22,7 @@ pub struct MarketSpine {
     pub name: String,
     mask_pairs: HashMap<String, String>,
     unmask_pairs: HashMap<String, String>,
-    exchange_pairs: HashMap<String, ExchangePairInfo>,
+    exchange_pairs: HashMap<String, Arc<Mutex<ExchangePairInfo>>>,
     conversions: HashMap<String, ConversionType>,
     pairs: HashMap<String, (String, String)>,
     pub socket_enabled: bool,
@@ -72,17 +72,21 @@ impl MarketSpine {
         &self.conversions
     }
 
-    pub fn get_exchange_pairs(&self) -> &HashMap<String, ExchangePairInfo> {
+    pub fn get_exchange_pairs(&self) -> &HashMap<String, Arc<Mutex<ExchangePairInfo>>> {
         &self.exchange_pairs
     }
 
-    pub fn get_exchange_pairs_mut(&mut self) -> &mut HashMap<String, ExchangePairInfo> {
+    pub fn get_exchange_pairs_mut(&mut self) -> &mut HashMap<String, Arc<Mutex<ExchangePairInfo>>> {
         &mut self.exchange_pairs
     }
 
     pub fn add_exchange_pair(&mut self, pair_string: String, exchange_pair: ExchangePair) {
-        self.exchange_pairs
-            .insert(pair_string.clone(), ExchangePairInfo::new());
+        self.exchange_pairs.insert(
+            pair_string.clone(),
+            Arc::new(Mutex::new(ExchangePairInfo::new(
+                exchange_pair.pair.clone(),
+            ))),
+        );
         self.conversions
             .insert(pair_string.clone(), exchange_pair.conversion);
         self.pairs
@@ -143,7 +147,12 @@ impl MarketSpine {
 
     pub fn get_total_volume(&self, pair: &str) -> f64 {
         if self.exchange_pairs.contains_key(pair) {
-            self.exchange_pairs.get(pair).unwrap().get_total_volume()
+            self.exchange_pairs
+                .get(pair)
+                .unwrap()
+                .lock()
+                .unwrap()
+                .get_total_volume()
         } else {
             0.0
         }
@@ -151,11 +160,19 @@ impl MarketSpine {
 
     pub fn set_total_volume(&mut self, pair: &str, value: f64) {
         if value != 0.0 {
-            let old_value: f64 = self.exchange_pairs.get(pair).unwrap().get_total_volume();
+            let old_value: f64 = self
+                .exchange_pairs
+                .get(pair)
+                .unwrap()
+                .lock()
+                .unwrap()
+                .get_total_volume();
 
             if (old_value - value).abs() > EPS {
                 self.exchange_pairs
                     .get_mut(pair)
+                    .unwrap()
+                    .lock()
                     .unwrap()
                     .set_total_volume(value.abs());
 
@@ -194,11 +211,15 @@ impl MarketSpine {
                 .exchange_pairs
                 .get(pair)
                 .unwrap()
+                .lock()
+                .unwrap()
                 .get_last_trade_volume();
 
             if (old_value - value).abs() > EPS {
                 self.exchange_pairs
                     .get_mut(pair)
+                    .unwrap()
+                    .lock()
                     .unwrap()
                     .set_last_trade_volume(value);
 
@@ -211,6 +232,8 @@ impl MarketSpine {
         let old_value: f64 = self
             .exchange_pairs
             .get(pair)
+            .unwrap()
+            .lock()
             .unwrap()
             .get_last_trade_price();
 
@@ -233,17 +256,27 @@ impl MarketSpine {
         self.exchange_pairs
             .get_mut(pair)
             .unwrap()
+            .lock()
+            .unwrap()
             .set_last_trade_price(value);
 
         self.update_market_pair(pair, "lastTrade", false);
     }
 
     pub fn set_total_ask(&mut self, pair: &str, value: f64) {
-        let old_value: f64 = self.get_exchange_pairs().get(pair).unwrap().get_total_ask();
+        let old_value: f64 = self
+            .get_exchange_pairs()
+            .get(pair)
+            .unwrap()
+            .lock()
+            .unwrap()
+            .get_total_ask();
 
         if (old_value - value).abs() > EPS {
             self.get_exchange_pairs_mut()
                 .get_mut(pair)
+                .unwrap()
+                .lock()
                 .unwrap()
                 .set_total_ask(value);
 
@@ -252,11 +285,19 @@ impl MarketSpine {
     }
 
     pub fn set_total_bid(&mut self, pair: &str, value: f64) {
-        let old_value: f64 = self.get_exchange_pairs().get(pair).unwrap().get_total_bid();
+        let old_value: f64 = self
+            .get_exchange_pairs()
+            .get(pair)
+            .unwrap()
+            .lock()
+            .unwrap()
+            .get_total_bid();
 
         if (old_value - value).abs() > EPS {
             self.get_exchange_pairs_mut()
                 .get_mut(pair)
+                .unwrap()
+                .lock()
                 .unwrap()
                 .set_total_bid(value);
 
