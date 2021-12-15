@@ -1,9 +1,9 @@
 use crate::worker::market_helpers::conversion_type::ConversionType;
 use crate::worker::market_helpers::exchange_pair::ExchangePair;
+use std::collections::HashMap;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
-use std::thread;
-use std::thread::JoinHandle;
+use std::thread::{self, JoinHandle};
 
 use crate::worker::market_helpers::market::{market_factory, Market};
 use crate::worker::market_helpers::market_spine::MarketSpine;
@@ -12,6 +12,7 @@ pub struct Worker {
     arc: Option<Arc<Mutex<Self>>>,
     tx: Sender<JoinHandle<()>>,
     markets: Vec<Arc<Mutex<dyn Market + Send>>>,
+    pair_average_trade_price: HashMap<(String, String), f64>,
 }
 
 impl Worker {
@@ -20,6 +21,7 @@ impl Worker {
             arc: None,
             tx,
             markets: Vec::new(),
+            pair_average_trade_price: HashMap::new(),
         };
 
         let worker = Arc::new(Mutex::new(worker));
@@ -33,9 +35,24 @@ impl Worker {
     }
 
     // TODO: Implement
-    /// Never lock Worker inside methods of Market
     pub fn recalculate_total_volume(&self, _currency: String) {
         // println!("called Worker::recalculate_total_volume()");
+    }
+
+    pub fn recalculate_pair_average_trade_price(&mut self, pair: (String, String), new_price: f64) {
+        println!("called Worker::calculate_pair_average_trade_price()");
+
+        let old_avg = *self
+            .pair_average_trade_price
+            .entry(pair.clone())
+            .or_insert(new_price);
+
+        let new_avg = (new_price + old_avg) / 2.0;
+
+        println!("pair: {:?}", pair);
+        println!("avg: {}", new_avg);
+
+        self.pair_average_trade_price.insert(pair, new_avg);
     }
 
     fn make_exchange_pairs(coins: Vec<&str>, fiats: Vec<&str>) -> Vec<ExchangePair> {
