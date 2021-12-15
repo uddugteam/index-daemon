@@ -242,7 +242,7 @@ impl MarketSpine {
             return;
         }
         // If old_value was defined
-        if !old_value.eq(&-1.0) {
+        if old_value > 0.0 {
             // If new value is not equal to the old value
             if (old_value - value).abs() < EPS {
                 return;

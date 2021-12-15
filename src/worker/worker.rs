@@ -4,8 +4,8 @@ use crate::worker::market_helpers::exchange_pair_info::ExchangePairInfo;
 use std::collections::HashMap;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
-use std::thread;
-use std::thread::JoinHandle;
+use std::thread::{self, JoinHandle};
+use std::time;
 
 use crate::worker::market_helpers::market::{market_factory, Market};
 use crate::worker::market_helpers::market_spine::MarketSpine;
@@ -15,6 +15,7 @@ pub struct Worker {
     tx: Sender<JoinHandle<()>>,
     markets: Vec<Arc<Mutex<dyn Market + Send>>>,
     exchange_pair_info: HashMap<(String, String), Vec<Arc<Mutex<ExchangePairInfo>>>>,
+    pair_average_trade_price: HashMap<(String, String), f64>,
 }
 
 impl Worker {
@@ -24,6 +25,7 @@ impl Worker {
             tx,
             markets: Vec::new(),
             exchange_pair_info: HashMap::new(),
+            pair_average_trade_price: HashMap::new(),
         };
 
         let worker = Arc::new(Mutex::new(worker));
@@ -40,6 +42,32 @@ impl Worker {
     /// Never lock Worker inside methods of Market
     pub fn recalculate_total_volume(&self, _currency: String) {
         // println!("called Worker::recalculate_total_volume()");
+    }
+
+    fn calculate_pair_average_trade_price(worker: Arc<Mutex<Self>>, pair: (String, String)) {
+        println!("called Worker::calculate_pair_average_trade_price()");
+
+        let exchange_pair_info_vec = worker
+            .lock()
+            .unwrap()
+            .exchange_pair_info
+            .get(&pair)
+            .unwrap()
+            .clone();
+
+        let mut sum: f64 = 0.0;
+        for exchange_pair_info in &exchange_pair_info_vec {
+            sum += exchange_pair_info.lock().unwrap().get_last_trade_price();
+        }
+        let avg = sum / exchange_pair_info_vec.len() as f64;
+        println!("pair: {:?}", pair);
+        println!("avg: {}", avg);
+
+        worker
+            .lock()
+            .unwrap()
+            .pair_average_trade_price
+            .insert(pair, avg);
     }
 
     fn make_exchange_pairs(coins: Vec<&str>, fiats: Vec<&str>) -> Vec<ExchangePair> {
@@ -99,6 +127,25 @@ impl Worker {
 
     pub fn start(&mut self, markets: Option<Vec<&str>>, coins: Option<Vec<&str>>) {
         self.configure(markets, coins);
+
+        for pair in self.exchange_pair_info.keys() {
+            let worker_2 = Arc::clone(self.arc.as_ref().unwrap());
+            let pair_2 = pair.clone();
+
+            let thread_name = format!(
+                "fn: calculate_pair_average_trade_price, pair: ({}, {})",
+                pair.0, pair.1,
+            );
+            let thread = thread::Builder::new()
+                .name(thread_name)
+                .spawn(move || loop {
+                    Self::calculate_pair_average_trade_price(Arc::clone(&worker_2), pair_2.clone());
+
+                    thread::sleep(time::Duration::from_millis(1000));
+                })
+                .unwrap();
+            self.tx.send(thread).unwrap();
+        }
 
         for market in self.markets.iter().cloned() {
             let thread_name = format!(
