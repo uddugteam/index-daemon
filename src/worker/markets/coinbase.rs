@@ -55,11 +55,7 @@ impl Market for Coinbase {
             if let Some(volume) = object.get("volume_24h") {
                 if let Some(volume) = volume.as_string() {
                     if let Ok(volume) = volume.parse::<f64>() {
-                        trace!(
-                            "called Coinbase::parse_ticker_info(). Pair: {}, volume: {}",
-                            pair,
-                            volume,
-                        );
+                        info!("new {} ticker on Coinbase with volume: {}", pair, volume,);
 
                         let currency = self.spine.get_pairs().get(&pair).unwrap().0.clone();
                         let conversion_coef: f64 = self
@@ -85,11 +81,9 @@ impl Market for Coinbase {
                     let last_trade_price: f64 =
                         last_trade_price.as_string().unwrap().parse().unwrap();
 
-                    trace!(
-                        "called Coinbase::parse_last_trade_info(). Pair: {}, last_trade_volume: {}, last_trade_price: {}",
-                        pair,
-                        last_trade_volume,
-                        last_trade_price,
+                    info!(
+                        "new {} trade on Coinbase with volume: {}, price: {}",
+                        pair, last_trade_volume, last_trade_price,
                     );
 
                     let conversion = self.spine.get_conversions().get(&pair).unwrap().clone();
@@ -142,11 +136,9 @@ impl Market for Coinbase {
                     }
                     bid_sum *= conversion_coef;
 
-                    trace!(
-                        "called Coinbase::parse_depth_info(). Pair: {}, ask_sum: {}, bid_sum: {}",
-                        pair,
-                        ask_sum,
-                        bid_sum,
+                    info!(
+                        "new {} book on Coinbase with ask_sum: {}, bid_sum: {}",
+                        pair, ask_sum, bid_sum,
                     );
 
                     self.spine.set_total_ask(&pair, ask_sum);

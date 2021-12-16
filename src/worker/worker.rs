@@ -53,12 +53,7 @@ impl Worker {
 
         let new_avg = (new_price + old_avg) / 2.0;
 
-        trace!(
-            "called Worker::calculate_pair_average_trade_price(). Pair: ({},{}), avg: {}",
-            pair.0,
-            pair.1,
-            new_avg
-        );
+        info!("new {}-{} average trade price: {}", pair.0, pair.1, new_avg);
 
         self.pair_average_trade_price.insert(pair.clone(), new_avg);
 

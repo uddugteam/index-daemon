@@ -51,14 +51,9 @@ impl Market for Binance {
             if let Some(volume) = object.get("v") {
                 if let Some(volume) = volume.as_string() {
                     if let Ok(volume) = volume.parse::<f64>() {
-                        trace!(
-                            "called Binance::parse_ticker_info(). Pair: {}, volume: {}",
-                            pair,
-                            volume
-                        );
+                        info!("new {} ticker on Binance with volume: {}", pair, volume);
 
                         let currency = self.spine.get_pairs().get(&pair).unwrap().0.clone();
-
                         let conversion_coef: f64 = self
                             .spine
                             .get_conversion_coef(&currency, ConversionType::Crypto);
@@ -90,18 +85,14 @@ impl Market for Binance {
                 .parse()
                 .unwrap();
 
-            trace!(
-                "called Binance::parse_last_trade_info(). Pair: {}, last_trade_volume: {}, last_trade_price: {}",
-                pair,
-                last_trade_volume,
-                last_trade_price,
+            info!(
+                "new {} trade on Binance with volume: {}, price: {}",
+                pair, last_trade_volume, last_trade_price,
             );
 
             let conversion = self.spine.get_conversions().get(&pair).unwrap().clone();
-
             let conversion_coef: f64 = if let ConversionType::None = conversion {
                 let currency = self.spine.get_pairs().get(&pair).unwrap().1.clone();
-
                 self.spine.get_conversion_coef(&currency, conversion)
             } else {
                 1.0
@@ -147,11 +138,9 @@ impl Market for Binance {
                     bid_sum *= conversion_coef;
                     self.spine.set_total_bid(&pair, bid_sum);
 
-                    trace!(
-                        "called Worker::parse_depth_info(). Pair: {}, ask_sum: {}, bid_sum: {}",
-                        pair,
-                        ask_sum,
-                        bid_sum
+                    info!(
+                        "new {} book on Binance with ask_sum: {}, bid_sum: {}",
+                        pair, ask_sum, bid_sum
                     );
 
                     let timestamp = Utc::now();

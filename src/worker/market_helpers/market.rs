@@ -43,9 +43,10 @@ fn subscribe_channel(
     on_open_msg: Option<String>,
 ) {
     trace!(
-        "called subscribe_channel(). Market: {}, pair: {}",
+        "called subscribe_channel(). Market: {}, pair: {}, channel: {}",
         market.lock().unwrap().get_spine().name,
-        pair
+        pair,
+        channel,
     );
 
     let socker_helper =

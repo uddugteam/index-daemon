@@ -53,11 +53,7 @@ impl Market for Bitfinex {
 
                         let volume: f64 = array[7].as_f64().unwrap();
 
-                        trace!(
-                            "called Bitfinex::parse_ticker_info(). Pair: {}, volume: {}",
-                            pair,
-                            volume,
-                        );
+                        info!("new {} ticker on Bitfinex with volume: {}", pair, volume,);
 
                         self.spine.set_total_volume(&pair, volume * conversion_coef);
                     }
@@ -77,11 +73,9 @@ impl Market for Bitfinex {
                         let last_trade_volume: f64 = array[2].as_f64().unwrap().abs();
                         let last_trade_price: f64 = array[3].as_f64().unwrap();
 
-                        trace!(
-                            "called Bitfinex::parse_last_trade_info(). Pair: {}, last_trade_volume: {}, last_trade_price: {}",
-                            pair,
-                            last_trade_volume,
-                            last_trade_price,
+                        info!(
+                            "new {} trade on Bitfinex with volume: {}, price: {}",
+                            pair, last_trade_volume, last_trade_price,
                         );
 
                         let conversion = self.spine.get_conversions().get(&pair).unwrap().clone();
@@ -144,20 +138,18 @@ impl Market for Bitfinex {
                                     bid_sum += x * conversion_coef;
                                     self.spine.set_total_bid(&pair, bid_sum);
 
-                                    trace!(
-                                        "called Bitfinex::parse_depth_info(). Pair: {}, bid_sum: {}",
-                                        pair,
-                                        bid_sum,
+                                    info!(
+                                        "new {} book on Bitfinex with bid_sum: {}",
+                                        pair, bid_sum,
                                     );
                                 } else {
                                     // ask
                                     ask_sum += amount;
                                     self.spine.set_total_ask(&pair, ask_sum);
 
-                                    trace!(
-                                        "called Bitfinex::parse_depth_info(). Pair: {}, ask_sum: {}",
-                                        pair,
-                                        ask_sum,
+                                    info!(
+                                        "new {} book on Bitfinex with ask_sum: {}",
+                                        pair, ask_sum,
                                     );
                                 }
 
