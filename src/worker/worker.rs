@@ -1,4 +1,5 @@
 use crate::repository::repository::Repository;
+use crate::worker::defaults::{COINS, FIATS, MARKETS};
 use crate::worker::market_helpers::conversion_type::ConversionType;
 use crate::worker::market_helpers::exchange_pair::ExchangePair;
 use std::collections::HashMap;
@@ -79,10 +80,10 @@ impl Worker {
     }
 
     fn configure(&mut self, markets: Option<Vec<&str>>, coins: Option<Vec<&str>>) {
-        let market_names = markets.unwrap_or(vec!["binance", "bitfinex", "coinbase"]);
+        let market_names = markets.unwrap_or(Vec::from(MARKETS));
 
-        let fiats = vec!["USD"];
-        let coins = coins.unwrap_or(vec!["BTC", "ETH"]);
+        let fiats = Vec::from(FIATS);
+        let coins = coins.unwrap_or(Vec::from(COINS));
 
         let exchange_pairs = Self::make_exchange_pairs(coins, fiats);
 
