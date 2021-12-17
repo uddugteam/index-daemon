@@ -25,7 +25,6 @@ pub struct MarketSpine {
     exchange_pairs: HashMap<String, ExchangePairInfo>,
     conversions: HashMap<String, ConversionType>,
     pairs: HashMap<String, (String, String)>,
-    pub socket_enabled: bool,
     capitalization: HashMap<String, f64>,
     last_capitalization_refresh: DateTime<Utc>,
 }
@@ -41,7 +40,6 @@ impl MarketSpine {
             exchange_pairs: HashMap::new(),
             conversions: HashMap::new(),
             pairs: HashMap::new(),
-            socket_enabled: false,
             capitalization: HashMap::new(),
             last_capitalization_refresh: MIN_DATETIME,
         }
@@ -280,5 +278,9 @@ impl MarketSpine {
 
             self.update_market_pair(pair, "totalValues", false);
         }
+    }
+
+    pub fn get_last_capitalization_refresh(&self) -> DateTime<Utc> {
+        self.last_capitalization_refresh
     }
 }

@@ -121,35 +121,54 @@ impl Worker {
 }
 
 #[cfg(test)]
-mod test {
+pub mod test {
     use crate::repository::pair_average_trade_price::PairAverageTradePrice;
     use crate::worker::defaults::{COINS, FIATS, MARKETS};
     use crate::worker::worker::Worker;
     use ntest::timeout;
-    use std::sync::mpsc::Receiver;
+    use std::sync::mpsc::{Receiver, Sender};
     use std::sync::{mpsc, Arc, Mutex};
     use std::thread::JoinHandle;
 
-    fn get_worker() -> (Arc<Mutex<Worker>>, Receiver<JoinHandle<()>>) {
+    pub fn get_worker() -> (
+        Arc<Mutex<Worker>>,
+        Sender<JoinHandle<()>>,
+        Receiver<JoinHandle<()>>,
+    ) {
         let (tx, rx) = mpsc::channel();
         let pair_average_trade_price_repository = PairAverageTradePrice::new();
         let worker = Worker::new(
-            tx,
+            tx.clone(),
             Arc::new(Mutex::new(pair_average_trade_price_repository)),
         );
 
-        (worker, rx)
+        (worker, tx, rx)
+    }
+
+    pub fn check_threads(mut thread_names: Vec<String>, rx: Receiver<JoinHandle<()>>) {
+        let mut passed_thread_names = Vec::new();
+        for received_thread in rx {
+            let thread_name = received_thread.thread().name().unwrap().to_string();
+            assert!(!passed_thread_names.contains(&thread_name));
+
+            if let Some(index) = thread_names.iter().position(|r| r == &thread_name) {
+                passed_thread_names.push(thread_names.swap_remove(index));
+            }
+            if thread_names.is_empty() {
+                break;
+            }
+        }
     }
 
     #[test]
     fn test_new() {
-        let (worker, _) = get_worker();
+        let (worker, _, _) = get_worker();
 
         assert!(worker.lock().unwrap().arc.is_some());
     }
 
     fn test_configure(markets: Option<Vec<&str>>, coins: Option<Vec<&str>>) {
-        let (worker, _) = get_worker();
+        let (worker, _, _) = get_worker();
         worker
             .lock()
             .unwrap()
@@ -199,8 +218,7 @@ mod test {
     #[test]
     #[timeout(1000)]
     fn test_start() {
-        let (worker, rx) = get_worker();
-        worker.lock().unwrap().start(None, None);
+        let (worker, _, rx) = get_worker();
 
         let markets = Vec::from(MARKETS);
         let mut thread_names = Vec::new();
@@ -209,17 +227,7 @@ mod test {
             thread_names.push(thread_name);
         }
 
-        let mut passed_thread_names = Vec::new();
-        for received_thread in rx {
-            let thread_name = received_thread.thread().name().unwrap().to_string();
-            assert!(!passed_thread_names.contains(&thread_name));
-
-            if let Some(index) = thread_names.iter().position(|r| r == &thread_name) {
-                passed_thread_names.push(thread_names.swap_remove(index));
-            }
-            if thread_names.is_empty() {
-                break;
-            }
-        }
+        worker.lock().unwrap().start(None, None);
+        check_threads(thread_names, rx);
     }
 }
