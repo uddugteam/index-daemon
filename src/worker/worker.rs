@@ -64,7 +64,7 @@ impl Worker {
             .insert(pair, new_avg);
     }
 
-    fn make_exchange_pairs(coins: Vec<&str>, fiats: Vec<&str>) -> Vec<ExchangePair> {
+    pub fn make_exchange_pairs(coins: Vec<&str>, fiats: Vec<&str>) -> Vec<ExchangePair> {
         let mut exchange_pairs = Vec::new();
 
         for coin in coins {
@@ -88,14 +88,7 @@ impl Worker {
         for market_name in market_names {
             let worker_2 = Arc::clone(self.arc.as_ref().unwrap());
             let market_spine = MarketSpine::new(worker_2, self.tx.clone(), market_name.to_string());
-            let market = market_factory(market_spine);
-
-            for exchange_pair in &exchange_pairs {
-                market
-                    .lock()
-                    .unwrap()
-                    .add_exchange_pair(exchange_pair.clone());
-            }
+            let market = market_factory(market_spine, exchange_pairs.clone());
 
             self.markets.push(market);
         }
@@ -123,7 +116,7 @@ impl Worker {
 #[cfg(test)]
 pub mod test {
     use crate::repository::pair_average_trade_price::PairAverageTradePrice;
-    use crate::worker::defaults::{COINS, FIATS, MARKETS};
+    use crate::worker::defaults::MARKETS;
     use crate::worker::worker::Worker;
     use ntest::timeout;
     use std::sync::mpsc::{Receiver, Sender};
@@ -175,30 +168,11 @@ pub mod test {
             .configure(markets.clone(), coins.clone());
 
         let markets = markets.unwrap_or(Vec::from(MARKETS));
-        let fiats = Vec::from(FIATS);
-        let coins = coins.unwrap_or(Vec::from(COINS));
-        let exchange_pairs = Worker::make_exchange_pairs(coins, fiats);
-
         assert_eq!(markets.len(), worker.lock().unwrap().markets.len());
 
         for (i, market) in worker.lock().unwrap().markets.iter().enumerate() {
             let market_name = market.lock().unwrap().get_spine().name.clone();
             assert_eq!(market_name, markets[i]);
-
-            let exchange_pair_keys: Vec<String> = market
-                .lock()
-                .unwrap()
-                .get_spine()
-                .get_exchange_pairs()
-                .keys()
-                .cloned()
-                .collect();
-            assert_eq!(exchange_pair_keys.len(), exchange_pairs.len());
-
-            for pair in &exchange_pairs {
-                let pair_string = market.lock().unwrap().make_pair(pair.get_pair_ref());
-                assert!(exchange_pair_keys.contains(&pair_string));
-            }
         }
     }
 
