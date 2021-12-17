@@ -55,12 +55,9 @@ impl Market for Coinbase {
             if let Some(volume) = object.get("volume_24h") {
                 if let Some(volume) = volume.as_string() {
                     if let Ok(volume) = volume.parse::<f64>() {
-                        println!("called Coinbase::parse_ticker_info()");
-                        println!("pair: {}", pair);
-                        println!("volume: {}", volume);
+                        info!("new {} ticker on Coinbase with volume: {}", pair, volume,);
 
                         let currency = self.spine.get_pairs().get(&pair).unwrap().0.clone();
-
                         let conversion_coef: f64 = self
                             .spine
                             .get_conversion_coef(&currency, ConversionType::Crypto);
@@ -78,22 +75,20 @@ impl Market for Coinbase {
         if let Some(object) = json.as_object() {
             if let Some(last_trade_volume) = object.get("size") {
                 if let Some(last_trade_price) = object.get("price") {
-                    println!("called Coinbase::parse_last_trade_info()");
-                    println!("pair: {}", pair);
-
                     let last_trade_volume: f64 =
                         last_trade_volume.as_string().unwrap().parse().unwrap();
-                    println!("last_trade_volume: {}", last_trade_volume);
 
                     let last_trade_price: f64 =
                         last_trade_price.as_string().unwrap().parse().unwrap();
-                    println!("last_trade_price: {}", last_trade_price);
+
+                    info!(
+                        "new {} trade on Coinbase with volume: {}, price: {}",
+                        pair, last_trade_volume, last_trade_price,
+                    );
 
                     let conversion = self.spine.get_conversions().get(&pair).unwrap().clone();
-
                     let conversion_coef: f64 = if let ConversionType::None = conversion {
                         let currency = self.spine.get_pairs().get(&pair).unwrap().1.clone();
-
                         self.spine.get_conversion_coef(&currency, conversion)
                     } else {
                         1.0
@@ -113,14 +108,9 @@ impl Market for Coinbase {
         if let Some(object) = json.as_object() {
             if let Some(asks) = object.get("asks") {
                 if let Some(bids) = object.get("bids") {
-                    println!("called Coinbase::parse_depth_info()");
-                    println!("pair: {}", pair);
-
                     let conversion = self.spine.get_conversions().get(&pair).unwrap().clone();
-
                     let conversion_coef: f64 = if let ConversionType::None = conversion {
                         let currency = self.spine.get_pairs().get(&pair).unwrap().1.clone();
-
                         self.spine.get_conversion_coef(&currency, conversion)
                     } else {
                         1.0
@@ -134,7 +124,6 @@ impl Market for Coinbase {
                             ask_sum += ask;
                         }
                     }
-                    println!("ask_sum: {}", ask_sum);
 
                     let bids = bids.as_array().unwrap();
                     let mut bid_sum: f64 = 0.0;
@@ -145,9 +134,12 @@ impl Market for Coinbase {
                             bid_sum += size * price;
                         }
                     }
-
                     bid_sum *= conversion_coef;
-                    println!("bid_sum: {}", bid_sum);
+
+                    info!(
+                        "new {} book on Coinbase with ask_sum: {}, bid_sum: {}",
+                        pair, ask_sum, bid_sum,
+                    );
 
                     self.spine.set_total_ask(&pair, ask_sum);
                     self.spine.set_total_bid(&pair, bid_sum);

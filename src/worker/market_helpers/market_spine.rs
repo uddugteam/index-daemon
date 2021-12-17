@@ -98,8 +98,6 @@ impl MarketSpine {
     }
 
     pub fn refresh_capitalization(&mut self) {
-        // println!("called MarketSpine::refresh_capitalization()");
-
         let response_text = Client::new()
             .get("https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest")
             .header("Accepts", "application/json")
@@ -161,15 +159,13 @@ impl MarketSpine {
 
                 self.update_market_pair(pair, "totalValues", false);
 
-                // Never lock Worker inside methods of Market
-                self.recalculate_total_volume(self.pairs.get(pair).unwrap().0.clone());
+                let pair_tuple = self.pairs.get(pair).unwrap();
+                self.recalculate_total_volume(pair_tuple.0.clone());
             }
         }
     }
 
     fn recalculate_total_volume(&self, currency: String) {
-        // println!("called MarketSpine::recalculate_total_volume()");
-
         let worker = Arc::clone(&self.worker);
 
         let thread_name = format!(
@@ -180,6 +176,25 @@ impl MarketSpine {
             .name(thread_name)
             .spawn(move || {
                 worker.lock().unwrap().recalculate_total_volume(currency);
+            })
+            .unwrap();
+        self.tx.send(thread).unwrap();
+    }
+
+    fn recalculate_pair_average_trade_price(&self, pair: (String, String), value: f64) {
+        let worker = Arc::clone(&self.worker);
+
+        let thread_name = format!(
+            "fn: recalculate_pair_average_trade_price, market: {}, pair: ({},{})",
+            self.name, pair.0, pair.1,
+        );
+        let thread = thread::Builder::new()
+            .name(thread_name)
+            .spawn(move || {
+                worker
+                    .lock()
+                    .unwrap()
+                    .recalculate_pair_average_trade_price(pair, value);
             })
             .unwrap();
         self.tx.send(thread).unwrap();
@@ -219,7 +234,7 @@ impl MarketSpine {
             return;
         }
         // If old_value was defined
-        if !old_value.eq(&-1.0) {
+        if old_value > 0.0 {
             // If new value is not equal to the old value
             if (old_value - value).abs() < EPS {
                 return;
@@ -234,6 +249,9 @@ impl MarketSpine {
             .get_mut(pair)
             .unwrap()
             .set_last_trade_price(value);
+
+        let pair_tuple = self.pairs.get(pair).unwrap().clone();
+        self.recalculate_pair_average_trade_price(pair_tuple, value);
 
         self.update_market_pair(pair, "lastTrade", false);
     }
