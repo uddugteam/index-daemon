@@ -1,4 +1,3 @@
-use crate::worker::market_helpers::conversion_type::ConversionType;
 use chrono::Utc;
 use rustc_serialize::json::Json;
 
@@ -45,15 +44,11 @@ impl Market for Bitfinex {
                 if array.len() >= 2 {
                     if let Some(array) = array[1].as_array() {
                         if array.len() >= 8 {
-                            let currency = self.spine.get_pairs().get(&pair).unwrap().0.clone();
-                            let conversion_coef: f64 = self
-                                .spine
-                                .get_conversion_coef(&currency, ConversionType::Crypto);
-
                             let volume: f64 = array[7].as_f64().unwrap();
 
                             info!("new {} ticker on Bitfinex with volume: {}", pair, volume,);
 
+                            let conversion_coef: f64 = self.spine.get_conversion_coef(&pair);
                             self.spine.set_total_volume(&pair, volume * conversion_coef);
                         }
                     }
@@ -77,15 +72,7 @@ impl Market for Bitfinex {
                                 pair, last_trade_volume, last_trade_price,
                             );
 
-                            let conversion =
-                                self.spine.get_conversions().get(&pair).unwrap().clone();
-                            let conversion_coef: f64 = if let ConversionType::None = conversion {
-                                let currency = self.spine.get_pairs().get(&pair).unwrap().1.clone();
-                                self.spine.get_conversion_coef(&currency, conversion)
-                            } else {
-                                1.0
-                            };
-
+                            let conversion_coef: f64 = self.spine.get_conversion_coef(&pair);
                             self.spine.set_last_trade_volume(&pair, last_trade_volume);
                             self.spine
                                 .set_last_trade_price(&pair, last_trade_price * conversion_coef);
@@ -119,22 +106,11 @@ impl Market for Bitfinex {
                                         .unwrap()
                                         .get_total_bid();
 
-                                    let conversion =
-                                        self.spine.get_conversions().get(&pair).unwrap().clone();
-
-                                    let conversion_coef: f64 = if let ConversionType::None =
-                                        conversion
-                                    {
-                                        let currency =
-                                            self.spine.get_pairs().get(&pair).unwrap().1.clone();
-
-                                        self.spine.get_conversion_coef(&currency, conversion)
-                                    } else {
-                                        1.0
-                                    };
-
                                     if amount > 0.0 {
                                         // bid
+                                        let conversion_coef: f64 =
+                                            self.spine.get_conversion_coef(&pair);
+
                                         let x: f64 = -(price * amount);
                                         bid_sum += x * conversion_coef;
                                         self.spine.set_total_bid(&pair, bid_sum);

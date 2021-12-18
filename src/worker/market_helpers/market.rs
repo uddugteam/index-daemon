@@ -5,6 +5,8 @@ use crate::worker::markets::binance::Binance;
 use crate::worker::markets::bitfinex::Bitfinex;
 use crate::worker::markets::coinbase::Coinbase;
 use crate::worker::network_helpers::socket_helper::SocketHelper;
+use rustc_serialize::json::{Array, Object};
+use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time;
@@ -68,6 +70,30 @@ fn subscribe_channel(
             },
         );
     socker_helper.start();
+}
+
+pub fn parse_str_from_json_object<T: FromStr>(object: &Object, key: &str) -> Option<T> {
+    if let Some(value) = object.get(key) {
+        if let Some(value) = value.as_string() {
+            if let Ok(value) = value.parse() {
+                return Some(value);
+            }
+        }
+    }
+
+    None
+}
+
+pub fn parse_str_from_json_array<T: FromStr>(array: &Array, key: usize) -> Option<T> {
+    if let Some(value) = array.get(key) {
+        if let Some(value) = value.as_string() {
+            if let Ok(value) = value.parse() {
+                return Some(value);
+            }
+        }
+    }
+
+    None
 }
 
 fn update(market: Arc<Mutex<dyn Market + Send>>) {

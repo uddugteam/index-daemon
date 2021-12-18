@@ -132,8 +132,16 @@ impl MarketSpine {
 
     // TODO: Implement
     /// Cannot be implemented, because it depends on https://api.icex.ch/api/coins/
-    /// which is no working
-    pub fn get_conversion_coef(&mut self, _currency: &str, _conversion: ConversionType) -> f64 {
+    /// which is not working
+    pub fn get_conversion_coef(&self, pair: &str) -> f64 {
+        let conversion = self.get_conversions().get(pair).unwrap().clone();
+
+        let _currency = match conversion {
+            ConversionType::None => Some(self.get_pairs().get(pair).unwrap().1.clone()),
+            ConversionType::Crypto => Some(self.get_pairs().get(pair).unwrap().0.clone()),
+            _ => None,
+        };
+
         1.0
     }
 
