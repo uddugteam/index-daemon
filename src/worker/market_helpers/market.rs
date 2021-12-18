@@ -9,7 +9,10 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time;
 
-pub fn market_factory(mut spine: MarketSpine) -> Arc<Mutex<dyn Market + Send>> {
+pub fn market_factory(
+    mut spine: MarketSpine,
+    exchange_pairs: Vec<ExchangePair>,
+) -> Arc<Mutex<dyn Market + Send>> {
     let mask_pairs = match spine.name.as_ref() {
         "binance" => vec![("IOT", "IOTA"), ("USD", "USDT")],
         "bitfinex" => vec![("DASH", "dsh"), ("QTUM", "QTM")],
@@ -31,6 +34,10 @@ pub fn market_factory(mut spine: MarketSpine) -> Arc<Mutex<dyn Market + Send>> {
         .unwrap()
         .get_spine_mut()
         .set_arc(Arc::clone(&market));
+
+    for exchange_pair in exchange_pairs {
+        market.lock().unwrap().add_exchange_pair(exchange_pair);
+    }
 
     market
 }
@@ -64,10 +71,7 @@ fn subscribe_channel(
 }
 
 fn update(market: Arc<Mutex<dyn Market + Send>>) {
-    market.lock().unwrap().get_spine_mut().socket_enabled = true;
-
     let channels = MarketChannels::get_all();
-
     let exchange_pairs: Vec<String> = market
         .lock()
         .unwrap()
@@ -174,7 +178,7 @@ pub trait Market {
 
         let market = Arc::clone(self.get_spine().arc.as_ref().unwrap());
 
-        let thread_name = format!("fn: update, market: {}", self.get_spine().name,);
+        let thread_name = format!("fn: update, market: {}", self.get_spine().name);
         let thread = thread::Builder::new()
             .name(thread_name)
             .spawn(move || update(market))
@@ -184,4 +188,122 @@ pub trait Market {
     fn parse_ticker_info(&mut self, pair: String, info: String);
     fn parse_last_trade_info(&mut self, pair: String, info: String);
     fn parse_depth_info(&mut self, pair: String, info: String);
+}
+
+#[cfg(test)]
+mod test {
+    use crate::worker::defaults::{COINS, FIATS};
+    use crate::worker::market_helpers::market::{market_factory, update, Market};
+    use crate::worker::market_helpers::market_channels::MarketChannels;
+    use crate::worker::market_helpers::market_spine::MarketSpine;
+    use crate::worker::worker::test::{check_threads, get_worker};
+    use crate::worker::worker::Worker;
+    use chrono::{Duration, Utc};
+    use ntest::timeout;
+    use std::sync::mpsc::Receiver;
+    use std::sync::{Arc, Mutex};
+    use std::thread::JoinHandle;
+
+    fn get_market(
+        market_name: Option<&str>,
+    ) -> (Arc<Mutex<dyn Market + Send>>, Receiver<JoinHandle<()>>) {
+        let market_name = market_name.unwrap_or("binance").to_string();
+        let fiats = Vec::from(FIATS);
+        let coins = Vec::from(COINS);
+        let exchange_pairs = Worker::make_exchange_pairs(coins, fiats);
+
+        let (worker, tx, rx) = get_worker();
+        let market_spine = MarketSpine::new(worker, tx, market_name);
+        let market = market_factory(market_spine, exchange_pairs);
+
+        (market, rx)
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_market_factory() {
+        let (_, _) = get_market(Some("not_existing_market"));
+    }
+
+    #[test]
+    fn test_market_factory_2() {
+        let (market, _) = get_market(None);
+
+        assert!(market.lock().unwrap().get_spine().arc.is_some());
+
+        let fiats = Vec::from(FIATS);
+        let coins = Vec::from(COINS);
+        let exchange_pairs = Worker::make_exchange_pairs(coins, fiats);
+        let exchange_pair_keys: Vec<String> = market
+            .lock()
+            .unwrap()
+            .get_spine()
+            .get_exchange_pairs()
+            .keys()
+            .cloned()
+            .collect();
+        assert_eq!(exchange_pair_keys.len(), exchange_pairs.len());
+
+        for pair in &exchange_pairs {
+            let pair_string = market.lock().unwrap().make_pair(pair.get_pair_ref());
+            assert!(exchange_pair_keys.contains(&pair_string));
+        }
+    }
+
+    #[test]
+    #[timeout(3000)]
+    fn test_perform() {
+        let (market, rx) = get_market(None);
+
+        let thread_names = vec![format!(
+            "fn: update, market: {}",
+            market.lock().unwrap().get_spine().name
+        )];
+
+        market.lock().unwrap().perform();
+
+        // TODO: Refactor (not always working)
+        check_threads(thread_names, rx);
+
+        let now = Utc::now();
+        let last_capitalization_refresh = market
+            .lock()
+            .unwrap()
+            .get_spine()
+            .get_last_capitalization_refresh();
+        assert!(now - last_capitalization_refresh <= Duration::milliseconds(5000));
+    }
+
+    #[test]
+    #[timeout(120000)]
+    /// TODO: Refactor (not always working)
+    fn test_update() {
+        let (market, rx) = get_market(None);
+
+        let channels = MarketChannels::get_all();
+        let exchange_pairs: Vec<String> = market
+            .lock()
+            .unwrap()
+            .get_spine()
+            .get_exchange_pairs()
+            .keys()
+            .cloned()
+            .collect();
+
+        let mut thread_names = Vec::new();
+        for pair in exchange_pairs {
+            for channel in channels {
+                let thread_name = format!(
+                    "fn: subscribe_channel, market: {}, pair: {}, channel: {}",
+                    market.lock().unwrap().get_spine().name,
+                    pair,
+                    channel
+                );
+                thread_names.push(thread_name);
+            }
+        }
+
+        update(market);
+        check_threads(thread_names, rx);
+    }
 }

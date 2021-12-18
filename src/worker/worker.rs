@@ -64,7 +64,7 @@ impl Worker {
             .insert(pair, new_avg);
     }
 
-    fn make_exchange_pairs(coins: Vec<&str>, fiats: Vec<&str>) -> Vec<ExchangePair> {
+    pub fn make_exchange_pairs(coins: Vec<&str>, fiats: Vec<&str>) -> Vec<ExchangePair> {
         let mut exchange_pairs = Vec::new();
 
         for coin in coins {
@@ -88,14 +88,7 @@ impl Worker {
         for market_name in market_names {
             let worker_2 = Arc::clone(self.arc.as_ref().unwrap());
             let market_spine = MarketSpine::new(worker_2, self.tx.clone(), market_name.to_string());
-            let market = market_factory(market_spine);
-
-            for exchange_pair in &exchange_pairs {
-                market
-                    .lock()
-                    .unwrap()
-                    .add_exchange_pair(exchange_pair.clone());
-            }
+            let market = market_factory(market_spine, exchange_pairs.clone());
 
             self.markets.push(market);
         }
@@ -121,65 +114,65 @@ impl Worker {
 }
 
 #[cfg(test)]
-mod test {
+pub mod test {
     use crate::repository::pair_average_trade_price::PairAverageTradePrice;
-    use crate::worker::defaults::{COINS, FIATS, MARKETS};
+    use crate::worker::defaults::MARKETS;
     use crate::worker::worker::Worker;
     use ntest::timeout;
-    use std::sync::mpsc::Receiver;
+    use std::sync::mpsc::{Receiver, Sender};
     use std::sync::{mpsc, Arc, Mutex};
     use std::thread::JoinHandle;
 
-    fn get_worker() -> (Arc<Mutex<Worker>>, Receiver<JoinHandle<()>>) {
+    pub fn get_worker() -> (
+        Arc<Mutex<Worker>>,
+        Sender<JoinHandle<()>>,
+        Receiver<JoinHandle<()>>,
+    ) {
         let (tx, rx) = mpsc::channel();
         let pair_average_trade_price_repository = PairAverageTradePrice::new();
         let worker = Worker::new(
-            tx,
+            tx.clone(),
             Arc::new(Mutex::new(pair_average_trade_price_repository)),
         );
 
-        (worker, rx)
+        (worker, tx, rx)
+    }
+
+    pub fn check_threads(mut thread_names: Vec<String>, rx: Receiver<JoinHandle<()>>) {
+        let mut passed_thread_names = Vec::new();
+        for received_thread in rx {
+            let thread_name = received_thread.thread().name().unwrap().to_string();
+            assert!(!passed_thread_names.contains(&thread_name));
+
+            if let Some(index) = thread_names.iter().position(|r| r == &thread_name) {
+                passed_thread_names.push(thread_names.swap_remove(index));
+            }
+            if thread_names.is_empty() {
+                break;
+            }
+        }
     }
 
     #[test]
     fn test_new() {
-        let (worker, _) = get_worker();
+        let (worker, _, _) = get_worker();
 
         assert!(worker.lock().unwrap().arc.is_some());
     }
 
     fn test_configure(markets: Option<Vec<&str>>, coins: Option<Vec<&str>>) {
-        let (worker, _) = get_worker();
+        let (worker, _, _) = get_worker();
         worker
             .lock()
             .unwrap()
             .configure(markets.clone(), coins.clone());
 
         let markets = markets.unwrap_or(Vec::from(MARKETS));
-        let fiats = Vec::from(FIATS);
-        let coins = coins.unwrap_or(Vec::from(COINS));
-        let exchange_pairs = Worker::make_exchange_pairs(coins, fiats);
-
         assert_eq!(markets.len(), worker.lock().unwrap().markets.len());
 
         for (i, market) in worker.lock().unwrap().markets.iter().enumerate() {
             let market_name = market.lock().unwrap().get_spine().name.clone();
             assert_eq!(market_name, markets[i]);
-
-            let exchange_pair_keys: Vec<String> = market
-                .lock()
-                .unwrap()
-                .get_spine()
-                .get_exchange_pairs()
-                .keys()
-                .cloned()
-                .collect();
-            assert_eq!(exchange_pair_keys.len(), exchange_pairs.len());
-
-            for pair in &exchange_pairs {
-                let pair_string = market.lock().unwrap().make_pair(pair.get_pair_ref());
-                assert!(exchange_pair_keys.contains(&pair_string));
-            }
         }
     }
 
@@ -199,8 +192,7 @@ mod test {
     #[test]
     #[timeout(1000)]
     fn test_start() {
-        let (worker, rx) = get_worker();
-        worker.lock().unwrap().start(None, None);
+        let (worker, _, rx) = get_worker();
 
         let markets = Vec::from(MARKETS);
         let mut thread_names = Vec::new();
@@ -209,17 +201,7 @@ mod test {
             thread_names.push(thread_name);
         }
 
-        let mut passed_thread_names = Vec::new();
-        for received_thread in rx {
-            let thread_name = received_thread.thread().name().unwrap().to_string();
-            assert!(!passed_thread_names.contains(&thread_name));
-
-            if let Some(index) = thread_names.iter().position(|r| r == &thread_name) {
-                passed_thread_names.push(thread_names.swap_remove(index));
-            }
-            if thread_names.is_empty() {
-                break;
-            }
-        }
+        worker.lock().unwrap().start(None, None);
+        check_threads(thread_names, rx);
     }
 }
