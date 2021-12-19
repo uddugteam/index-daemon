@@ -47,13 +47,13 @@ where
         let (write, read) = ws_stream.split();
 
         let stdin_to_ws = stdin_rx.map(Ok).forward(write);
-        let ws_to_stdout = {
-            read.for_each(|message| async {
-                let message = message.unwrap().into_text().unwrap();
-
-                (socket_helper.callback)(socket_helper.pair.clone(), message);
-            })
-        };
+        let ws_to_stdout = read.for_each(|message| async {
+            if let Ok(message) = message {
+                if let Ok(message) = message.into_text() {
+                    (socket_helper.callback)(socket_helper.pair.clone(), message);
+                }
+            }
+        });
 
         pin_mut!(stdin_to_ws, ws_to_stdout);
         future::select(stdin_to_ws, ws_to_stdout).await;
