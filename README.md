@@ -23,9 +23,12 @@ You can use _env vars_ or _config file_. You can specify _config file_ in _CLI p
 ### Env vars format description
 
 - env var name must be uppercase
-- env var name must have prefix "APP__"
-- env var name is a concatenation of _config group name_ (e.g., "service_config") and _config name_ (e.g., "log_level"), separated by a double underscore "__", e.g., "APP__SERVICE_CONFIG__LOG_LEVEL"
-- if param is array, env var value must contain string with comma-separated array values. E.g. "1,2,3"
+- env var name is a concatenation of
+  - prefix "APP"
+  - _config group name_ (e.g., "service_config")
+  - _config name_ (e.g., "log_level"), separated by a double underscore "__"
+- env var name example: "APP__SERVICE_CONFIG__LOG_LEVEL"
+- if param is array, env var value must contain string with comma-separated array values, e.g., "1,2,3"
 
 ## Supported exchanges
 
