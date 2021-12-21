@@ -134,7 +134,7 @@ impl MarketSpine {
     /// Cannot be implemented, because it depends on https://api.icex.ch/api/coins/
     /// which is not working
     pub fn get_conversion_coef(&self, pair: &str) -> f64 {
-        let conversion = self.get_conversions().get(pair).unwrap().clone();
+        let conversion = *self.get_conversions().get(pair).unwrap();
 
         let _currency = match conversion {
             ConversionType::None => Some(self.get_pairs().get(pair).unwrap().1.clone()),
