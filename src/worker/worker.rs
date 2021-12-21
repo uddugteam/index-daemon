@@ -255,7 +255,7 @@ pub mod test {
     }
 
     #[test]
-    #[timeout(1000)]
+    #[timeout(2000)]
     fn test_start() {
         let (worker, _, rx) = get_worker();
 
