@@ -10,8 +10,8 @@ use rustc_serialize::json::Json;
 use std::collections::HashMap;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
-use std::thread;
-use std::thread::JoinHandle;
+use std::thread::{self, JoinHandle};
+use std::time;
 
 pub const EPS: f64 = 0.00001;
 
@@ -96,37 +96,52 @@ impl MarketSpine {
     }
 
     pub fn refresh_capitalization(&mut self) {
-        let response_text = Client::new()
-            .get("https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest")
-            .header("Accepts", "application/json")
-            .header("X-CMC_PRO_API_KEY", "388b6445-3e65-4b86-913e-f0534596068b")
-            .multipart(
-                Form::new()
-                    .part("start", Part::text("1"))
-                    .part("limit", Part::text("10"))
-                    .part("convert", Part::text("USD")),
-            )
-            .send()
-            .unwrap()
-            .text()
-            .unwrap();
+        loop {
+            let response = Client::new()
+                .get("https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest")
+                .header("Accepts", "application/json")
+                .header("X-CMC_PRO_API_KEY", "388b6445-3e65-4b86-913e-f0534596068b")
+                .multipart(
+                    Form::new()
+                        .part("start", Part::text("1"))
+                        .part("limit", Part::text("10"))
+                        .part("convert", Part::text("USD")),
+                )
+                .send();
 
-        if let Ok(json) = Json::from_str(&response_text) {
-            let json_object = json.as_object().unwrap();
-            let coins = json_object.get("data").unwrap().as_array().unwrap();
+            match response {
+                Ok(response) => match response.text() {
+                    Ok(response) => match Json::from_str(&response) {
+                        Ok(json) => {
+                            let json_object = json.as_object().unwrap();
+                            let coins = json_object.get("data").unwrap().as_array().unwrap();
 
-            for coin in coins.iter().map(|j| j.as_object().unwrap()) {
-                let mut curr = coin.get("symbol").unwrap().as_string().unwrap();
-                if curr == "MIOTA" {
-                    curr = "IOT";
-                }
+                            for coin in coins.iter().map(|j| j.as_object().unwrap()) {
+                                let mut curr = coin.get("symbol").unwrap().as_string().unwrap();
+                                if curr == "MIOTA" {
+                                    curr = "IOT";
+                                }
 
-                let total_supply = coin.get("total_supply").unwrap().as_f64().unwrap();
+                                let total_supply =
+                                    coin.get("total_supply").unwrap().as_f64().unwrap();
 
-                self.capitalization.insert(curr.to_string(), total_supply);
+                                self.capitalization.insert(curr.to_string(), total_supply);
+                            }
+
+                            self.last_capitalization_refresh = Utc::now();
+                            break;
+                        }
+                        Err(e) => error!("Coinmarketcap.com: Failed to parse json. Error: {}", e),
+                    },
+                    Err(e) => error!(
+                        "Coinmarketcap.com: Failed to get message text. Error: {}",
+                        e
+                    ),
+                },
+                Err(e) => error!("Coinmarketcap.com: Failed to connect. Error: {}", e),
             }
 
-            self.last_capitalization_refresh = Utc::now();
+            thread::sleep(time::Duration::from_millis(10000));
         }
     }
 
