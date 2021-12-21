@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
+use std::time;
 
 use crate::worker::market_helpers::market::{market_factory, Market};
 use crate::worker::market_helpers::market_spine::MarketSpine;
@@ -109,6 +110,8 @@ impl Worker {
                 })
                 .unwrap();
             self.tx.send(thread).unwrap();
+
+            thread::sleep(time::Duration::from_millis(3000));
         }
     }
 }
