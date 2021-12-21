@@ -2,6 +2,10 @@ use crate::repository::repository::Repository;
 use crate::worker::defaults::{COINS, FIATS, MARKETS};
 use crate::worker::market_helpers::conversion_type::ConversionType;
 use crate::worker::market_helpers::exchange_pair::ExchangePair;
+use chrono::{DateTime, Utc, MIN_DATETIME};
+use reqwest::blocking::multipart::{Form, Part};
+use reqwest::blocking::Client;
+use rustc_serialize::json::Json;
 use std::collections::HashMap;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
@@ -17,6 +21,8 @@ pub struct Worker {
     markets: Vec<Arc<Mutex<dyn Market + Send>>>,
     pair_average_trade_price: HashMap<(String, String), f64>,
     pair_average_trade_price_repository: Arc<Mutex<dyn Repository<(String, String), f64> + Send>>,
+    capitalization: HashMap<String, f64>,
+    last_capitalization_refresh: DateTime<Utc>,
 }
 
 impl Worker {
@@ -32,6 +38,8 @@ impl Worker {
             markets: Vec::new(),
             pair_average_trade_price: HashMap::new(),
             pair_average_trade_price_repository,
+            capitalization: HashMap::new(),
+            last_capitalization_refresh: MIN_DATETIME,
         };
 
         let worker = Arc::new(Mutex::new(worker));
@@ -63,6 +71,60 @@ impl Worker {
             .lock()
             .unwrap()
             .insert(pair, new_avg);
+    }
+
+    pub fn refresh_capitalization(&mut self) {
+        loop {
+            let response = Client::new()
+                .get("https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest")
+                .header("Accepts", "application/json")
+                .header("X-CMC_PRO_API_KEY", "388b6445-3e65-4b86-913e-f0534596068b")
+                .multipart(
+                    Form::new()
+                        .part("start", Part::text("1"))
+                        .part("limit", Part::text("10"))
+                        .part("convert", Part::text("USD")),
+                )
+                .send();
+
+            match response {
+                Ok(response) => match response.text() {
+                    Ok(response) => match Json::from_str(&response) {
+                        Ok(json) => {
+                            let json_object = json.as_object().unwrap();
+                            let coins = json_object.get("data").unwrap().as_array().unwrap();
+
+                            for coin in coins.iter().map(|j| j.as_object().unwrap()) {
+                                let mut curr = coin.get("symbol").unwrap().as_string().unwrap();
+                                if curr == "MIOTA" {
+                                    curr = "IOT";
+                                }
+
+                                let total_supply =
+                                    coin.get("total_supply").unwrap().as_f64().unwrap();
+
+                                self.capitalization.insert(curr.to_string(), total_supply);
+                            }
+
+                            self.last_capitalization_refresh = Utc::now();
+                            break;
+                        }
+                        Err(e) => error!("Coinmarketcap.com: Failed to parse json. Error: {}", e),
+                    },
+                    Err(e) => error!(
+                        "Coinmarketcap.com: Failed to get message text. Error: {}",
+                        e
+                    ),
+                },
+                Err(e) => error!("Coinmarketcap.com: Failed to connect. Error: {}", e),
+            }
+
+            thread::sleep(time::Duration::from_millis(10000));
+        }
+    }
+
+    fn get_last_capitalization_refresh(&self) -> DateTime<Utc> {
+        self.last_capitalization_refresh
     }
 
     pub fn make_exchange_pairs(coins: Vec<&str>, fiats: Vec<&str>) -> Vec<ExchangePair> {
@@ -97,6 +159,7 @@ impl Worker {
 
     pub fn start(&mut self, markets: Option<Vec<&str>>, coins: Option<Vec<&str>>) {
         self.configure(markets, coins);
+        self.refresh_capitalization();
 
         for market in self.markets.iter().cloned() {
             let thread_name = format!(
@@ -110,8 +173,6 @@ impl Worker {
                 })
                 .unwrap();
             self.tx.send(thread).unwrap();
-
-            thread::sleep(time::Duration::from_millis(3000));
         }
     }
 }
@@ -121,6 +182,7 @@ pub mod test {
     use crate::repository::pair_average_trade_price::PairAverageTradePrice;
     use crate::worker::defaults::MARKETS;
     use crate::worker::worker::Worker;
+    use chrono::{Duration, Utc};
     use ntest::timeout;
     use std::sync::mpsc::{Receiver, Sender};
     use std::sync::{mpsc, Arc, Mutex};
@@ -206,5 +268,9 @@ pub mod test {
 
         worker.lock().unwrap().start(None, None);
         check_threads(thread_names, rx);
+
+        let now = Utc::now();
+        let last_capitalization_refresh = worker.lock().unwrap().get_last_capitalization_refresh();
+        assert!(now - last_capitalization_refresh <= Duration::milliseconds(5000));
     }
 }

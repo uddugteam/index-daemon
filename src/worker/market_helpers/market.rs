@@ -200,8 +200,6 @@ pub trait Market {
             self.get_spine().name
         );
 
-        self.get_spine_mut().refresh_capitalization();
-
         let market = Arc::clone(self.get_spine().arc.as_ref().unwrap());
 
         let thread_name = format!("fn: update, market: {}", self.get_spine().name);
@@ -224,7 +222,6 @@ mod test {
     use crate::worker::market_helpers::market_spine::MarketSpine;
     use crate::worker::worker::test::{check_threads, get_worker};
     use crate::worker::worker::Worker;
-    use chrono::{Duration, Utc};
     use ntest::timeout;
     use std::sync::mpsc::Receiver;
     use std::sync::{Arc, Mutex};
@@ -290,14 +287,6 @@ mod test {
 
         // TODO: Refactor (not always working)
         check_threads(thread_names, rx);
-
-        let now = Utc::now();
-        let last_capitalization_refresh = market
-            .lock()
-            .unwrap()
-            .get_spine()
-            .get_last_capitalization_refresh();
-        assert!(now - last_capitalization_refresh <= Duration::milliseconds(5000));
     }
 
     #[test]

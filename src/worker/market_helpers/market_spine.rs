@@ -3,15 +3,10 @@ use crate::worker::market_helpers::exchange_pair::ExchangePair;
 use crate::worker::market_helpers::exchange_pair_info::ExchangePairInfo;
 use crate::worker::market_helpers::market::Market;
 use crate::worker::worker::Worker;
-use chrono::{DateTime, Utc, MIN_DATETIME};
-use reqwest::blocking::multipart::{Form, Part};
-use reqwest::blocking::Client;
-use rustc_serialize::json::Json;
 use std::collections::HashMap;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
-use std::time;
 
 pub const EPS: f64 = 0.00001;
 
@@ -25,8 +20,6 @@ pub struct MarketSpine {
     exchange_pairs: HashMap<String, ExchangePairInfo>,
     conversions: HashMap<String, ConversionType>,
     pairs: HashMap<String, (String, String)>,
-    capitalization: HashMap<String, f64>,
-    last_capitalization_refresh: DateTime<Utc>,
 }
 impl MarketSpine {
     pub fn new(worker: Arc<Mutex<Worker>>, tx: Sender<JoinHandle<()>>, name: String) -> Self {
@@ -40,8 +33,6 @@ impl MarketSpine {
             exchange_pairs: HashMap::new(),
             conversions: HashMap::new(),
             pairs: HashMap::new(),
-            capitalization: HashMap::new(),
-            last_capitalization_refresh: MIN_DATETIME,
         }
     }
 
@@ -93,56 +84,6 @@ impl MarketSpine {
 
     pub fn _get_unmasked_value<'a>(&'a self, a: &'a str) -> &str {
         self.unmask_pairs.get(a).map(|s| s.as_ref()).unwrap_or(a)
-    }
-
-    pub fn refresh_capitalization(&mut self) {
-        loop {
-            let response = Client::new()
-                .get("https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest")
-                .header("Accepts", "application/json")
-                .header("X-CMC_PRO_API_KEY", "388b6445-3e65-4b86-913e-f0534596068b")
-                .multipart(
-                    Form::new()
-                        .part("start", Part::text("1"))
-                        .part("limit", Part::text("10"))
-                        .part("convert", Part::text("USD")),
-                )
-                .send();
-
-            match response {
-                Ok(response) => match response.text() {
-                    Ok(response) => match Json::from_str(&response) {
-                        Ok(json) => {
-                            let json_object = json.as_object().unwrap();
-                            let coins = json_object.get("data").unwrap().as_array().unwrap();
-
-                            for coin in coins.iter().map(|j| j.as_object().unwrap()) {
-                                let mut curr = coin.get("symbol").unwrap().as_string().unwrap();
-                                if curr == "MIOTA" {
-                                    curr = "IOT";
-                                }
-
-                                let total_supply =
-                                    coin.get("total_supply").unwrap().as_f64().unwrap();
-
-                                self.capitalization.insert(curr.to_string(), total_supply);
-                            }
-
-                            self.last_capitalization_refresh = Utc::now();
-                            break;
-                        }
-                        Err(e) => error!("Coinmarketcap.com: Failed to parse json. Error: {}", e),
-                    },
-                    Err(e) => error!(
-                        "Coinmarketcap.com: Failed to get message text. Error: {}",
-                        e
-                    ),
-                },
-                Err(e) => error!("Coinmarketcap.com: Failed to connect. Error: {}", e),
-            }
-
-            thread::sleep(time::Duration::from_millis(10000));
-        }
     }
 
     // TODO: Implement
@@ -301,9 +242,5 @@ impl MarketSpine {
 
             self.update_market_pair(pair, "totalValues", false);
         }
-    }
-
-    pub fn get_last_capitalization_refresh(&self) -> DateTime<Utc> {
-        self.last_capitalization_refresh
     }
 }
