@@ -44,6 +44,8 @@ pub fn market_factory(
     market
 }
 
+// Establishes websocket connection with market (subscribes to the channel with pair)
+// and calls lambda (param "callback" of SocketHelper constructor) when gets message from market
 fn subscribe_channel(
     market: Arc<Mutex<dyn Market + Send>>,
     pair: String,
