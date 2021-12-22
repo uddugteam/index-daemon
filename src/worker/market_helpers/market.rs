@@ -4,6 +4,7 @@ use crate::worker::market_helpers::market_spine::MarketSpine;
 use crate::worker::markets::binance::Binance;
 use crate::worker::markets::bitfinex::Bitfinex;
 use crate::worker::markets::coinbase::Coinbase;
+use crate::worker::markets::poloniex::Poloniex;
 use crate::worker::network_helpers::socket_helper::SocketHelper;
 use rustc_serialize::json::{Array, Object};
 use std::str::FromStr;
@@ -18,8 +19,8 @@ pub fn market_factory(
     let mask_pairs = match spine.name.as_ref() {
         "binance" => vec![("IOT", "IOTA"), ("USD", "USDT")],
         "bitfinex" => vec![("DASH", "dsh"), ("QTUM", "QTM")],
-        "coinbase" => vec![],
-        _ => panic!("Market not found: {}", spine.name),
+        "poloniex" => vec![("USD", "USDT"), ("XLM", "STR")],
+        _ => vec![],
     };
 
     spine.add_mask_pairs(mask_pairs);
@@ -28,6 +29,7 @@ pub fn market_factory(
         "binance" => Arc::new(Mutex::new(Binance { spine })),
         "bitfinex" => Arc::new(Mutex::new(Bitfinex { spine })),
         "coinbase" => Arc::new(Mutex::new(Coinbase { spine })),
+        "poloniex" => Arc::new(Mutex::new(Poloniex::new(spine))),
         _ => panic!("Market not found: {}", spine.name),
     };
 
@@ -46,7 +48,7 @@ pub fn market_factory(
 
 // Establishes websocket connection with market (subscribes to the channel with pair)
 // and calls lambda (param "callback" of SocketHelper constructor) when gets message from market
-fn subscribe_channel(
+pub fn subscribe_channel(
     market: Arc<Mutex<dyn Market + Send>>,
     pair: String,
     channel: MarketChannels,
@@ -108,9 +110,31 @@ fn update(market: Arc<Mutex<dyn Market + Send>>) {
         .keys()
         .cloned()
         .collect();
+    let exchange_pairs_dummy = vec!["dummy".to_string()];
+    let market_is_poloniex = market.lock().unwrap().get_spine().name == "poloniex";
 
-    for exchange_pair in exchange_pairs {
-        for channel in channels {
+    for channel in channels {
+        // There are no distinct Trades channel in Poloniex. We get Trades inside of Book channel.
+        if market_is_poloniex {
+            if let MarketChannels::Trades = channel {
+                continue;
+            }
+        }
+
+        // Channel Ticker of Poloniex has different subscription system
+        // - we can subscribe only for all exchange pairs together,
+        // thus, we need to subscribe to a channel only once
+        let exchange_pairs = if market_is_poloniex {
+            if let MarketChannels::Ticker = channel {
+                &exchange_pairs_dummy
+            } else {
+                &exchange_pairs
+            }
+        } else {
+            &exchange_pairs
+        };
+
+        for exchange_pair in exchange_pairs {
             let market_2 = Arc::clone(&market);
             let pair = exchange_pair.to_string();
             let url = market.lock().unwrap().get_websocket_url(&pair, channel);

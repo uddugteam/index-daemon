@@ -82,7 +82,7 @@ impl MarketSpine {
         self.mask_pairs.get(a).map(|s| s.as_ref()).unwrap_or(a)
     }
 
-    pub fn _get_unmasked_value<'a>(&'a self, a: &'a str) -> &str {
+    pub fn get_unmasked_value<'a>(&'a self, a: &'a str) -> &str {
         self.unmask_pairs.get(a).map(|s| s.as_ref()).unwrap_or(a)
     }
 

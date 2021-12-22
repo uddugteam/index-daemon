@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc, MIN_DATETIME};
 use std::fmt::{Display, Formatter};
 
+#[derive(Debug)]
 pub struct ExchangePairInfo {
     last_trade_price: f64,
     last_trade_volume: f64,
