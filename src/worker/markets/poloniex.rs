@@ -81,6 +81,8 @@ impl Market for Poloniex {
         ))
     }
 
+    // Poloniex sends us coin instead of pair, then we create pair coin-USD
+    /// TODO: Check whether function takes right values from json (in the meaning of coin/pair misunderstanding)
     fn parse_ticker_info(&mut self, _pair: String, info: String) {
         if let Ok(json) = Json::from_str(&info) {
             if let Some(array) = json.as_array().unwrap().get(2) {
