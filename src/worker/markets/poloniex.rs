@@ -1,9 +1,8 @@
 use chrono::Utc;
-use itertools::Itertools;
 use rustc_serialize::json::{Json, ToJson};
 use std::collections::HashMap;
-use std::fs::File;
 
+use crate::worker::defaults::POLONIEX_EXCHANGE_PAIRS;
 use crate::worker::market_helpers::market::{parse_str_from_json_array, Market};
 use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
@@ -16,22 +15,15 @@ pub struct Poloniex {
 impl Poloniex {
     pub fn new(spine: MarketSpine) -> Self {
         let mut pair_codes = HashMap::new();
-        let json =
-            Json::from_reader(&mut File::open("resources/poloniex_exchange_pairs.json").unwrap())
-                .unwrap();
-        for (code, pair_string) in json.as_array().unwrap().iter().map(|v| {
-            let arr = v.as_array().unwrap();
-            (arr[0].as_string().unwrap(), arr[1].as_string().unwrap())
-        }) {
-            let pair: (String, String) = pair_string
-                .split('_')
-                .map(|v| spine.get_unmasked_value(v).to_string())
-                .next_tuple()
-                .unwrap();
+        for (pair_code, pair_tuple) in POLONIEX_EXCHANGE_PAIRS {
+            let pair: (String, String) = (
+                spine.get_unmasked_value(pair_tuple.0).to_string(),
+                spine.get_unmasked_value(pair_tuple.1).to_string(),
+            );
             let pair2 = (pair.1.clone(), pair.0.clone());
 
-            pair_codes.insert(pair, code.to_string());
-            pair_codes.insert(pair2, code.to_string());
+            pair_codes.insert(pair, pair_code.to_string());
+            pair_codes.insert(pair2, pair_code.to_string());
         }
 
         Self { spine, pair_codes }
