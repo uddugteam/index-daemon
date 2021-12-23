@@ -4,6 +4,7 @@ use crate::worker::market_helpers::market_spine::MarketSpine;
 use crate::worker::markets::binance::Binance;
 use crate::worker::markets::bitfinex::Bitfinex;
 use crate::worker::markets::coinbase::Coinbase;
+use crate::worker::markets::huobi::Huobi;
 use crate::worker::markets::kraken::Kraken;
 use crate::worker::markets::poloniex::Poloniex;
 use crate::worker::network_helpers::socket_helper::SocketHelper;
@@ -22,6 +23,7 @@ pub fn market_factory(
         "bitfinex" => vec![("DASH", "dsh"), ("QTUM", "QTM")],
         "poloniex" => vec![("USD", "USDT"), ("XLM", "STR")],
         "kraken" => vec![("BTC", "XBT")],
+        "huobi" => vec![("USD", "USDT")],
         _ => vec![],
     };
 
@@ -33,6 +35,7 @@ pub fn market_factory(
         "coinbase" => Arc::new(Mutex::new(Coinbase { spine })),
         "poloniex" => Arc::new(Mutex::new(Poloniex::new(spine))),
         "kraken" => Arc::new(Mutex::new(Kraken { spine })),
+        "huobi" => Arc::new(Mutex::new(Huobi { spine })),
         _ => panic!("Market not found: {}", spine.name),
     };
 
