@@ -4,6 +4,7 @@ use crate::worker::market_helpers::market_spine::MarketSpine;
 use crate::worker::markets::binance::Binance;
 use crate::worker::markets::bitfinex::Bitfinex;
 use crate::worker::markets::coinbase::Coinbase;
+use crate::worker::markets::kraken::Kraken;
 use crate::worker::markets::poloniex::Poloniex;
 use crate::worker::network_helpers::socket_helper::SocketHelper;
 use rustc_serialize::json::{Array, Object};
@@ -20,6 +21,7 @@ pub fn market_factory(
         "binance" => vec![("IOT", "IOTA"), ("USD", "USDT")],
         "bitfinex" => vec![("DASH", "dsh"), ("QTUM", "QTM")],
         "poloniex" => vec![("USD", "USDT"), ("XLM", "STR")],
+        "kraken" => vec![("BTC", "XBT")],
         _ => vec![],
     };
 
@@ -30,6 +32,7 @@ pub fn market_factory(
         "bitfinex" => Arc::new(Mutex::new(Bitfinex { spine })),
         "coinbase" => Arc::new(Mutex::new(Coinbase { spine })),
         "poloniex" => Arc::new(Mutex::new(Poloniex::new(spine))),
+        "kraken" => Arc::new(Mutex::new(Kraken { spine })),
         _ => panic!("Market not found: {}", spine.name),
     };
 
