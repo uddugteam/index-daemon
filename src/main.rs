@@ -1,12 +1,9 @@
+use clap::{App, Arg};
 use env_logger::Builder;
 use std::sync::{mpsc, Arc, Mutex};
 
 use crate::repository::pair_average_trade_price::PairAverageTradePrice;
 use crate::worker::worker::Worker;
-
-#[macro_use]
-extern crate clap;
-use clap::App;
 
 #[macro_use]
 extern crate log;
@@ -15,8 +12,23 @@ mod repository;
 mod worker;
 
 fn get_config_file_path(key: &str) -> Option<String> {
-    let yaml = load_yaml!("../resources/cli.yml");
-    let matches = App::from_yaml(yaml).get_matches();
+    let matches = App::new("ICEX")
+        .version("1.0")
+        .arg(
+            Arg::with_name("service_config")
+                .long("service_config")
+                .value_name("PATH")
+                .help("Service config file path")
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("market_config")
+                .long("market_config")
+                .value_name("PATH")
+                .help("Market config file path")
+                .takes_value(true),
+        )
+        .get_matches();
 
     matches.value_of(key).map(|v| v.to_string())
 }
