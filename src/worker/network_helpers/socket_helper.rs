@@ -5,7 +5,7 @@ use flate2::read::DeflateDecoder;
 use flate2::read::GzDecoder;
 use futures::{future, pin_mut, StreamExt};
 use rustc_serialize::json::Json;
-use std::io::prelude::*;
+use std::io::prelude::Read;
 use std::thread;
 use std::time;
 
