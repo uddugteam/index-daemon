@@ -88,8 +88,8 @@ impl Market for Binance {
                         let mut ask_sum: f64 = 0.0;
                         for ask in asks.as_array().unwrap() {
                             if let Some(ask) = ask.as_array() {
-                                let ask: f64 = parse_str_from_json_array(ask, 1).unwrap();
-                                ask_sum += ask;
+                                let size: f64 = parse_str_from_json_array(ask, 1).unwrap();
+                                ask_sum += size;
                             }
                         }
                         self.spine.set_total_ask(&pair, ask_sum);
