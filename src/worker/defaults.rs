@@ -1,5 +1,5 @@
-pub const MARKETS: [&str; 6] = [
-    "binance", "bitfinex", "coinbase", "poloniex", "kraken", "huobi",
+pub const MARKETS: [&str; 7] = [
+    "binance", "bitfinex", "coinbase", "poloniex", "kraken", "huobi", "hitbtc",
 ];
 pub const FIATS: [&str; 1] = ["USD"];
 pub const COINS: [&str; 2] = ["BTC", "ETH"];
