@@ -2,9 +2,7 @@ use chrono::Utc;
 use regex::Regex;
 use rustc_serialize::json::Json;
 
-use crate::worker::market_helpers::market::{
-    parse_str_from_json_array, parse_str_from_json_object, Market,
-};
+use crate::worker::market_helpers::market::Market;
 use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
 
