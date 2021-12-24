@@ -37,22 +37,10 @@ where
     }
 }
 
-fn unzip_gz(message: &[u8]) -> Option<String> {
-    let mut gz_decoder = GzDecoder::new(message);
+fn unzip<T: Read>(mut decoder: T) -> Option<String> {
     let mut message = String::new();
 
-    if gz_decoder.read_to_string(&mut message).is_ok() {
-        Some(message)
-    } else {
-        None
-    }
-}
-
-fn unzip_deflate(message: &[u8]) -> Option<String> {
-    let mut deflate_decoder = DeflateDecoder::new(message);
-    let mut message = String::new();
-
-    if deflate_decoder.read_to_string(&mut message).is_ok() {
+    if decoder.read_to_string(&mut message).is_ok() {
         Some(message)
     } else {
         None
@@ -84,11 +72,11 @@ where
                     } else {
                         // unzip gz (needed for Huobi market)
                         let message = message.into_data();
-                        if let Some(message) = unzip_gz(&message) {
+                        if let Some(message) = unzip(GzDecoder::new(message.as_slice())) {
                             Some(message)
                         } else {
                             // unzip deflate (needed for Okcoin market)
-                            let message = unzip_deflate(&message);
+                            let message = unzip(DeflateDecoder::new(message.as_slice()));
                             if message.is_some() {
                                 market_is_okcoin = true;
                             }
