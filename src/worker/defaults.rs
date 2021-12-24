@@ -3,6 +3,12 @@ pub const MARKETS: [&str; 6] = [
 ];
 pub const FIATS: [&str; 1] = ["USD"];
 pub const COINS: [&str; 2] = ["BTC", "ETH"];
+// pub const COINS: [&str; 50] = [
+//     "BTC", "ETH", "BNB", "SOL", "USDC", "XRP", "DOT", "DOGE", "SHIB", "MATIC", "CRO", "WBTC",
+//     "LTC", "UNI", "LINK", "DAI", "BCH", "TRX", "AXS", "MANA", "ATOM", "FTT", "SAND", "FIL", "ETC",
+//     "XTZ", "CAKE", "XMR", "GALA", "GRT", "AAVE", "EOS", "LRC", "BTT", "MKR", "ENJ", "CRV", "ZEC",
+//     "AMP", "NEO", "BAT", "KCS", "OKB", "CHZ", "DASH", "COMP", "NEXO", "XEM", "TUSD", "YFI",
+// ];
 
 pub const POLONIEX_EXCHANGE_PAIRS: [(&str, (&str, &str)); 456] = [
     ("336", ("BNB", "BTC")),
