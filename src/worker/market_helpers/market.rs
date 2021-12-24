@@ -62,7 +62,7 @@ pub fn subscribe_channel(
     on_open_msg: Option<String>,
 ) {
     trace!(
-        "called subscribe_channel(). Market: {}, pair: {}, channel: {}",
+        "called subscribe_channel(). Market: {}, pair: {}, channel: {:?}",
         market.lock().unwrap().get_spine().name,
         pair,
         channel,
@@ -151,7 +151,7 @@ fn update(market: Arc<Mutex<dyn Market + Send>>) {
                 .get_websocket_on_open_msg(&pair, channel);
 
             let thread_name = format!(
-                "fn: subscribe_channel, market: {}, pair: {}, channel: {}",
+                "fn: subscribe_channel, market: {}, pair: {}, channel: {:?}",
                 market.lock().unwrap().get_spine().name,
                 pair,
                 channel
@@ -220,9 +220,7 @@ pub trait Market {
         bid_sum
     }
 
-    fn get_channel_text_view(&self, channel: MarketChannels) -> String {
-        channel.to_string()
-    }
+    fn get_channel_text_view(&self, channel: MarketChannels) -> String;
     fn get_websocket_url(&self, pair: &str, channel: MarketChannels) -> String;
     fn get_websocket_on_open_msg(&self, pair: &str, channel: MarketChannels) -> Option<String>;
 
@@ -341,7 +339,7 @@ mod test {
         for pair in exchange_pairs {
             for channel in channels {
                 let thread_name = format!(
-                    "fn: subscribe_channel, market: {}, pair: {}, channel: {}",
+                    "fn: subscribe_channel, market: {}, pair: {}, channel: {:?}",
                     market.lock().unwrap().get_spine().name,
                     pair,
                     channel

@@ -1,5 +1,4 @@
-use std::fmt::{Display, Formatter};
-
+#[derive(Debug)]
 pub enum MarketChannels {
     Ticker,
     Trades,
@@ -12,17 +11,6 @@ impl MarketChannels {
     }
 }
 
-impl Display for MarketChannels {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let channel_string = match self {
-            MarketChannels::Ticker => "ticker",
-            MarketChannels::Trades => "trades",
-            MarketChannels::Book => "book",
-        };
-
-        write!(f, "{}", channel_string)
-    }
-}
 impl Clone for MarketChannels {
     fn clone(&self) -> Self {
         *self

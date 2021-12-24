@@ -25,6 +25,15 @@ impl Market for Bitfinex {
             .to_uppercase()
     }
 
+    fn get_channel_text_view(&self, channel: MarketChannels) -> String {
+        match channel {
+            MarketChannels::Ticker => "ticker",
+            MarketChannels::Trades => "trades",
+            MarketChannels::Book => "book",
+        }
+        .to_string()
+    }
+
     fn get_websocket_url(&self, _pair: &str, _channel: MarketChannels) -> String {
         "wss://api-pub.bitfinex.com/ws/2".to_string()
     }
