@@ -49,10 +49,10 @@ impl Market for Coinbase {
         ))
     }
 
-    // TODO: Check whether key `volume_24h` is right
     fn parse_ticker_info(&mut self, pair: String, info: String) {
         if let Ok(json) = Json::from_str(&info) {
             if let Some(object) = json.as_object() {
+                // TODO: Check whether key `volume_24h` is right
                 if let Some(volume) = parse_str_from_json_object::<f64>(object, "volume_24h") {
                     info!("new {} ticker on Coinbase with volume: {}", pair, volume);
 

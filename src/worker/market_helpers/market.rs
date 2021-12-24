@@ -183,9 +183,7 @@ fn update(market: Arc<Mutex<dyn Market + Send>>) {
 pub trait Market {
     fn get_spine(&self) -> &MarketSpine;
     fn get_spine_mut(&mut self) -> &mut MarketSpine;
-    fn make_pair(&self, pair: (&str, &str)) -> String {
-        pair.0.to_string() + pair.1
-    }
+    fn make_pair(&self, pair: (&str, &str)) -> String;
 
     fn add_exchange_pair(&mut self, exchange_pair: ExchangePair) {
         let pair_string = self.make_pair(exchange_pair.get_pair_ref());
