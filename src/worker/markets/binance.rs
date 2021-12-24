@@ -27,10 +27,11 @@ impl Market for Binance {
 
     fn get_channel_text_view(&self, channel: MarketChannels) -> String {
         match channel {
-            MarketChannels::Ticker => "ticker".to_string(),
-            MarketChannels::Trades => "trade".to_string(),
-            MarketChannels::Book => "depth20".to_string(),
+            MarketChannels::Ticker => "ticker",
+            MarketChannels::Trades => "trade",
+            MarketChannels::Book => "depth20",
         }
+        .to_string()
     }
 
     fn get_websocket_url(&self, pair: &str, channel: MarketChannels) -> String {

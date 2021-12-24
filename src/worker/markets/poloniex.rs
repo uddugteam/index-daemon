@@ -51,7 +51,7 @@ impl Market for Poloniex {
 
     fn get_channel_text_view(&self, channel: MarketChannels) -> String {
         match channel {
-            MarketChannels::Ticker => "1003".to_string(),
+            MarketChannels::Ticker => "1003",
             MarketChannels::Trades => {
                 // There are no distinct Trades channel in Poloniex. We get Trades inside of Book channel.
                 panic!("Poloniex: Subscription to wrong channel: Trades.")
@@ -59,9 +59,10 @@ impl Market for Poloniex {
             MarketChannels::Book => {
                 // This string was intentionally left blank, because Poloniex don't have code for Book
                 // and we pass pair code instead of it (we do this in fn get_websocket_on_open_msg)
-                "".to_string()
+                ""
             }
         }
+        .to_string()
     }
 
     fn get_websocket_url(&self, _pair: &str, _channel: MarketChannels) -> String {

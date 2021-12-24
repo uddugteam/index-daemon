@@ -29,11 +29,12 @@ impl Market for Coinbase {
 
     fn get_channel_text_view(&self, channel: MarketChannels) -> String {
         match channel {
-            MarketChannels::Ticker => "ticker".to_string(),
-            MarketChannels::Trades => "matches".to_string(),
-            MarketChannels::Book => "level2".to_string(),
-            // MarketChannels::Book => "full".to_string(),
+            MarketChannels::Ticker => "ticker",
+            MarketChannels::Trades => "matches",
+            MarketChannels::Book => "level2",
+            // MarketChannels::Book => "full",
         }
+        .to_string()
     }
 
     fn get_websocket_url(&self, _pair: &str, _channel: MarketChannels) -> String {

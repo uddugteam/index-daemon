@@ -27,10 +27,11 @@ impl Market for Kraken {
 
     fn get_channel_text_view(&self, channel: MarketChannels) -> String {
         match channel {
-            MarketChannels::Ticker => "ticker".to_string(),
-            MarketChannels::Trades => "trade".to_string(),
-            MarketChannels::Book => "book".to_string(),
+            MarketChannels::Ticker => "ticker",
+            MarketChannels::Trades => "trade",
+            MarketChannels::Book => "book",
         }
+        .to_string()
     }
 
     fn get_websocket_url(&self, _pair: &str, _channel: MarketChannels) -> String {

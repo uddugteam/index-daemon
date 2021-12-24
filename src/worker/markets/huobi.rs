@@ -28,10 +28,11 @@ impl Market for Huobi {
 
     fn get_channel_text_view(&self, channel: MarketChannels) -> String {
         match channel {
-            MarketChannels::Ticker => "ticker".to_string(),
-            MarketChannels::Trades => "trade.detail".to_string(),
-            MarketChannels::Book => "depth.step0".to_string(),
+            MarketChannels::Ticker => "ticker",
+            MarketChannels::Trades => "trade.detail",
+            MarketChannels::Book => "depth.step0",
         }
+        .to_string()
     }
 
     fn get_websocket_url(&self, _pair: &str, _channel: MarketChannels) -> String {
