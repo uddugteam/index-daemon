@@ -1,10 +1,13 @@
 use async_std::task;
 use async_tungstenite::async_std::connect_async;
 use async_tungstenite::tungstenite::protocol::Message;
+use flate2::read::DeflateDecoder;
 use flate2::read::GzDecoder;
 use futures::{future, pin_mut, StreamExt};
 use rustc_serialize::json::Json;
 use std::io::prelude::*;
+use std::thread;
+use std::time;
 
 pub struct SocketHelper<F>
 where
@@ -34,6 +37,28 @@ where
     }
 }
 
+fn unzip_gz(message: &[u8]) -> Option<String> {
+    let mut gz_decoder = GzDecoder::new(message);
+    let mut message = String::new();
+
+    if gz_decoder.read_to_string(&mut message).is_ok() {
+        Some(message)
+    } else {
+        None
+    }
+}
+
+fn unzip_deflate(message: &[u8]) -> Option<String> {
+    let mut deflate_decoder = DeflateDecoder::new(message);
+    let mut message = String::new();
+
+    if deflate_decoder.read_to_string(&mut message).is_ok() {
+        Some(message)
+    } else {
+        None
+    }
+}
+
 async fn run<F>(socket_helper: SocketHelper<F>)
 where
     F: Fn(String, String),
@@ -42,6 +67,7 @@ where
         Ok((ws_stream, _)) => {
             let (stdin_tx, stdin_rx) = futures::channel::mpsc::unbounded();
 
+            let on_open_msg = socket_helper.on_open_msg.clone();
             if let Some(on_open_msg) = socket_helper.on_open_msg {
                 stdin_tx.unbounded_send(Message::text(on_open_msg)).unwrap();
             }
@@ -51,19 +77,23 @@ where
             let stdin_to_ws = stdin_rx.map(Ok).forward(write);
             let ws_to_stdout = read.for_each(|message| async {
                 if let Ok(message) = message {
+                    let mut market_is_okcoin = false;
+
                     let message = if let Ok(message) = message.clone().into_text() {
                         Some(message)
                     } else {
-                        // unzip (needed for Huobi market)
+                        // unzip gz (needed for Huobi market)
                         let message = message.into_data();
-
-                        let mut gz_decoder = GzDecoder::new(message.as_slice());
-                        let mut message = String::new();
-
-                        if gz_decoder.read_to_string(&mut message).is_ok() {
+                        if let Some(message) = unzip_gz(&message) {
                             Some(message)
                         } else {
-                            None
+                            // unzip deflate (needed for Okcoin market)
+                            let message = unzip_deflate(&message);
+                            if message.is_some() {
+                                market_is_okcoin = true;
+                            }
+
+                            message
                         }
                     };
 
@@ -85,6 +115,14 @@ where
 
                         if !message_is_ping {
                             (socket_helper.callback)(socket_helper.pair.clone(), message);
+                        }
+
+                        if market_is_okcoin {
+                            // There we wait a while and then re-send an on_open_msg
+                            thread::sleep(time::Duration::from_millis(3000));
+                            stdin_tx
+                                .unbounded_send(Message::text(on_open_msg.as_ref().unwrap()))
+                                .unwrap();
                         }
                     }
                 }
