@@ -131,8 +131,14 @@ impl Worker {
         self.last_capitalization_refresh
     }
 
-    pub fn make_exchange_pairs(coins: Vec<&str>, fiats: Vec<&str>) -> Vec<ExchangePair> {
+    pub fn make_exchange_pairs(
+        coins: Option<Vec<&str>>,
+        fiats: Option<Vec<&str>>,
+    ) -> Vec<ExchangePair> {
         let mut exchange_pairs = Vec::new();
+
+        let fiats = fiats.unwrap_or(Vec::from(FIATS));
+        let coins = coins.unwrap_or(Vec::from(COINS));
 
         for coin in coins {
             for fiat in &fiats {
@@ -148,9 +154,7 @@ impl Worker {
 
     fn configure(&mut self, markets: Option<Vec<&str>>, coins: Option<Vec<&str>>) {
         let market_names = markets.unwrap_or(Vec::from(MARKETS));
-        let fiats = Vec::from(FIATS);
-        let coins = coins.unwrap_or(Vec::from(COINS));
-        let exchange_pairs = Self::make_exchange_pairs(coins, fiats);
+        let exchange_pairs = Self::make_exchange_pairs(coins, None);
 
         for market_name in market_names {
             let worker_2 = Arc::clone(self.arc.as_ref().unwrap());
