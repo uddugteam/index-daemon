@@ -1,8 +1,0 @@
-name: ICEX
-version: "1.0"
-args:
-  - market_config:
-      long: market_config
-      value_name: PATH
-      help: Market config file path
-      takes_value: true

@@ -1,12 +1,9 @@
-use env_logger::{Env, DEFAULT_FILTER_ENV, DEFAULT_WRITE_STYLE_ENV};
+use clap::{App, Arg};
+use env_logger::Builder;
 use std::sync::{mpsc, Arc, Mutex};
 
 use crate::repository::pair_average_trade_price::PairAverageTradePrice;
 use crate::worker::worker::Worker;
-
-#[macro_use]
-extern crate clap;
-use clap::App;
 
 #[macro_use]
 extern crate log;
@@ -15,8 +12,23 @@ mod repository;
 mod worker;
 
 fn get_config_file_path(key: &str) -> Option<String> {
-    let yaml = load_yaml!("../resources/cli.yml");
-    let matches = App::from_yaml(yaml).get_matches();
+    let matches = App::new("ICEX")
+        .version("1.0")
+        .arg(
+            Arg::with_name("service_config")
+                .long("service_config")
+                .value_name("PATH")
+                .help("Service config file path")
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("market_config")
+                .long("market_config")
+                .value_name("PATH")
+                .help("Market config file path")
+                .takes_value(true),
+        )
+        .get_matches();
 
     matches.value_of(key).map(|v| v.to_string())
 }
@@ -27,10 +39,10 @@ fn get_config(key: &str) -> config::Config {
     if let Some(path) = get_config_file_path(key) {
         market_config.merge(config::File::with_name(&path)).unwrap();
     } else {
-        let env_key = "APP_".to_string() + &key.to_uppercase();
+        let env_key = "APP__".to_string() + &key.to_uppercase() + "_";
 
         market_config
-            .merge(config::Environment::with_prefix(&env_key).separator("_"))
+            .merge(config::Environment::with_prefix(&env_key).separator("__"))
             .unwrap();
     }
 
@@ -49,11 +61,15 @@ fn get_param_value_as_vec_of_string(config: &config::Config, key: &str) -> Optio
 }
 
 fn main() {
-    let env = Env::default()
-        .filter_or(DEFAULT_FILTER_ENV, "index_daemon=trace")
-        .write_style_or(DEFAULT_WRITE_STYLE_ENV, "always");
+    let service_config = get_config("service_config");
 
-    env_logger::init_from_env(env);
+    let log_level: String = service_config
+        .get_str("log_level")
+        .unwrap_or("trace".to_string());
+
+    let mut builder = Builder::from_default_env();
+    builder.filter(Some("index_daemon"), log_level.parse().unwrap());
+    builder.init();
 
     let market_config = get_config("market_config");
 

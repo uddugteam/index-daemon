@@ -4,7 +4,14 @@ use crate::worker::market_helpers::market_spine::MarketSpine;
 use crate::worker::markets::binance::Binance;
 use crate::worker::markets::bitfinex::Bitfinex;
 use crate::worker::markets::coinbase::Coinbase;
+use crate::worker::markets::hitbtc::Hitbtc;
+use crate::worker::markets::huobi::Huobi;
+use crate::worker::markets::kraken::Kraken;
+use crate::worker::markets::okcoin::Okcoin;
+use crate::worker::markets::poloniex::Poloniex;
 use crate::worker::network_helpers::socket_helper::SocketHelper;
+use rustc_serialize::json::{Array, Object};
+use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time;
@@ -16,8 +23,10 @@ pub fn market_factory(
     let mask_pairs = match spine.name.as_ref() {
         "binance" => vec![("IOT", "IOTA"), ("USD", "USDT")],
         "bitfinex" => vec![("DASH", "dsh"), ("QTUM", "QTM")],
-        "coinbase" => vec![],
-        _ => panic!("Market not found: {}", spine.name),
+        "poloniex" => vec![("USD", "USDT"), ("XLM", "STR")],
+        "kraken" => vec![("BTC", "XBT")],
+        "huobi" | "hitbtc" | "okcoin" => vec![("USD", "USDT")],
+        _ => vec![],
     };
 
     spine.add_mask_pairs(mask_pairs);
@@ -26,6 +35,11 @@ pub fn market_factory(
         "binance" => Arc::new(Mutex::new(Binance { spine })),
         "bitfinex" => Arc::new(Mutex::new(Bitfinex { spine })),
         "coinbase" => Arc::new(Mutex::new(Coinbase { spine })),
+        "poloniex" => Arc::new(Mutex::new(Poloniex::new(spine))),
+        "kraken" => Arc::new(Mutex::new(Kraken { spine })),
+        "huobi" => Arc::new(Mutex::new(Huobi { spine })),
+        "hitbtc" => Arc::new(Mutex::new(Hitbtc { spine })),
+        "okcoin" => Arc::new(Mutex::new(Okcoin { spine })),
         _ => panic!("Market not found: {}", spine.name),
     };
 
@@ -42,7 +56,9 @@ pub fn market_factory(
     market
 }
 
-fn subscribe_channel(
+// Establishes websocket connection with market (subscribes to the channel with pair)
+// and calls lambda (param "callback" of SocketHelper constructor) when gets message from market
+pub fn subscribe_channel(
     market: Arc<Mutex<dyn Market + Send>>,
     pair: String,
     channel: MarketChannels,
@@ -50,7 +66,7 @@ fn subscribe_channel(
     on_open_msg: Option<String>,
 ) {
     trace!(
-        "called subscribe_channel(). Market: {}, pair: {}, channel: {}",
+        "called subscribe_channel(). Market: {}, pair: {}, channel: {:?}",
         market.lock().unwrap().get_spine().name,
         pair,
         channel,
@@ -70,6 +86,30 @@ fn subscribe_channel(
     socker_helper.start();
 }
 
+pub fn parse_str_from_json_object<T: FromStr>(object: &Object, key: &str) -> Option<T> {
+    if let Some(value) = object.get(key) {
+        if let Some(value) = value.as_string() {
+            if let Ok(value) = value.parse() {
+                return Some(value);
+            }
+        }
+    }
+
+    None
+}
+
+pub fn parse_str_from_json_array<T: FromStr>(array: &Array, key: usize) -> Option<T> {
+    if let Some(value) = array.get(key) {
+        if let Some(value) = value.as_string() {
+            if let Ok(value) = value.parse() {
+                return Some(value);
+            }
+        }
+    }
+
+    None
+}
+
 fn update(market: Arc<Mutex<dyn Market + Send>>) {
     let channels = MarketChannels::get_all();
     let exchange_pairs: Vec<String> = market
@@ -80,9 +120,31 @@ fn update(market: Arc<Mutex<dyn Market + Send>>) {
         .keys()
         .cloned()
         .collect();
+    let exchange_pairs_dummy = vec!["dummy".to_string()];
+    let market_is_poloniex = market.lock().unwrap().get_spine().name == "poloniex";
 
-    for exchange_pair in exchange_pairs {
-        for channel in channels {
+    for channel in channels {
+        // There are no distinct Trades channel in Poloniex. We get Trades inside of Book channel.
+        if market_is_poloniex {
+            if let MarketChannels::Trades = channel {
+                continue;
+            }
+        }
+
+        // Channel Ticker of Poloniex has different subscription system
+        // - we can subscribe only for all exchange pairs together,
+        // thus, we need to subscribe to a channel only once
+        let exchange_pairs = if market_is_poloniex {
+            if let MarketChannels::Ticker = channel {
+                &exchange_pairs_dummy
+            } else {
+                &exchange_pairs
+            }
+        } else {
+            &exchange_pairs
+        };
+
+        for exchange_pair in exchange_pairs {
             let market_2 = Arc::clone(&market);
             let pair = exchange_pair.to_string();
             let url = market.lock().unwrap().get_websocket_url(&pair, channel);
@@ -93,7 +155,7 @@ fn update(market: Arc<Mutex<dyn Market + Send>>) {
                 .get_websocket_on_open_msg(&pair, channel);
 
             let thread_name = format!(
-                "fn: subscribe_channel, market: {}, pair: {}, channel: {}",
+                "fn: subscribe_channel, market: {}, pair: {}, channel: {:?}",
                 market.lock().unwrap().get_spine().name,
                 pair,
                 channel
@@ -121,9 +183,7 @@ fn update(market: Arc<Mutex<dyn Market + Send>>) {
 pub trait Market {
     fn get_spine(&self) -> &MarketSpine;
     fn get_spine_mut(&mut self) -> &mut MarketSpine;
-    fn make_pair(&self, pair: (&str, &str)) -> String {
-        pair.0.to_string() + pair.1
-    }
+    fn make_pair(&self, pair: (&str, &str)) -> String;
 
     fn add_exchange_pair(&mut self, exchange_pair: ExchangePair) {
         let pair_string = self.make_pair(exchange_pair.get_pair_ref());
@@ -162,9 +222,7 @@ pub trait Market {
         bid_sum
     }
 
-    fn get_channel_text_view(&self, channel: MarketChannels) -> String {
-        channel.to_string()
-    }
+    fn get_channel_text_view(&self, channel: MarketChannels) -> String;
     fn get_websocket_url(&self, pair: &str, channel: MarketChannels) -> String;
     fn get_websocket_on_open_msg(&self, pair: &str, channel: MarketChannels) -> Option<String>;
 
@@ -173,8 +231,6 @@ pub trait Market {
             "called Market::perform(). Market: {}",
             self.get_spine().name
         );
-
-        self.get_spine_mut().refresh_capitalization();
 
         let market = Arc::clone(self.get_spine().arc.as_ref().unwrap());
 
@@ -192,48 +248,91 @@ pub trait Market {
 
 #[cfg(test)]
 mod test {
-    use crate::worker::defaults::{COINS, FIATS};
+    use crate::worker::market_helpers::conversion_type::ConversionType;
+    use crate::worker::market_helpers::exchange_pair::ExchangePair;
     use crate::worker::market_helpers::market::{market_factory, update, Market};
     use crate::worker::market_helpers::market_channels::MarketChannels;
-    use crate::worker::market_helpers::market_spine::MarketSpine;
-    use crate::worker::worker::test::{check_threads, get_worker};
+    use crate::worker::market_helpers::market_spine::test::make_spine;
+    use crate::worker::worker::test::check_threads;
     use crate::worker::worker::Worker;
-    use chrono::{Duration, Utc};
     use ntest::timeout;
     use std::sync::mpsc::Receiver;
     use std::sync::{Arc, Mutex};
     use std::thread::JoinHandle;
 
-    fn get_market(
+    fn make_market(
         market_name: Option<&str>,
     ) -> (Arc<Mutex<dyn Market + Send>>, Receiver<JoinHandle<()>>) {
-        let market_name = market_name.unwrap_or("binance").to_string();
-        let fiats = Vec::from(FIATS);
-        let coins = Vec::from(COINS);
-        let exchange_pairs = Worker::make_exchange_pairs(coins, fiats);
+        let exchange_pairs = Worker::make_exchange_pairs(None, None);
 
-        let (worker, tx, rx) = get_worker();
-        let market_spine = MarketSpine::new(worker, tx, market_name);
+        let (market_spine, rx) = make_spine(market_name);
         let market = market_factory(market_spine, exchange_pairs);
 
         (market, rx)
     }
 
     #[test]
-    #[should_panic]
-    fn test_market_factory() {
-        let (_, _) = get_market(Some("not_existing_market"));
+    fn test_add_exchange_pair() {
+        let (market, _) = make_market(None);
+
+        let pair_tuple = ("some_coin_1".to_string(), "some_coin_2".to_string());
+        let conversion_type = ConversionType::Crypto;
+        let exchange_pair = ExchangePair {
+            pair: pair_tuple.clone(),
+            conversion: conversion_type,
+        };
+
+        let pair_string = market
+            .lock()
+            .unwrap()
+            .make_pair(exchange_pair.get_pair_ref());
+
+        market.lock().unwrap().add_exchange_pair(exchange_pair);
+
+        assert!(market
+            .lock()
+            .unwrap()
+            .get_spine()
+            .get_exchange_pairs()
+            .get(&pair_string)
+            .is_some());
+
+        assert_eq!(
+            market
+                .lock()
+                .unwrap()
+                .get_spine()
+                .get_conversions()
+                .get(&pair_string)
+                .unwrap(),
+            &conversion_type
+        );
+
+        assert_eq!(
+            market
+                .lock()
+                .unwrap()
+                .get_spine()
+                .get_pairs()
+                .get(&pair_string)
+                .unwrap(),
+            &pair_tuple
+        );
     }
 
     #[test]
-    fn test_market_factory_2() {
-        let (market, _) = get_market(None);
+    #[should_panic]
+    fn test_market_factory_panic() {
+        let (_, _) = make_market(Some("not_existing_market"));
+    }
+
+    #[test]
+    fn test_market_factory() {
+        let (market, _) = make_market(None);
 
         assert!(market.lock().unwrap().get_spine().arc.is_some());
 
-        let fiats = Vec::from(FIATS);
-        let coins = Vec::from(COINS);
-        let exchange_pairs = Worker::make_exchange_pairs(coins, fiats);
+        let exchange_pairs = Worker::make_exchange_pairs(None, None);
         let exchange_pair_keys: Vec<String> = market
             .lock()
             .unwrap()
@@ -253,7 +352,7 @@ mod test {
     #[test]
     #[timeout(3000)]
     fn test_perform() {
-        let (market, rx) = get_market(None);
+        let (market, rx) = make_market(None);
 
         let thread_names = vec![format!(
             "fn: update, market: {}",
@@ -264,21 +363,13 @@ mod test {
 
         // TODO: Refactor (not always working)
         check_threads(thread_names, rx);
-
-        let now = Utc::now();
-        let last_capitalization_refresh = market
-            .lock()
-            .unwrap()
-            .get_spine()
-            .get_last_capitalization_refresh();
-        assert!(now - last_capitalization_refresh <= Duration::milliseconds(5000));
     }
 
     #[test]
     #[timeout(120000)]
     /// TODO: Refactor (not always working)
     fn test_update() {
-        let (market, rx) = get_market(None);
+        let (market, rx) = make_market(None);
 
         let channels = MarketChannels::get_all();
         let exchange_pairs: Vec<String> = market
@@ -294,7 +385,7 @@ mod test {
         for pair in exchange_pairs {
             for channel in channels {
                 let thread_name = format!(
-                    "fn: subscribe_channel, market: {}, pair: {}, channel: {}",
+                    "fn: subscribe_channel, market: {}, pair: {}, channel: {:?}",
                     market.lock().unwrap().get_spine().name,
                     pair,
                     channel

@@ -3,15 +3,10 @@ use crate::worker::market_helpers::exchange_pair::ExchangePair;
 use crate::worker::market_helpers::exchange_pair_info::ExchangePairInfo;
 use crate::worker::market_helpers::market::Market;
 use crate::worker::worker::Worker;
-use chrono::{DateTime, Utc, MIN_DATETIME};
-use reqwest::blocking::multipart::{Form, Part};
-use reqwest::blocking::Client;
-use rustc_serialize::json::Json;
 use std::collections::HashMap;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
-use std::thread;
-use std::thread::JoinHandle;
+use std::thread::{self, JoinHandle};
 
 pub const EPS: f64 = 0.00001;
 
@@ -25,8 +20,6 @@ pub struct MarketSpine {
     exchange_pairs: HashMap<String, ExchangePairInfo>,
     conversions: HashMap<String, ConversionType>,
     pairs: HashMap<String, (String, String)>,
-    capitalization: HashMap<String, f64>,
-    last_capitalization_refresh: DateTime<Utc>,
 }
 impl MarketSpine {
     pub fn new(worker: Arc<Mutex<Worker>>, tx: Sender<JoinHandle<()>>, name: String) -> Self {
@@ -40,8 +33,6 @@ impl MarketSpine {
             exchange_pairs: HashMap::new(),
             conversions: HashMap::new(),
             pairs: HashMap::new(),
-            capitalization: HashMap::new(),
-            last_capitalization_refresh: MIN_DATETIME,
         }
     }
 
@@ -91,49 +82,21 @@ impl MarketSpine {
         self.mask_pairs.get(a).map(|s| s.as_ref()).unwrap_or(a)
     }
 
-    pub fn _get_unmasked_value<'a>(&'a self, a: &'a str) -> &str {
+    pub fn get_unmasked_value<'a>(&'a self, a: &'a str) -> &str {
         self.unmask_pairs.get(a).map(|s| s.as_ref()).unwrap_or(a)
     }
 
-    pub fn refresh_capitalization(&mut self) {
-        let response_text = Client::new()
-            .get("https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest")
-            .header("Accepts", "application/json")
-            .header("X-CMC_PRO_API_KEY", "388b6445-3e65-4b86-913e-f0534596068b")
-            .multipart(
-                Form::new()
-                    .part("start", Part::text("1"))
-                    .part("limit", Part::text("10"))
-                    .part("convert", Part::text("USD")),
-            )
-            .send()
-            .unwrap()
-            .text()
-            .unwrap();
+    /// TODO: Implement
+    /// Cannot be implemented, because it depends on https://api.icex.ch/api/coins/ which is not working
+    pub fn get_conversion_coef(&self, pair: &str) -> f64 {
+        let conversion = *self.get_conversions().get(pair).unwrap();
 
-        if let Ok(json) = Json::from_str(&response_text) {
-            let json_object = json.as_object().unwrap();
-            let coins = json_object.get("data").unwrap().as_array().unwrap();
+        let _currency = match conversion {
+            ConversionType::None => Some(self.get_pairs().get(pair).unwrap().1.clone()),
+            ConversionType::Crypto => Some(self.get_pairs().get(pair).unwrap().0.clone()),
+            _ => None,
+        };
 
-            for coin in coins.iter().map(|j| j.as_object().unwrap()) {
-                let mut curr = coin.get("symbol").unwrap().as_string().unwrap();
-                if curr == "MIOTA" {
-                    curr = "IOT";
-                }
-
-                let total_supply = coin.get("total_supply").unwrap().as_f64().unwrap();
-
-                self.capitalization.insert(curr.to_string(), total_supply);
-            }
-
-            self.last_capitalization_refresh = Utc::now();
-        }
-    }
-
-    // TODO: Implement
-    /// Cannot be implemented, because it depends on https://api.icex.ch/api/coins/
-    /// which is no working
-    pub fn get_conversion_coef(&mut self, _currency: &str, _conversion: ConversionType) -> f64 {
         1.0
     }
 
@@ -179,12 +142,12 @@ impl MarketSpine {
         self.tx.send(thread).unwrap();
     }
 
-    fn recalculate_pair_average_trade_price(&self, pair: (String, String), value: f64) {
+    fn recalculate_pair_average_trade_price(&self, pair: (String, String), new_price: f64) {
         let worker = Arc::clone(&self.worker);
 
         let thread_name = format!(
-            "fn: recalculate_pair_average_trade_price, market: {}, pair: ({},{})",
-            self.name, pair.0, pair.1,
+            "fn: recalculate_pair_average_trade_price, market: {}, pair: {:?}",
+            self.name, pair,
         );
         let thread = thread::Builder::new()
             .name(thread_name)
@@ -192,7 +155,7 @@ impl MarketSpine {
                 worker
                     .lock()
                     .unwrap()
-                    .recalculate_pair_average_trade_price(pair, value);
+                    .recalculate_pair_average_trade_price(pair, new_price);
             })
             .unwrap();
         self.tx.send(thread).unwrap();
@@ -279,8 +242,82 @@ impl MarketSpine {
             self.update_market_pair(pair, "totalValues", false);
         }
     }
+}
 
-    pub fn get_last_capitalization_refresh(&self) -> DateTime<Utc> {
-        self.last_capitalization_refresh
+#[cfg(test)]
+pub mod test {
+    use crate::worker::market_helpers::conversion_type::ConversionType;
+    use crate::worker::market_helpers::exchange_pair::ExchangePair;
+    use crate::worker::market_helpers::market_spine::MarketSpine;
+    use crate::worker::worker::test::{check_threads, make_worker};
+    use ntest::timeout;
+    use std::sync::mpsc::Receiver;
+    use std::thread::JoinHandle;
+
+    pub fn make_spine(market_name: Option<&str>) -> (MarketSpine, Receiver<JoinHandle<()>>) {
+        let market_name = market_name.unwrap_or("binance").to_string();
+        let (worker, tx, rx) = make_worker();
+
+        (MarketSpine::new(worker, tx, market_name), rx)
+    }
+
+    #[test]
+    fn test_add_exchange_pair() {
+        let (mut spine, _) = make_spine(None);
+
+        let pair_string = "some_pair_string".to_string();
+
+        let pair_tuple = ("some_coin_1".to_string(), "some_coin_2".to_string());
+        let conversion_type = ConversionType::Crypto;
+        let exchange_pair = ExchangePair {
+            pair: pair_tuple.clone(),
+            conversion: conversion_type,
+        };
+
+        spine.add_exchange_pair(pair_string.clone(), exchange_pair);
+
+        assert!(spine.get_exchange_pairs().get(&pair_string).is_some());
+
+        assert_eq!(
+            spine.get_conversions().get(&pair_string).unwrap(),
+            &conversion_type
+        );
+
+        assert_eq!(spine.get_pairs().get(&pair_string).unwrap(), &pair_tuple);
+    }
+
+    #[test]
+    #[timeout(1000)]
+    fn test_recalculate_total_volume() {
+        let market_name = "binance";
+        let currency = "ABC".to_string();
+
+        let (spine, rx) = make_spine(Some(market_name));
+
+        let thread_names = vec![format!(
+            "fn: recalculate_total_volume, market: {}, currency: {}",
+            market_name, currency,
+        )];
+
+        spine.recalculate_total_volume(currency);
+        check_threads(thread_names, rx);
+    }
+
+    #[test]
+    #[timeout(1000)]
+    fn test_recalculate_pair_average_trade_price() {
+        let market_name = "binance";
+        let pair = ("ABC".to_string(), "DEF".to_string());
+        let new_price = 100.0;
+
+        let (spine, rx) = make_spine(Some(market_name));
+
+        let thread_names = vec![format!(
+            "fn: recalculate_pair_average_trade_price, market: {}, pair: {:?}",
+            market_name, pair,
+        )];
+
+        spine.recalculate_pair_average_trade_price(pair, new_price);
+        check_threads(thread_names, rx);
     }
 }
