@@ -263,9 +263,7 @@ mod test {
         market_name: Option<&str>,
     ) -> (Arc<Mutex<dyn Market + Send>>, Receiver<JoinHandle<()>>) {
         let market_name = market_name.unwrap_or("binance").to_string();
-        let fiats = Vec::from(FIATS);
-        let coins = Vec::from(COINS);
-        let exchange_pairs = Worker::make_exchange_pairs(coins, fiats);
+        let exchange_pairs = Worker::make_exchange_pairs(None, None);
 
         let (worker, tx, rx) = get_worker();
         let market_spine = MarketSpine::new(worker, tx, market_name);
@@ -286,9 +284,7 @@ mod test {
 
         assert!(market.lock().unwrap().get_spine().arc.is_some());
 
-        let fiats = Vec::from(FIATS);
-        let coins = Vec::from(COINS);
-        let exchange_pairs = Worker::make_exchange_pairs(coins, fiats);
+        let exchange_pairs = Worker::make_exchange_pairs(None, None);
         let exchange_pair_keys: Vec<String> = market
             .lock()
             .unwrap()
