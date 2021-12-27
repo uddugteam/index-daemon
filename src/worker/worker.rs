@@ -259,6 +259,64 @@ pub mod test {
     }
 
     #[test]
+    fn test_recalculate_pair_average_trade_price() {
+        let (worker, _, _) = get_worker();
+
+        let coins = ["BTC", "ETH"];
+        let prices = [100.0, 200.0];
+
+        for coin in coins {
+            for new_price in prices {
+                let pair = (coin.to_string(), "USD".to_string());
+                let expected_curr_price = if new_price.eq(&100.0) {
+                    100.0
+                } else if new_price.eq(&200.0) {
+                    150.0
+                } else {
+                    panic!("Test: Wrong price in loop.")
+                };
+
+                worker
+                    .lock()
+                    .unwrap()
+                    .recalculate_pair_average_trade_price(pair.clone(), new_price);
+
+                let real_curr_price_field = *worker
+                    .lock()
+                    .unwrap()
+                    .pair_average_trade_price
+                    .get(&pair)
+                    .unwrap();
+                assert!(expected_curr_price.eq(&real_curr_price_field));
+
+                let real_curr_price_repo = worker
+                    .lock()
+                    .unwrap()
+                    .pair_average_trade_price_repository
+                    .lock()
+                    .unwrap()
+                    .read(pair)
+                    .unwrap();
+                assert!(expected_curr_price.eq(&real_curr_price_repo));
+            }
+        }
+    }
+
+    fn inner_test_refresh_capitalization(worker: Arc<Mutex<Worker>>) {
+        let now = Utc::now();
+        let last_capitalization_refresh = worker.lock().unwrap().get_last_capitalization_refresh();
+        assert!(now - last_capitalization_refresh <= Duration::milliseconds(5000));
+    }
+
+    #[test]
+    fn test_refresh_capitalization() {
+        let (worker, _, _) = get_worker();
+        worker.lock().unwrap().refresh_capitalization();
+
+        inner_test_refresh_capitalization(worker);
+    }
+
+    #[test]
     #[timeout(2000)]
     fn test_start() {
         let (worker, _, rx) = get_worker();
@@ -273,8 +331,6 @@ pub mod test {
         worker.lock().unwrap().start(None, None);
         check_threads(thread_names, rx);
 
-        let now = Utc::now();
-        let last_capitalization_refresh = worker.lock().unwrap().get_last_capitalization_refresh();
-        assert!(now - last_capitalization_refresh <= Duration::milliseconds(5000));
+        inner_test_refresh_capitalization(worker);
     }
 }
