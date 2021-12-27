@@ -48,8 +48,17 @@ impl Worker {
         worker
     }
 
-    pub fn set_arc(&mut self, arc: Arc<Mutex<Self>>) {
+    fn set_arc(&mut self, arc: Arc<Mutex<Self>>) {
         self.arc = Some(arc);
+    }
+
+    fn set_pair_average_trade_price(&mut self, pair: (String, String), value: f64) {
+        self.pair_average_trade_price.insert(pair.clone(), value);
+
+        self.pair_average_trade_price_repository
+            .lock()
+            .unwrap()
+            .insert(pair, value);
     }
 
     // TODO: Implement
@@ -65,12 +74,7 @@ impl Worker {
 
         info!("new {}-{} average trade price: {}", pair.0, pair.1, new_avg);
 
-        self.pair_average_trade_price.insert(pair.clone(), new_avg);
-
-        self.pair_average_trade_price_repository
-            .lock()
-            .unwrap()
-            .insert(pair, new_avg);
+        self.set_pair_average_trade_price(pair, new_avg);
     }
 
     pub fn refresh_capitalization(&mut self) {
