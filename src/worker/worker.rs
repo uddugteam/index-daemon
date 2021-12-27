@@ -137,8 +137,8 @@ impl Worker {
     ) -> Vec<ExchangePair> {
         let mut exchange_pairs = Vec::new();
 
-        let fiats = fiats.unwrap_or(Vec::from(FIATS));
         let coins = coins.unwrap_or(Vec::from(COINS));
+        let fiats = fiats.unwrap_or(Vec::from(FIATS));
 
         for coin in coins {
             for fiat in &fiats {
@@ -189,6 +189,8 @@ impl Worker {
 pub mod test {
     use crate::repository::pair_average_trade_price::PairAverageTradePrice;
     use crate::worker::defaults::MARKETS;
+    use crate::worker::market_helpers::conversion_type::ConversionType;
+    use crate::worker::market_helpers::exchange_pair::ExchangePair;
     use crate::worker::worker::Worker;
     use chrono::{Duration, Utc};
     use ntest::timeout;
@@ -196,7 +198,7 @@ pub mod test {
     use std::sync::{mpsc, Arc, Mutex};
     use std::thread::JoinHandle;
 
-    pub fn get_worker() -> (
+    pub fn make_worker() -> (
         Arc<Mutex<Worker>>,
         Sender<JoinHandle<()>>,
         Receiver<JoinHandle<()>>,
@@ -228,13 +230,13 @@ pub mod test {
 
     #[test]
     fn test_new() {
-        let (worker, _, _) = get_worker();
+        let (worker, _, _) = make_worker();
 
         assert!(worker.lock().unwrap().arc.is_some());
     }
 
     fn test_configure(markets: Option<Vec<&str>>, coins: Option<Vec<&str>>) {
-        let (worker, _, _) = get_worker();
+        let (worker, _, _) = make_worker();
         worker
             .lock()
             .unwrap()
@@ -264,7 +266,7 @@ pub mod test {
 
     #[test]
     fn test_recalculate_pair_average_trade_price() {
-        let (worker, _, _) = get_worker();
+        let (worker, _, _) = make_worker();
 
         let coins = ["BTC", "ETH"];
         let prices = [100.0, 200.0];
@@ -314,27 +316,103 @@ pub mod test {
 
     #[test]
     fn test_refresh_capitalization() {
-        let (worker, _, _) = get_worker();
+        let (worker, _, _) = make_worker();
         worker.lock().unwrap().refresh_capitalization();
+
+        inner_test_refresh_capitalization(worker);
+    }
+
+    fn inner_test_make_exchange_pairs(
+        coins: Option<Vec<&str>>,
+        fiats: Option<Vec<&str>>,
+        expected_exchange_pairs: Vec<ExchangePair>,
+    ) {
+        let real_exchange_pairs = Worker::make_exchange_pairs(coins, fiats);
+
+        assert_eq!(expected_exchange_pairs.len(), real_exchange_pairs.len());
+        for (i, expected_exchange_pair) in expected_exchange_pairs.into_iter().enumerate() {
+            assert_eq!(expected_exchange_pair, real_exchange_pairs[i]);
+        }
+    }
+
+    #[test]
+    fn test_make_exchange_pairs_with_default_params() {
+        let expected_exchange_pairs = vec![
+            ExchangePair {
+                pair: ("BTC".to_string(), "USD".to_string()),
+                conversion: ConversionType::None,
+            },
+            ExchangePair {
+                pair: ("ETH".to_string(), "USD".to_string()),
+                conversion: ConversionType::None,
+            },
+        ];
+
+        inner_test_make_exchange_pairs(None, None, expected_exchange_pairs);
+    }
+
+    #[test]
+    fn test_make_exchange_pairs_with_custom_params() {
+        let expected_exchange_pairs = vec![
+            ExchangePair {
+                pair: ("ABC".to_string(), "GHI".to_string()),
+                conversion: ConversionType::None,
+            },
+            ExchangePair {
+                pair: ("ABC".to_string(), "JKL".to_string()),
+                conversion: ConversionType::None,
+            },
+            ExchangePair {
+                pair: ("DEF".to_string(), "GHI".to_string()),
+                conversion: ConversionType::None,
+            },
+            ExchangePair {
+                pair: ("DEF".to_string(), "JKL".to_string()),
+                conversion: ConversionType::None,
+            },
+        ];
+
+        let coins = Some(vec!["ABC", "DEF"]);
+        let fiats = Some(vec!["GHI", "JKL"]);
+
+        inner_test_make_exchange_pairs(coins, fiats, expected_exchange_pairs);
+    }
+
+    fn inner_test_start(markets: Option<Vec<&str>>, coins: Option<Vec<&str>>) {
+        let (worker, _, rx) = make_worker();
+
+        let mut thread_names = Vec::new();
+        for market in markets.clone().unwrap_or(Vec::from(MARKETS)) {
+            let thread_name = format!("fn: perform, market: {}", market);
+            thread_names.push(thread_name);
+        }
+
+        worker.lock().unwrap().start(markets, coins);
+        check_threads(thread_names, rx);
 
         inner_test_refresh_capitalization(worker);
     }
 
     #[test]
     #[timeout(2000)]
-    fn test_start() {
-        let (worker, _, rx) = get_worker();
+    fn test_start_with_default_params() {
+        inner_test_start(None, None);
+    }
 
-        let markets = Vec::from(MARKETS);
-        let mut thread_names = Vec::new();
-        for market in markets {
-            let thread_name = format!("fn: perform, market: {}", market);
-            thread_names.push(thread_name);
-        }
+    #[test]
+    #[timeout(2000)]
+    fn test_start_with_custom_params() {
+        let markets = Some(vec!["binance", "bitfinex"]);
+        let coins = Some(vec!["ABC", "DEF"]);
 
-        worker.lock().unwrap().start(None, None);
-        check_threads(thread_names, rx);
+        inner_test_start(markets, coins);
+    }
 
-        inner_test_refresh_capitalization(worker);
+    #[test]
+    #[should_panic]
+    fn test_start_panic() {
+        let markets = Some(vec!["not_existing_market"]);
+
+        inner_test_start(markets, None);
     }
 }

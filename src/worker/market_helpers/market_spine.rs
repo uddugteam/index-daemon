@@ -86,9 +86,8 @@ impl MarketSpine {
         self.unmask_pairs.get(a).map(|s| s.as_ref()).unwrap_or(a)
     }
 
-    // TODO: Implement
-    /// Cannot be implemented, because it depends on https://api.icex.ch/api/coins/
-    /// which is not working
+    /// TODO: Implement
+    /// Cannot be implemented, because it depends on https://api.icex.ch/api/coins/ which is not working
     pub fn get_conversion_coef(&self, pair: &str) -> f64 {
         let conversion = *self.get_conversions().get(pair).unwrap();
 
@@ -143,12 +142,12 @@ impl MarketSpine {
         self.tx.send(thread).unwrap();
     }
 
-    fn recalculate_pair_average_trade_price(&self, pair: (String, String), value: f64) {
+    fn recalculate_pair_average_trade_price(&self, pair: (String, String), new_price: f64) {
         let worker = Arc::clone(&self.worker);
 
         let thread_name = format!(
-            "fn: recalculate_pair_average_trade_price, market: {}, pair: ({},{})",
-            self.name, pair.0, pair.1,
+            "fn: recalculate_pair_average_trade_price, market: {}, pair: {:?}",
+            self.name, pair,
         );
         let thread = thread::Builder::new()
             .name(thread_name)
@@ -156,7 +155,7 @@ impl MarketSpine {
                 worker
                     .lock()
                     .unwrap()
-                    .recalculate_pair_average_trade_price(pair, value);
+                    .recalculate_pair_average_trade_price(pair, new_price);
             })
             .unwrap();
         self.tx.send(thread).unwrap();
@@ -242,5 +241,83 @@ impl MarketSpine {
 
             self.update_market_pair(pair, "totalValues", false);
         }
+    }
+}
+
+#[cfg(test)]
+pub mod test {
+    use crate::worker::market_helpers::conversion_type::ConversionType;
+    use crate::worker::market_helpers::exchange_pair::ExchangePair;
+    use crate::worker::market_helpers::market_spine::MarketSpine;
+    use crate::worker::worker::test::{check_threads, make_worker};
+    use ntest::timeout;
+    use std::sync::mpsc::Receiver;
+    use std::thread::JoinHandle;
+
+    pub fn make_spine(market_name: Option<&str>) -> (MarketSpine, Receiver<JoinHandle<()>>) {
+        let market_name = market_name.unwrap_or("binance").to_string();
+        let (worker, tx, rx) = make_worker();
+
+        (MarketSpine::new(worker, tx, market_name), rx)
+    }
+
+    #[test]
+    fn test_add_exchange_pair() {
+        let (mut spine, _) = make_spine(None);
+
+        let pair_string = "some_pair_string".to_string();
+
+        let pair_tuple = ("some_coin_1".to_string(), "some_coin_2".to_string());
+        let conversion_type = ConversionType::Crypto;
+        let exchange_pair = ExchangePair {
+            pair: pair_tuple.clone(),
+            conversion: conversion_type,
+        };
+
+        spine.add_exchange_pair(pair_string.clone(), exchange_pair);
+
+        assert!(spine.get_exchange_pairs().get(&pair_string).is_some());
+
+        assert_eq!(
+            spine.get_conversions().get(&pair_string).unwrap(),
+            &conversion_type
+        );
+
+        assert_eq!(spine.get_pairs().get(&pair_string).unwrap(), &pair_tuple);
+    }
+
+    #[test]
+    #[timeout(1000)]
+    fn test_recalculate_total_volume() {
+        let market_name = "binance";
+        let currency = "ABC".to_string();
+
+        let (spine, rx) = make_spine(Some(market_name));
+
+        let thread_names = vec![format!(
+            "fn: recalculate_total_volume, market: {}, currency: {}",
+            market_name, currency,
+        )];
+
+        spine.recalculate_total_volume(currency);
+        check_threads(thread_names, rx);
+    }
+
+    #[test]
+    #[timeout(1000)]
+    fn test_recalculate_pair_average_trade_price() {
+        let market_name = "binance";
+        let pair = ("ABC".to_string(), "DEF".to_string());
+        let new_price = 100.0;
+
+        let (spine, rx) = make_spine(Some(market_name));
+
+        let thread_names = vec![format!(
+            "fn: recalculate_pair_average_trade_price, market: {}, pair: {:?}",
+            market_name, pair,
+        )];
+
+        spine.recalculate_pair_average_trade_price(pair, new_price);
+        check_threads(thread_names, rx);
     }
 }

@@ -248,39 +248,87 @@ pub trait Market {
 
 #[cfg(test)]
 mod test {
-    use crate::worker::defaults::{COINS, FIATS};
+    use crate::worker::market_helpers::conversion_type::ConversionType;
+    use crate::worker::market_helpers::exchange_pair::ExchangePair;
     use crate::worker::market_helpers::market::{market_factory, update, Market};
     use crate::worker::market_helpers::market_channels::MarketChannels;
-    use crate::worker::market_helpers::market_spine::MarketSpine;
-    use crate::worker::worker::test::{check_threads, get_worker};
+    use crate::worker::market_helpers::market_spine::test::make_spine;
+    use crate::worker::worker::test::check_threads;
     use crate::worker::worker::Worker;
     use ntest::timeout;
     use std::sync::mpsc::Receiver;
     use std::sync::{Arc, Mutex};
     use std::thread::JoinHandle;
 
-    fn get_market(
+    fn make_market(
         market_name: Option<&str>,
     ) -> (Arc<Mutex<dyn Market + Send>>, Receiver<JoinHandle<()>>) {
-        let market_name = market_name.unwrap_or("binance").to_string();
         let exchange_pairs = Worker::make_exchange_pairs(None, None);
 
-        let (worker, tx, rx) = get_worker();
-        let market_spine = MarketSpine::new(worker, tx, market_name);
+        let (market_spine, rx) = make_spine(market_name);
         let market = market_factory(market_spine, exchange_pairs);
 
         (market, rx)
     }
 
     #[test]
-    #[should_panic]
-    fn test_market_factory() {
-        let (_, _) = get_market(Some("not_existing_market"));
+    fn test_add_exchange_pair() {
+        let (market, _) = make_market(None);
+
+        let pair_tuple = ("some_coin_1".to_string(), "some_coin_2".to_string());
+        let conversion_type = ConversionType::Crypto;
+        let exchange_pair = ExchangePair {
+            pair: pair_tuple.clone(),
+            conversion: conversion_type,
+        };
+
+        let pair_string = market
+            .lock()
+            .unwrap()
+            .make_pair(exchange_pair.get_pair_ref());
+
+        market.lock().unwrap().add_exchange_pair(exchange_pair);
+
+        assert!(market
+            .lock()
+            .unwrap()
+            .get_spine()
+            .get_exchange_pairs()
+            .get(&pair_string)
+            .is_some());
+
+        assert_eq!(
+            market
+                .lock()
+                .unwrap()
+                .get_spine()
+                .get_conversions()
+                .get(&pair_string)
+                .unwrap(),
+            &conversion_type
+        );
+
+        assert_eq!(
+            market
+                .lock()
+                .unwrap()
+                .get_spine()
+                .get_pairs()
+                .get(&pair_string)
+                .unwrap(),
+            &pair_tuple
+        );
     }
 
     #[test]
-    fn test_market_factory_2() {
-        let (market, _) = get_market(None);
+    #[should_panic]
+    fn test_market_factory_panic() {
+        let (_, _) = make_market(Some("not_existing_market"));
+    }
+
+    #[test]
+    fn test_market_factory() {
+        let (market, _) = make_market(None);
 
         assert!(market.lock().unwrap().get_spine().arc.is_some());
 
@@ -304,7 +352,7 @@ mod test {
     #[test]
     #[timeout(3000)]
     fn test_perform() {
-        let (market, rx) = get_market(None);
+        let (market, rx) = make_market(None);
 
         let thread_names = vec![format!(
             "fn: update, market: {}",
@@ -321,7 +369,7 @@ mod test {
     #[timeout(120000)]
     /// TODO: Refactor (not always working)
     fn test_update() {
-        let (market, rx) = get_market(None);
+        let (market, rx) = make_market(None);
 
         let channels = MarketChannels::get_all();
         let exchange_pairs: Vec<String> = market

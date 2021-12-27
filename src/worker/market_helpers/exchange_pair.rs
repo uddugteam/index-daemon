@@ -1,6 +1,6 @@
 use crate::worker::market_helpers::conversion_type::ConversionType;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct ExchangePair {
     pub pair: (String, String),
     pub conversion: ConversionType,

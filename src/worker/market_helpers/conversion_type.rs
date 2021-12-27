@@ -1,7 +1,4 @@
-use std::fmt::{Display, Formatter};
-use std::str::FromStr;
-
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum ConversionType {
     /// Already in USD
     None,
