@@ -43,64 +43,64 @@ impl Market for Hitbtc {
         ))
     }
 
-    fn parse_ticker_info(&mut self, pair: String, info: String) {
-        if let Ok(json) = Json::from_str(&info) {
-            if let Some(object) = json.as_object().unwrap().get("data") {
-                if let Some(object) = object.as_object().unwrap().get(&pair).unwrap().as_object() {
-                    let volume: f64 = parse_str_from_json_object(object, "v").unwrap();
+    fn parse_ticker_json(&mut self, pair: String, json: Json) -> Option<()> {
+        let object = json.as_object()?;
+        let object = object.get("data")?;
+        let object = object
+            .as_object()
+            .unwrap()
+            .get(&pair)
+            .unwrap()
+            .as_object()?;
 
-                    self.parse_ticker_info_inner(pair, volume);
-                }
-            }
-        }
+        let volume: f64 = parse_str_from_json_object(object, "v").unwrap();
+        self.parse_ticker_json_inner(pair, volume);
+
+        Some(())
     }
 
-    fn parse_last_trade_info(&mut self, pair: String, info: String) {
-        if let Ok(json) = Json::from_str(&info) {
-            if let Some(object) = json.as_object().unwrap().get("update") {
-                if let Some(array) = object.as_object().unwrap().get(&pair).unwrap().as_array() {
-                    for object in array {
-                        let object = object.as_object().unwrap();
+    fn parse_last_trade_json(&mut self, pair: String, json: Json) -> Option<()> {
+        let object = json.as_object()?;
+        let object = object.get("update")?;
+        let array = object.as_object().unwrap().get(&pair).unwrap().as_array()?;
 
-                        let last_trade_volume: f64 =
-                            parse_str_from_json_object(object, "q").unwrap();
-                        let mut last_trade_price: f64 =
-                            parse_str_from_json_object(object, "p").unwrap();
+        for object in array {
+            let object = object.as_object().unwrap();
 
-                        let trade_type = object.get("s").unwrap().as_string().unwrap();
-                        // TODO: Check whether inversion is right
-                        if trade_type == "sell" {
-                            // sell
-                            last_trade_price *= -1.0;
-                        } else if trade_type == "buy" {
-                            // buy
-                        }
+            let last_trade_volume: f64 = parse_str_from_json_object(object, "q").unwrap();
+            let mut last_trade_price: f64 = parse_str_from_json_object(object, "p").unwrap();
 
-                        self.parse_last_trade_info_inner(
-                            pair.clone(),
-                            last_trade_volume,
-                            last_trade_price,
-                        );
-                    }
-                }
+            let trade_type = object.get("s").unwrap().as_string().unwrap();
+            // TODO: Check whether inversion is right
+            if trade_type == "sell" {
+                // sell
+                last_trade_price *= -1.0;
+            } else if trade_type == "buy" {
+                // buy
             }
+
+            self.parse_last_trade_json_inner(pair.clone(), last_trade_volume, last_trade_price);
         }
+
+        Some(())
     }
 
-    fn parse_depth_info(&mut self, pair: String, info: String) {
-        if let Ok(json) = Json::from_str(&info) {
-            if let Some(object) = json.as_object().unwrap().get("snapshot") {
-                if let Some(object) = object.as_object().unwrap().get(&pair).unwrap().as_object() {
-                    if let Some(asks) = object.get("a") {
-                        if let Some(bids) = object.get("b") {
-                            let asks = depth_helper_v1(asks);
-                            let bids = depth_helper_v1(bids);
+    fn parse_depth_json(&mut self, pair: String, json: Json) -> Option<()> {
+        let object = json.as_object()?;
+        let object = object.get("snapshot")?;
+        let object = object
+            .as_object()
+            .unwrap()
+            .get(&pair)
+            .unwrap()
+            .as_object()?;
+        let asks = object.get("a")?;
+        let bids = object.get("b")?;
 
-                            self.parse_depth_info_inner(pair, asks, bids);
-                        }
-                    }
-                }
-            }
-        }
+        let asks = depth_helper_v1(asks);
+        let bids = depth_helper_v1(bids);
+        self.parse_depth_json_inner(pair, asks, bids);
+
+        Some(())
     }
 }

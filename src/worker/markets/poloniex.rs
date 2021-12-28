@@ -98,86 +98,85 @@ impl Market for Poloniex {
 
     /// Poloniex sends us coin instead of pair, then we create pair coin-USD
     /// TODO: Check whether function takes right values from json (in the meaning of coin/pair misunderstanding)
-    fn parse_ticker_info(&mut self, _pair: String, info: String) {
-        if let Ok(json) = Json::from_str(&info) {
-            if let Some(array) = json.as_array().unwrap().get(2) {
-                if let Some(object) = array.as_array().unwrap().get(2).unwrap().as_object() {
-                    let volumes: HashMap<String, f64> = object
-                        .iter()
-                        .filter(|(k, _)| {
-                            // Remove unknown coins
-                            self.coin_exists(k)
-                        })
-                        .map(|(k, v)| {
-                            // Convert key from coin name to pair code
-                            // and convert value to f64
-                            (
-                                self.make_pair((k, "USD")),
-                                v.as_string().unwrap().parse().unwrap(),
-                            )
-                        })
-                        .filter(|(k, _)| {
-                            // Remove unneeded pairs
-                            self.spine.get_exchange_pairs().get(k).is_some()
-                        })
-                        .collect();
+    fn parse_ticker_json(&mut self, _pair: String, json: Json) -> Option<()> {
+        let array = json.as_array().unwrap().get(2)?;
+        let object = array.as_array().unwrap().get(2).unwrap().as_object()?;
 
-                    for (pair_code, volume) in volumes {
-                        self.parse_ticker_info_inner(pair_code, volume);
-                    }
-                }
-            }
+        let volumes: HashMap<String, f64> = object
+            .iter()
+            .filter(|(k, _)| {
+                // Remove unknown coins
+                self.coin_exists(k)
+            })
+            .map(|(k, v)| {
+                // Convert key from coin name to pair code
+                // and convert value to f64
+                (
+                    self.make_pair((k, "USD")),
+                    v.as_string().unwrap().parse().unwrap(),
+                )
+            })
+            .filter(|(k, _)| {
+                // Remove unneeded pairs
+                self.spine.get_exchange_pairs().get(k).is_some()
+            })
+            .collect();
+
+        for (pair_code, volume) in volumes {
+            self.parse_ticker_json_inner(pair_code, volume);
         }
+
+        Some(())
     }
 
-    fn parse_last_trade_info(&mut self, pair: String, info: String) {
-        if let Ok(json) = Json::from_str(&info) {
-            if let Some(array) = json.as_array() {
-                let mut last_trade_price: f64 = parse_str_from_json_array(array, 3).unwrap();
-                let last_trade_volume: f64 = parse_str_from_json_array(array, 4).unwrap();
+    fn parse_last_trade_json(&mut self, pair: String, json: Json) -> Option<()> {
+        let array = json.as_array()?;
 
-                let trade_type = array[2].as_u64().unwrap();
-                // TODO: Check whether inversion is right
-                if trade_type == 0 {
-                    // sell
-                    last_trade_price *= -1.0;
-                } else if trade_type == 1 {
-                    // buy
-                }
+        let mut last_trade_price: f64 = parse_str_from_json_array(array, 3).unwrap();
+        let last_trade_volume: f64 = parse_str_from_json_array(array, 4).unwrap();
 
-                self.parse_last_trade_info_inner(pair, last_trade_volume, last_trade_price);
-            }
+        let trade_type = array[2].as_u64().unwrap();
+        // TODO: Check whether inversion is right
+        if trade_type == 0 {
+            // sell
+            last_trade_price *= -1.0;
+        } else if trade_type == 1 {
+            // buy
         }
+
+        self.parse_last_trade_json_inner(pair, last_trade_volume, last_trade_price);
+
+        Some(())
     }
 
-    fn parse_depth_info(&mut self, pair: String, info: String) {
-        if let Ok(json) = Json::from_str(&info) {
-            if let Some(json) = json.as_array().unwrap().get(2) {
-                for array in json.as_array().unwrap() {
-                    let array = array.as_array().unwrap();
+    fn parse_depth_json(&mut self, pair: String, json: Json) -> Option<()> {
+        let json = json.as_array().unwrap().get(2)?;
 
-                    if array[0].as_string().unwrap() == "i" {
-                        // book
-                        if let Some(object) = array.get(1).unwrap().as_object() {
-                            if let Some(object) = object.get("orderBook") {
-                                if let Some(array) = object.as_array() {
-                                    let asks = &array[0];
-                                    let bids = &array[1];
+        for array in json.as_array().unwrap() {
+            let array = array.as_array().unwrap();
 
-                                    let asks = Self::depth_helper(asks);
-                                    let bids = Self::depth_helper(bids);
+            if array[0].as_string().unwrap() == "i" {
+                // book
+                if let Some(object) = array.get(1).unwrap().as_object() {
+                    if let Some(object) = object.get("orderBook") {
+                        if let Some(array) = object.as_array() {
+                            let asks = &array[0];
+                            let bids = &array[1];
 
-                                    self.parse_depth_info_inner(pair.clone(), asks, bids);
-                                }
-                            }
+                            let asks = Self::depth_helper(asks);
+                            let bids = Self::depth_helper(bids);
+
+                            self.parse_depth_json_inner(pair.clone(), asks, bids);
                         }
-                    } else if array[0].as_string().unwrap() == "t" {
-                        // trades
-
-                        self.parse_last_trade_info(pair.clone(), array.to_json().to_string());
                     }
                 }
+            } else if array[0].as_string().unwrap() == "t" {
+                // trades
+
+                self.parse_last_trade_json(pair.clone(), array.to_json());
             }
         }
+
+        Some(())
     }
 }

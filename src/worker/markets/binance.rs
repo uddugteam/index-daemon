@@ -1,8 +1,6 @@
 use rustc_serialize::json::Json;
 
-use crate::worker::market_helpers::market::{
-    depth_helper_v1, parse_str_from_json_object, Market,
-};
+use crate::worker::market_helpers::market::{depth_helper_v1, parse_str_from_json_object, Market};
 use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
 
@@ -45,39 +43,34 @@ impl Market for Binance {
         None
     }
 
-    fn parse_ticker_info(&mut self, pair: String, info: String) {
-        if let Ok(json) = Json::from_str(&info) {
-            if let Some(object) = json.as_object() {
-                let volume: f64 = parse_str_from_json_object(object, "v").unwrap();
+    fn parse_ticker_json(&mut self, pair: String, json: Json) -> Option<()> {
+        let object = json.as_object()?;
 
-                self.parse_ticker_info_inner(pair, volume);
-            }
-        }
+        let volume: f64 = parse_str_from_json_object(object, "v").unwrap();
+        self.parse_ticker_json_inner(pair, volume);
+
+        Some(())
     }
 
-    fn parse_last_trade_info(&mut self, pair: String, info: String) {
-        if let Ok(json) = Json::from_str(&info) {
-            if let Some(object) = json.as_object() {
-                let last_trade_volume: f64 = parse_str_from_json_object(object, "q").unwrap();
-                let last_trade_price: f64 = parse_str_from_json_object(object, "p").unwrap();
+    fn parse_last_trade_json(&mut self, pair: String, json: Json) -> Option<()> {
+        let object = json.as_object()?;
 
-                self.parse_last_trade_info_inner(pair, last_trade_volume, last_trade_price);
-            }
-        }
+        let last_trade_volume: f64 = parse_str_from_json_object(object, "q").unwrap();
+        let last_trade_price: f64 = parse_str_from_json_object(object, "p").unwrap();
+        self.parse_last_trade_json_inner(pair, last_trade_volume, last_trade_price);
+
+        Some(())
     }
 
-    fn parse_depth_info(&mut self, pair: String, info: String) {
-        if let Ok(json) = Json::from_str(&info) {
-            if let Some(object) = json.as_object() {
-                if let Some(asks) = object.get("asks") {
-                    if let Some(bids) = object.get("bids") {
-                        let asks = depth_helper_v1(asks);
-                        let bids = depth_helper_v1(bids);
+    fn parse_depth_json(&mut self, pair: String, json: Json) -> Option<()> {
+        let object = json.as_object()?;
+        let asks = object.get("asks")?;
+        let bids = object.get("bids")?;
 
-                        self.parse_depth_info_inner(pair, asks, bids);
-                    }
-                }
-            }
-        }
+        let asks = depth_helper_v1(asks);
+        let bids = depth_helper_v1(bids);
+        self.parse_depth_json_inner(pair, asks, bids);
+
+        Some(())
     }
 }

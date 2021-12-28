@@ -11,6 +11,7 @@ use crate::worker::markets::okcoin::Okcoin;
 use crate::worker::markets::poloniex::Poloniex;
 use crate::worker::network_helpers::socket_helper::SocketHelper;
 use chrono::Utc;
+use regex::Regex;
 use rustc_serialize::json::{Array, Json, Object};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
@@ -73,17 +74,29 @@ pub fn subscribe_channel(
         channel,
     );
 
-    let socker_helper =
-        SocketHelper::new(
-            url,
-            on_open_msg,
-            pair,
-            |pair: String, info: String| match channel {
-                MarketChannels::Ticker => market.lock().unwrap().parse_ticker_info(pair, info),
-                MarketChannels::Trades => market.lock().unwrap().parse_last_trade_info(pair, info),
-                MarketChannels::Book => market.lock().unwrap().parse_depth_info(pair, info),
-            },
-        );
+    let socker_helper = SocketHelper::new(url, on_open_msg, pair, |pair: String, info: String| {
+        // This block is needed for Huobi::parse_last_trade_json()
+        let json = if let Ok(json) = Json::from_str(&info) {
+            Some(json)
+        } else {
+            // Error: invalid number (integer is too long).
+            // Since we don't need its real value, we can to replace it with fake, but valid number.
+            let regex_too_big_integer = Regex::new("^(.*)(\\D)(?P<n>\\d{18,})(\\D)(.*)$").unwrap();
+            let too_big_integer = regex_too_big_integer.replace_all(&info, "$n").to_string();
+
+            let info = info.replace(&too_big_integer, "123456");
+
+            Json::from_str(&info).ok()
+        };
+        if let Some(json) = json {
+            // This match returns value, but we shouldn't use it
+            match channel {
+                MarketChannels::Ticker => market.lock().unwrap().parse_ticker_json(pair, json),
+                MarketChannels::Trades => market.lock().unwrap().parse_last_trade_json(pair, json),
+                MarketChannels::Book => market.lock().unwrap().parse_depth_json(pair, json),
+            };
+        }
+    });
     socker_helper.start();
 }
 
@@ -268,8 +281,8 @@ pub trait Market {
         pair_text_view
     }
 
-    fn parse_ticker_info(&mut self, pair: String, info: String);
-    fn parse_ticker_info_inner(&mut self, pair: String, volume: f64) {
+    fn parse_ticker_json(&mut self, pair: String, json: Json) -> Option<()>;
+    fn parse_ticker_json_inner(&mut self, pair: String, volume: f64) {
         let pair_text_view = self.get_pair_text_view(pair.clone());
 
         info!(
@@ -284,8 +297,8 @@ pub trait Market {
             .set_total_volume(&pair, volume * conversion_coef);
     }
 
-    fn parse_last_trade_info(&mut self, pair: String, info: String);
-    fn parse_last_trade_info_inner(
+    fn parse_last_trade_json(&mut self, pair: String, json: Json) -> Option<()>;
+    fn parse_last_trade_json_inner(
         &mut self,
         pair: String,
         last_trade_volume: f64,
@@ -308,8 +321,8 @@ pub trait Market {
             .set_last_trade_price(&pair, last_trade_price * conversion_coef);
     }
 
-    fn parse_depth_info(&mut self, pair: String, info: String);
-    fn parse_depth_info_inner(
+    fn parse_depth_json(&mut self, pair: String, json: Json) -> Option<()>;
+    fn parse_depth_json_inner(
         &mut self,
         pair: String,
         asks: Vec<(f64, f64)>,

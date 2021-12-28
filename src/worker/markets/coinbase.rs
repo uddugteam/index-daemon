@@ -46,43 +46,34 @@ impl Market for Coinbase {
         ))
     }
 
-    fn parse_ticker_info(&mut self, pair: String, info: String) {
-        if let Ok(json) = Json::from_str(&info) {
-            if let Some(object) = json.as_object() {
-                // TODO: Check whether key `volume_24h` is right
-                if let Some(volume) = parse_str_from_json_object::<f64>(object, "volume_24h") {
-                    self.parse_ticker_info_inner(pair, volume);
-                }
-            }
-        }
+    fn parse_ticker_json(&mut self, pair: String, json: Json) -> Option<()> {
+        let object = json.as_object()?;
+
+        let volume: f64 = parse_str_from_json_object(object, "volume_24h")?;
+        self.parse_ticker_json_inner(pair, volume);
+
+        Some(())
     }
 
-    fn parse_last_trade_info(&mut self, pair: String, info: String) {
-        if let Ok(json) = Json::from_str(&info) {
-            if let Some(object) = json.as_object() {
-                if let Some(last_trade_volume) = parse_str_from_json_object(object, "size") {
-                    if let Some(last_trade_price) =
-                        parse_str_from_json_object::<f64>(object, "price")
-                    {
-                        self.parse_last_trade_info_inner(pair, last_trade_volume, last_trade_price);
-                    }
-                }
-            }
-        }
+    fn parse_last_trade_json(&mut self, pair: String, json: Json) -> Option<()> {
+        let object = json.as_object()?;
+
+        let last_trade_volume: f64 = parse_str_from_json_object(object, "size")?;
+        let last_trade_price: f64 = parse_str_from_json_object(object, "price")?;
+        self.parse_last_trade_json_inner(pair, last_trade_volume, last_trade_price);
+
+        Some(())
     }
 
-    fn parse_depth_info(&mut self, pair: String, info: String) {
-        if let Ok(json) = Json::from_str(&info) {
-            if let Some(object) = json.as_object() {
-                if let Some(asks) = object.get("asks") {
-                    if let Some(bids) = object.get("bids") {
-                        let asks = depth_helper_v1(asks);
-                        let bids = depth_helper_v1(bids);
+    fn parse_depth_json(&mut self, pair: String, json: Json) -> Option<()> {
+        let object = json.as_object()?;
+        let asks = object.get("asks")?;
+        let bids = object.get("bids")?;
 
-                        self.parse_depth_info_inner(pair, asks, bids);
-                    }
-                }
-            }
-        }
+        let asks = depth_helper_v1(asks);
+        let bids = depth_helper_v1(bids);
+        self.parse_depth_json_inner(pair, asks, bids);
+
+        Some(())
     }
 }

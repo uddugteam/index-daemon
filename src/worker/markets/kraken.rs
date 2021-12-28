@@ -44,60 +44,50 @@ impl Market for Kraken {
         ))
     }
 
-    fn parse_ticker_info(&mut self, pair: String, info: String) {
-        if let Ok(json) = Json::from_str(&info) {
-            if let Some(array) = json.as_array() {
-                if let Some(array) = array[1].as_object().unwrap().get("v").unwrap().as_array() {
-                    let volume: f64 = parse_str_from_json_array(array, 1).unwrap();
+    fn parse_ticker_json(&mut self, pair: String, json: Json) -> Option<()> {
+        let array = json.as_array()?;
+        let array = array[1].as_object().unwrap().get("v").unwrap().as_array()?;
 
-                    self.parse_ticker_info_inner(pair, volume);
-                }
-            }
-        }
+        let volume: f64 = parse_str_from_json_array(array, 1).unwrap();
+        self.parse_ticker_json_inner(pair, volume);
+
+        Some(())
     }
 
-    fn parse_last_trade_info(&mut self, pair: String, info: String) {
-        if let Ok(json) = Json::from_str(&info) {
-            if let Some(array) = json.as_array() {
-                for array in array[1].as_array().unwrap() {
-                    let array = array.as_array().unwrap();
+    fn parse_last_trade_json(&mut self, pair: String, json: Json) -> Option<()> {
+        let array = json.as_array()?;
 
-                    let mut last_trade_price: f64 = parse_str_from_json_array(array, 0).unwrap();
-                    let last_trade_volume: f64 = parse_str_from_json_array(array, 1).unwrap();
+        for array in array[1].as_array().unwrap() {
+            let array = array.as_array().unwrap();
 
-                    let trade_type = array[3].as_string().unwrap();
-                    // TODO: Check whether inversion is right
-                    if trade_type == "s" {
-                        // sell
-                        last_trade_price *= -1.0;
-                    } else if trade_type == "b" {
-                        // buy
-                    }
+            let mut last_trade_price: f64 = parse_str_from_json_array(array, 0).unwrap();
+            let last_trade_volume: f64 = parse_str_from_json_array(array, 1).unwrap();
 
-                    self.parse_last_trade_info_inner(
-                        pair.clone(),
-                        last_trade_volume,
-                        last_trade_price,
-                    );
-                }
+            let trade_type = array[3].as_string().unwrap();
+            // TODO: Check whether inversion is right
+            if trade_type == "s" {
+                // sell
+                last_trade_price *= -1.0;
+            } else if trade_type == "b" {
+                // buy
             }
+
+            self.parse_last_trade_json_inner(pair.clone(), last_trade_volume, last_trade_price);
         }
+
+        Some(())
     }
 
-    fn parse_depth_info(&mut self, pair: String, info: String) {
-        if let Ok(json) = Json::from_str(&info) {
-            if let Some(array) = json.as_array() {
-                if let Some(object) = array[1].as_object() {
-                    if let Some(asks) = object.get("as") {
-                        if let Some(bids) = object.get("bs") {
-                            let asks = depth_helper_v1(asks);
-                            let bids = depth_helper_v1(bids);
+    fn parse_depth_json(&mut self, pair: String, json: Json) -> Option<()> {
+        let array = json.as_array()?;
+        let object = array[1].as_object()?;
+        let asks = object.get("as")?;
+        let bids = object.get("bs")?;
 
-                            self.parse_depth_info_inner(pair, asks, bids);
-                        }
-                    }
-                }
-            }
-        }
+        let asks = depth_helper_v1(asks);
+        let bids = depth_helper_v1(bids);
+        self.parse_depth_json_inner(pair, asks, bids);
+
+        Some(())
     }
 }

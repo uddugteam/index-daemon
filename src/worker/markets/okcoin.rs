@@ -46,72 +46,64 @@ impl Market for Okcoin {
         ))
     }
 
-    fn parse_ticker_info(&mut self, pair: String, info: String) {
-        if let Ok(json) = Json::from_str(&info) {
-            if let Some(array) = json.as_object().unwrap().get("data") {
-                for object in array.as_array().unwrap() {
-                    let object = object.as_object().unwrap();
+    fn parse_ticker_json(&mut self, pair: String, json: Json) -> Option<()> {
+        let array = json.as_object().unwrap().get("data")?;
 
-                    // TODO: Check whether key `base_volume_24h` is right
-                    let volume: f64 =
-                        parse_str_from_json_object(object, "base_volume_24h").unwrap();
+        for object in array.as_array().unwrap() {
+            let object = object.as_object().unwrap();
 
-                    self.parse_ticker_info_inner(pair.clone(), volume);
-                }
-            }
+            // TODO: Check whether key `base_volume_24h` is right
+            let volume: f64 = parse_str_from_json_object(object, "base_volume_24h").unwrap();
+
+            self.parse_ticker_json_inner(pair.clone(), volume);
         }
+
+        Some(())
     }
 
-    fn parse_last_trade_info(&mut self, pair: String, info: String) {
-        if let Ok(json) = Json::from_str(&info) {
-            if let Some(array) = json.as_object().unwrap().get("data") {
-                for object in array.as_array().unwrap() {
-                    let object = object.as_object().unwrap();
+    fn parse_last_trade_json(&mut self, pair: String, json: Json) -> Option<()> {
+        let array = json.as_object().unwrap().get("data")?;
 
-                    let last_trade_volume: f64 =
-                        parse_str_from_json_object(object, "size").unwrap();
-                    let mut last_trade_price: f64 =
-                        parse_str_from_json_object(object, "price").unwrap();
+        for object in array.as_array().unwrap() {
+            let object = object.as_object().unwrap();
 
-                    let trade_type = object.get("side").unwrap().as_string().unwrap();
-                    // TODO: Check whether inversion is right
-                    if trade_type == "sell" {
-                        // sell
-                        last_trade_price *= -1.0;
-                    } else if trade_type == "buy" {
-                        // buy
-                    }
+            let last_trade_volume: f64 = parse_str_from_json_object(object, "size").unwrap();
+            let mut last_trade_price: f64 = parse_str_from_json_object(object, "price").unwrap();
 
-                    self.parse_last_trade_info_inner(
-                        pair.clone(),
-                        last_trade_volume,
-                        last_trade_price,
-                    );
-                }
+            let trade_type = object.get("side").unwrap().as_string().unwrap();
+            // TODO: Check whether inversion is right
+            if trade_type == "sell" {
+                // sell
+                last_trade_price *= -1.0;
+            } else if trade_type == "buy" {
+                // buy
             }
+
+            self.parse_last_trade_json_inner(pair.clone(), last_trade_volume, last_trade_price);
         }
+
+        Some(())
     }
 
-    fn parse_depth_info(&mut self, pair: String, info: String) {
-        if let Ok(json) = Json::from_str(&info) {
-            if let Some(object) = json.as_object() {
-                if let Some(array) = object.get("data") {
-                    if object.get("action").unwrap().as_string().unwrap() == "partial" {
-                        for object in array.as_array().unwrap() {
-                            let object = object.as_object().unwrap();
+    fn parse_depth_json(&mut self, pair: String, json: Json) -> Option<()> {
+        let object = json.as_object()?;
+        let array = object.get("data")?;
 
-                            if let Some(asks) = object.get("asks") {
-                                if let Some(bids) = object.get("bids") {
-                                    let asks = depth_helper_v1(asks);
-                                    let bids = depth_helper_v1(bids);
+        if object.get("action").unwrap().as_string().unwrap() == "partial" {
+            for object in array.as_array().unwrap() {
+                let object = object.as_object().unwrap();
 
-                                    self.parse_depth_info_inner(pair.clone(), asks, bids);
-                                }
-                            }
-                        }
+                if let Some(asks) = object.get("asks") {
+                    if let Some(bids) = object.get("bids") {
+                        let asks = depth_helper_v1(asks);
+                        let bids = depth_helper_v1(bids);
+
+                        self.parse_depth_json_inner(pair.clone(), asks, bids);
                     }
                 }
             }
         }
+
+        Some(())
     }
 }

@@ -1,4 +1,3 @@
-use regex::Regex;
 use rustc_serialize::json::Json;
 
 use crate::worker::market_helpers::market::Market;
@@ -57,76 +56,52 @@ impl Market for Huobi {
         ))
     }
 
-    fn parse_ticker_info(&mut self, pair: String, info: String) {
-        if let Ok(json) = Json::from_str(&info) {
-            if let Some(object) = json.as_object() {
-                if let Some(object) = object.get("tick") {
-                    if let Some(object) = object.as_object() {
-                        let volume: f64 = object.get("vol").unwrap().as_f64().unwrap();
+    fn parse_ticker_json(&mut self, pair: String, json: Json) -> Option<()> {
+        let object = json.as_object()?;
+        let object = object.get("tick")?;
+        let object = object.as_object()?;
 
-                        self.parse_ticker_info_inner(pair, volume);
-                    }
-                }
-            }
-        }
+        let volume: f64 = object.get("vol").unwrap().as_f64().unwrap();
+        self.parse_ticker_json_inner(pair, volume);
+
+        Some(())
     }
 
-    fn parse_last_trade_info(&mut self, pair: String, info: String) {
-        let info = if Json::from_str(&info).is_ok() {
-            info
-        } else {
-            // Error: invalid number (integer is too long).
-            // Since we don't need its real value, we can to replace it with fake, but valid number.
-            let regex_too_big_integer = Regex::new("^(.*)(\\D)(?P<n>\\d{18,})(\\D)(.*)$").unwrap();
-            let too_big_integer = regex_too_big_integer.replace_all(&info, "$n").to_string();
+    fn parse_last_trade_json(&mut self, pair: String, json: Json) -> Option<()> {
+        let object = json.as_object().unwrap().get("tick")?;
+        let array = object.as_object().unwrap().get("data")?;
 
-            info.replace(&too_big_integer, "123456")
-        };
-        if let Ok(json) = Json::from_str(&info) {
-            if let Some(object) = json.as_object().unwrap().get("tick") {
-                if let Some(array) = object.as_object().unwrap().get("data") {
-                    for object in array.as_array().unwrap() {
-                        let object = object.as_object().unwrap();
+        for object in array.as_array().unwrap() {
+            let object = object.as_object().unwrap();
 
-                        let last_trade_volume: f64 =
-                            object.get("amount").unwrap().as_f64().unwrap();
-                        let mut last_trade_price: f64 =
-                            object.get("price").unwrap().as_f64().unwrap();
+            let last_trade_volume: f64 = object.get("amount").unwrap().as_f64().unwrap();
+            let mut last_trade_price: f64 = object.get("price").unwrap().as_f64().unwrap();
 
-                        let trade_type = object.get("direction").unwrap().as_string().unwrap();
-                        // TODO: Check whether inversion is right
-                        if trade_type == "sell" {
-                            // sell
-                            last_trade_price *= -1.0;
-                        } else if trade_type == "buy" {
-                            // buy
-                        }
-
-                        self.parse_last_trade_info_inner(
-                            pair.clone(),
-                            last_trade_volume,
-                            last_trade_price,
-                        );
-                    }
-                }
+            let trade_type = object.get("direction").unwrap().as_string().unwrap();
+            // TODO: Check whether inversion is right
+            if trade_type == "sell" {
+                // sell
+                last_trade_price *= -1.0;
+            } else if trade_type == "buy" {
+                // buy
             }
+
+            self.parse_last_trade_json_inner(pair.clone(), last_trade_volume, last_trade_price);
         }
+
+        Some(())
     }
 
-    fn parse_depth_info(&mut self, pair: String, info: String) {
-        if let Ok(json) = Json::from_str(&info) {
-            if let Some(object) = json.as_object().unwrap().get("tick") {
-                if let Some(object) = object.as_object() {
-                    if let Some(asks) = object.get("asks") {
-                        if let Some(bids) = object.get("bids") {
-                            let asks = Self::depth_helper(asks);
-                            let bids = Self::depth_helper(bids);
+    fn parse_depth_json(&mut self, pair: String, json: Json) -> Option<()> {
+        let object = json.as_object().unwrap().get("tick")?;
+        let object = object.as_object()?;
+        let asks = object.get("asks")?;
+        let bids = object.get("bids")?;
 
-                            self.parse_depth_info_inner(pair, asks, bids);
-                        }
-                    }
-                }
-            }
-        }
+        let asks = Self::depth_helper(asks);
+        let bids = Self::depth_helper(bids);
+        self.parse_depth_json_inner(pair, asks, bids);
+
+        Some(())
     }
 }

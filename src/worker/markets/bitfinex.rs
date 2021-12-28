@@ -14,16 +14,17 @@ impl Bitfinex {
         let mut bids = Vec::new();
 
         for item in array {
-            let item = item.as_array().unwrap();
-            let price = item[0].as_f64().unwrap();
-            let size = item[2].as_f64().unwrap();
+            if let Some(item) = item.as_array() {
+                let price = item[0].as_f64().unwrap();
+                let size = item[2].as_f64().unwrap();
 
-            if size > 0.0 {
-                // bid
-                bids.push((price, size));
-            } else {
-                // ask
-                asks.push((price, size));
+                if size > 0.0 {
+                    // bid
+                    bids.push((price, size));
+                } else {
+                    // ask
+                    asks.push((price, size));
+                }
             }
         }
 
@@ -69,56 +70,37 @@ impl Market for Bitfinex {
     }
 
     /// Response description: https://docs.bitfinex.com/reference?ref=https://coder.social#rest-public-ticker
-    fn parse_ticker_info(&mut self, pair: String, info: String) {
-        if let Ok(json) = Json::from_str(&info) {
-            if let Some(array) = json.as_array() {
-                if array.len() >= 2 {
-                    if let Some(array) = array[1].as_array() {
-                        if array.len() >= 8 {
-                            let volume: f64 = array[7].as_f64().unwrap();
+    fn parse_ticker_json(&mut self, pair: String, json: Json) -> Option<()> {
+        let array = json.as_array()?;
+        let array = array[1].as_array()?;
 
-                            self.parse_ticker_info_inner(pair, volume);
-                        }
-                    }
-                }
-            }
-        }
+        let volume: f64 = array[7].as_f64().unwrap();
+        self.parse_ticker_json_inner(pair, volume);
+
+        Some(())
     }
 
     /// Response description: https://docs.bitfinex.com/reference?ref=https://coder.social#rest-public-trades
-    fn parse_last_trade_info(&mut self, pair: String, info: String) {
-        if let Ok(json) = Json::from_str(&info) {
-            if let Some(array) = json.as_array() {
-                if array.len() >= 3 {
-                    if let Some(array) = array[2].as_array() {
-                        if array.len() >= 4 {
-                            let last_trade_volume: f64 = array[2].as_f64().unwrap();
-                            let last_trade_price: f64 = array[3].as_f64().unwrap();
+    fn parse_last_trade_json(&mut self, pair: String, json: Json) -> Option<()> {
+        let array = json.as_array()?;
+        let array = array.get(2)?;
+        let array = array.as_array()?;
 
-                            self.parse_last_trade_info_inner(
-                                pair,
-                                last_trade_volume,
-                                last_trade_price,
-                            );
-                        }
-                    }
-                }
-            }
-        }
+        let last_trade_volume: f64 = array[2].as_f64().unwrap();
+        let last_trade_price: f64 = array[3].as_f64().unwrap();
+        self.parse_last_trade_json_inner(pair, last_trade_volume, last_trade_price);
+
+        Some(())
     }
 
     /// Response description: https://docs.bitfinex.com/reference?ref=https://coder.social#rest-public-book
-    fn parse_depth_info(&mut self, pair: String, info: String) {
-        if let Ok(json) = Json::from_str(&info) {
-            if let Some(array) = json.as_array() {
-                if let Some(array) = array[1].as_array() {
-                    if array[0].is_array() {
-                        let (asks, bids) = Self::depth_helper(array);
+    fn parse_depth_json(&mut self, pair: String, json: Json) -> Option<()> {
+        let array = json.as_array()?;
+        let array = array[1].as_array()?;
 
-                        self.parse_depth_info_inner(pair, asks, bids);
-                    }
-                }
-            }
-        }
+        let (asks, bids) = Self::depth_helper(array);
+        self.parse_depth_json_inner(pair, asks, bids);
+
+        Some(())
     }
 }
