@@ -1,4 +1,3 @@
-use chrono::Utc;
 use rustc_serialize::json::{Json, ToJson};
 use std::collections::HashMap;
 
@@ -10,6 +9,21 @@ use crate::worker::market_helpers::market_spine::MarketSpine;
 pub struct Poloniex {
     pub spine: MarketSpine,
     pair_codes: HashMap<(String, String), String>,
+}
+
+impl Poloniex {
+    fn depth_helper(json: &Json) -> Vec<(f64, f64)> {
+        json.as_object()
+            .unwrap()
+            .iter()
+            .map(|(price, size)| {
+                (
+                    price.parse().unwrap(),
+                    size.as_string().unwrap().parse().unwrap(),
+                )
+            })
+            .collect()
+    }
 }
 
 impl Poloniex {
@@ -82,7 +96,7 @@ impl Market for Poloniex {
         ))
     }
 
-    // Poloniex sends us coin instead of pair, then we create pair coin-USD
+    /// Poloniex sends us coin instead of pair, then we create pair coin-USD
     /// TODO: Check whether function takes right values from json (in the meaning of coin/pair misunderstanding)
     fn parse_ticker_info(&mut self, _pair: String, info: String) {
         if let Ok(json) = Json::from_str(&info) {
@@ -109,15 +123,7 @@ impl Market for Poloniex {
                         .collect();
 
                     for (pair_code, volume) in volumes {
-                        let pair_tuple = self.spine.get_pairs().get(&pair_code).unwrap();
-                        info!(
-                            "new {:?} ticker on Poloniex with volume: {}",
-                            pair_tuple, volume
-                        );
-
-                        let conversion_coef: f64 = self.spine.get_conversion_coef(&pair_code);
-                        self.spine
-                            .set_total_volume(&pair_code, volume * conversion_coef);
+                        self.parse_ticker_info_inner(pair_code, volume);
                     }
                 }
             }
@@ -139,16 +145,7 @@ impl Market for Poloniex {
                     // buy
                 }
 
-                let pair_tuple = self.spine.get_pairs().get(&pair).unwrap();
-                info!(
-                    "new {:?} trade on Poloniex with volume: {}, price: {}",
-                    pair_tuple, last_trade_volume, last_trade_price,
-                );
-
-                let conversion_coef: f64 = self.spine.get_conversion_coef(&pair);
-                self.spine.set_last_trade_volume(&pair, last_trade_volume);
-                self.spine
-                    .set_last_trade_price(&pair, last_trade_price * conversion_coef);
+                self.parse_last_trade_info_inner(pair, last_trade_volume, last_trade_price);
             }
         }
     }
@@ -164,41 +161,13 @@ impl Market for Poloniex {
                         if let Some(object) = array.get(1).unwrap().as_object() {
                             if let Some(object) = object.get("orderBook") {
                                 if let Some(array) = object.as_array() {
-                                    let conversion_coef: f64 =
-                                        self.spine.get_conversion_coef(&pair);
+                                    let asks = &array[0];
+                                    let bids = &array[1];
 
-                                    let asks = array[0].as_object().unwrap();
-                                    let mut ask_sum: f64 = 0.0;
-                                    for size in asks.values() {
-                                        let size: f64 = size.as_string().unwrap().parse().unwrap();
+                                    let asks = Self::depth_helper(asks);
+                                    let bids = Self::depth_helper(bids);
 
-                                        ask_sum += size;
-                                    }
-                                    self.spine.set_total_ask(&pair, ask_sum);
-
-                                    let bids = array[1].as_object().unwrap();
-                                    let mut bid_sum: f64 = 0.0;
-                                    for (price, size) in bids {
-                                        let price: f64 = price.parse().unwrap();
-                                        let size: f64 = size.as_string().unwrap().parse().unwrap();
-
-                                        bid_sum += size * price;
-                                    }
-                                    bid_sum *= conversion_coef;
-                                    self.spine.set_total_bid(&pair, bid_sum);
-
-                                    let pair_tuple = self.spine.get_pairs().get(&pair).unwrap();
-                                    info!(
-                                        "new {:?} book on Poloniex with ask_sum: {}, bid_sum: {}",
-                                        pair_tuple, ask_sum, bid_sum
-                                    );
-
-                                    let timestamp = Utc::now();
-                                    self.spine
-                                        .get_exchange_pairs_mut()
-                                        .get_mut(&pair)
-                                        .unwrap()
-                                        .set_timestamp(timestamp);
+                                    self.parse_depth_info_inner(pair.clone(), asks, bids);
                                 }
                             }
                         }

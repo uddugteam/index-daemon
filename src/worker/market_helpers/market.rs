@@ -10,7 +10,8 @@ use crate::worker::markets::kraken::Kraken;
 use crate::worker::markets::okcoin::Okcoin;
 use crate::worker::markets::poloniex::Poloniex;
 use crate::worker::network_helpers::socket_helper::SocketHelper;
-use rustc_serialize::json::{Array, Object};
+use chrono::Utc;
+use rustc_serialize::json::{Array, Json, Object};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -110,6 +111,20 @@ pub fn parse_str_from_json_array<T: FromStr>(array: &Array, key: usize) -> Optio
     None
 }
 
+pub fn depth_helper_v1(json: &Json) -> Vec<(f64, f64)> {
+    json.as_array()
+        .unwrap()
+        .iter()
+        .map(|v| {
+            let v = v.as_array().unwrap();
+            (
+                parse_str_from_json_array(v, 0).unwrap(),
+                parse_str_from_json_array(v, 1).unwrap(),
+            )
+        })
+        .collect()
+}
+
 fn update(market: Arc<Mutex<dyn Market + Send>>) {
     let channels = MarketChannels::get_all();
     let exchange_pairs: Vec<String> = market
@@ -124,7 +139,7 @@ fn update(market: Arc<Mutex<dyn Market + Send>>) {
     let market_is_poloniex = market.lock().unwrap().get_spine().name == "poloniex";
 
     for channel in channels {
-        // There are no distinct Trades channel in Poloniex. We get Trades inside of Book channel.
+        // There is no distinct Trades channel in Poloniex. We get Trades inside of Book channel.
         if market_is_poloniex {
             if let MarketChannels::Trades = channel {
                 continue;
@@ -241,9 +256,95 @@ pub trait Market {
             .unwrap();
         self.get_spine().tx.send(thread).unwrap();
     }
+
+    fn get_pair_text_view(&self, pair: String) -> String {
+        let pair_text_view = if self.get_spine().name == "poloniex" {
+            let pair_tuple = self.get_spine().get_pairs().get(&pair).unwrap();
+            format!("{:?}", pair_tuple)
+        } else {
+            pair
+        };
+
+        pair_text_view
+    }
+
     fn parse_ticker_info(&mut self, pair: String, info: String);
+    fn parse_ticker_info_inner(&mut self, pair: String, volume: f64) {
+        let pair_text_view = self.get_pair_text_view(pair.clone());
+
+        info!(
+            "new {} ticker on {} with volume: {}",
+            pair_text_view,
+            self.get_spine().name,
+            volume,
+        );
+
+        let conversion_coef: f64 = self.get_spine().get_conversion_coef(&pair);
+        self.get_spine_mut()
+            .set_total_volume(&pair, volume * conversion_coef);
+    }
+
     fn parse_last_trade_info(&mut self, pair: String, info: String);
+    fn parse_last_trade_info_inner(
+        &mut self,
+        pair: String,
+        last_trade_volume: f64,
+        last_trade_price: f64,
+    ) {
+        let pair_text_view = self.get_pair_text_view(pair.clone());
+
+        info!(
+            "new {} trade on {} with volume: {}, price: {}",
+            pair_text_view,
+            self.get_spine().name,
+            last_trade_volume,
+            last_trade_price,
+        );
+
+        let conversion_coef: f64 = self.get_spine().get_conversion_coef(&pair);
+        self.get_spine_mut()
+            .set_last_trade_volume(&pair, last_trade_volume);
+        self.get_spine_mut()
+            .set_last_trade_price(&pair, last_trade_price * conversion_coef);
+    }
+
     fn parse_depth_info(&mut self, pair: String, info: String);
+    fn parse_depth_info_inner(
+        &mut self,
+        pair: String,
+        asks: Vec<(f64, f64)>,
+        bids: Vec<(f64, f64)>,
+    ) {
+        let pair_text_view = self.get_pair_text_view(pair.clone());
+
+        let mut ask_sum: f64 = 0.0;
+        for (_price, size) in asks {
+            ask_sum += size;
+        }
+        self.get_spine_mut().set_total_ask(&pair, ask_sum);
+
+        let mut bid_sum: f64 = 0.0;
+        for (price, size) in bids {
+            bid_sum += size * price;
+        }
+        bid_sum *= self.get_spine().get_conversion_coef(&pair);
+        self.get_spine_mut().set_total_bid(&pair, bid_sum);
+
+        info!(
+            "new {} book on {} with ask_sum: {}, bid_sum: {}",
+            pair_text_view,
+            self.get_spine().name,
+            ask_sum,
+            bid_sum
+        );
+
+        let timestamp = Utc::now();
+        self.get_spine_mut()
+            .get_exchange_pairs_mut()
+            .get_mut(&pair)
+            .unwrap()
+            .set_timestamp(timestamp);
+    }
 }
 
 #[cfg(test)]

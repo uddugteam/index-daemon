@@ -1,4 +1,3 @@
-use chrono::Utc;
 use regex::Regex;
 use rustc_serialize::json::Json;
 
@@ -8,6 +7,19 @@ use crate::worker::market_helpers::market_spine::MarketSpine;
 
 pub struct Huobi {
     pub spine: MarketSpine,
+}
+
+impl Huobi {
+    fn depth_helper(json: &Json) -> Vec<(f64, f64)> {
+        json.as_array()
+            .unwrap()
+            .iter()
+            .map(|v| {
+                let v = v.as_array().unwrap();
+                (v[0].as_f64().unwrap(), v[1].as_f64().unwrap())
+            })
+            .collect()
+    }
 }
 
 impl Market for Huobi {
@@ -52,10 +64,7 @@ impl Market for Huobi {
                     if let Some(object) = object.as_object() {
                         let volume: f64 = object.get("vol").unwrap().as_f64().unwrap();
 
-                        info!("new {} ticker on Huobi with volume: {}", pair, volume);
-
-                        let conversion_coef: f64 = self.spine.get_conversion_coef(&pair);
-                        self.spine.set_total_volume(&pair, volume * conversion_coef);
+                        self.parse_ticker_info_inner(pair, volume);
                     }
                 }
             }
@@ -76,8 +85,6 @@ impl Market for Huobi {
         if let Ok(json) = Json::from_str(&info) {
             if let Some(object) = json.as_object().unwrap().get("tick") {
                 if let Some(array) = object.as_object().unwrap().get("data") {
-                    let conversion_coef: f64 = self.spine.get_conversion_coef(&pair);
-
                     for object in array.as_array().unwrap() {
                         let object = object.as_object().unwrap();
 
@@ -95,14 +102,11 @@ impl Market for Huobi {
                             // buy
                         }
 
-                        info!(
-                            "new {} trade on Huobi with volume: {}, price: {}",
-                            pair, last_trade_volume, last_trade_price,
+                        self.parse_last_trade_info_inner(
+                            pair.clone(),
+                            last_trade_volume,
+                            last_trade_price,
                         );
-
-                        self.spine.set_last_trade_volume(&pair, last_trade_volume);
-                        self.spine
-                            .set_last_trade_price(&pair, last_trade_price * conversion_coef);
                     }
                 }
             }
@@ -115,39 +119,10 @@ impl Market for Huobi {
                 if let Some(object) = object.as_object() {
                     if let Some(asks) = object.get("asks") {
                         if let Some(bids) = object.get("bids") {
-                            let conversion_coef: f64 = self.spine.get_conversion_coef(&pair);
+                            let asks = Self::depth_helper(asks);
+                            let bids = Self::depth_helper(bids);
 
-                            let mut ask_sum: f64 = 0.0;
-                            for ask in asks.as_array().unwrap() {
-                                if let Some(ask) = ask.as_array() {
-                                    let size: f64 = ask[1].as_f64().unwrap();
-                                    ask_sum += size;
-                                }
-                            }
-                            self.spine.set_total_ask(&pair, ask_sum);
-
-                            let mut bid_sum: f64 = 0.0;
-                            for bid in bids.as_array().unwrap() {
-                                if let Some(bid) = bid.as_array() {
-                                    let price: f64 = bid[0].as_f64().unwrap();
-                                    let size: f64 = bid[1].as_f64().unwrap();
-                                    bid_sum += size * price;
-                                }
-                            }
-                            bid_sum *= conversion_coef;
-                            self.spine.set_total_bid(&pair, bid_sum);
-
-                            info!(
-                                "new {} book on Huobi with ask_sum: {}, bid_sum: {}",
-                                pair, ask_sum, bid_sum
-                            );
-
-                            let timestamp = Utc::now();
-                            self.spine
-                                .get_exchange_pairs_mut()
-                                .get_mut(&pair)
-                                .unwrap()
-                                .set_timestamp(timestamp);
+                            self.parse_depth_info_inner(pair, asks, bids);
                         }
                     }
                 }
