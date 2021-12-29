@@ -61,23 +61,23 @@ impl Market for Huobi {
         let object = object.get("tick")?;
         let object = object.as_object()?;
 
-        let volume: f64 = object.get("vol").unwrap().as_f64().unwrap();
+        let volume: f64 = object.get("vol")?.as_f64()?;
         self.parse_ticker_json_inner(pair, volume);
 
         Some(())
     }
 
     fn parse_last_trade_json(&mut self, pair: String, json: Json) -> Option<()> {
-        let object = json.as_object().unwrap().get("tick")?;
-        let array = object.as_object().unwrap().get("data")?;
+        let object = json.as_object()?.get("tick")?;
+        let array = object.as_object()?.get("data")?;
 
-        for object in array.as_array().unwrap() {
-            let object = object.as_object().unwrap();
+        for object in array.as_array()? {
+            let object = object.as_object()?;
 
-            let last_trade_volume: f64 = object.get("amount").unwrap().as_f64().unwrap();
-            let mut last_trade_price: f64 = object.get("price").unwrap().as_f64().unwrap();
+            let last_trade_volume: f64 = object.get("amount")?.as_f64()?;
+            let mut last_trade_price: f64 = object.get("price")?.as_f64()?;
 
-            let trade_type = object.get("direction").unwrap().as_string().unwrap();
+            let trade_type = object.get("direction")?.as_string()?;
             // TODO: Check whether inversion is right
             if trade_type == "sell" {
                 // sell
@@ -93,7 +93,7 @@ impl Market for Huobi {
     }
 
     fn parse_depth_json(&mut self, pair: String, json: Json) -> Option<()> {
-        let object = json.as_object().unwrap().get("tick")?;
+        let object = json.as_object()?.get("tick")?;
         let object = object.as_object()?;
         let asks = object.get("asks")?;
         let bids = object.get("bids")?;

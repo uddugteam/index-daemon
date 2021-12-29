@@ -46,7 +46,7 @@ impl Market for Binance {
     fn parse_ticker_json(&mut self, pair: String, json: Json) -> Option<()> {
         let object = json.as_object()?;
 
-        let volume: f64 = parse_str_from_json_object(object, "v").unwrap();
+        let volume: f64 = parse_str_from_json_object(object, "v")?;
         self.parse_ticker_json_inner(pair, volume);
 
         Some(())
@@ -55,8 +55,8 @@ impl Market for Binance {
     fn parse_last_trade_json(&mut self, pair: String, json: Json) -> Option<()> {
         let object = json.as_object()?;
 
-        let last_trade_volume: f64 = parse_str_from_json_object(object, "q").unwrap();
-        let last_trade_price: f64 = parse_str_from_json_object(object, "p").unwrap();
+        let last_trade_volume: f64 = parse_str_from_json_object(object, "q")?;
+        let last_trade_price: f64 = parse_str_from_json_object(object, "p")?;
         self.parse_last_trade_json_inner(pair, last_trade_volume, last_trade_price);
 
         Some(())

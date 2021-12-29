@@ -46,9 +46,9 @@ impl Market for Kraken {
 
     fn parse_ticker_json(&mut self, pair: String, json: Json) -> Option<()> {
         let array = json.as_array()?;
-        let array = array[1].as_object().unwrap().get("v").unwrap().as_array()?;
+        let array = array[1].as_object()?.get("v")?.as_array()?;
 
-        let volume: f64 = parse_str_from_json_array(array, 1).unwrap();
+        let volume: f64 = parse_str_from_json_array(array, 1)?;
         self.parse_ticker_json_inner(pair, volume);
 
         Some(())
@@ -57,13 +57,13 @@ impl Market for Kraken {
     fn parse_last_trade_json(&mut self, pair: String, json: Json) -> Option<()> {
         let array = json.as_array()?;
 
-        for array in array[1].as_array().unwrap() {
-            let array = array.as_array().unwrap();
+        for array in array[1].as_array()? {
+            let array = array.as_array()?;
 
-            let mut last_trade_price: f64 = parse_str_from_json_array(array, 0).unwrap();
-            let last_trade_volume: f64 = parse_str_from_json_array(array, 1).unwrap();
+            let mut last_trade_price: f64 = parse_str_from_json_array(array, 0)?;
+            let last_trade_volume: f64 = parse_str_from_json_array(array, 1)?;
 
-            let trade_type = array[3].as_string().unwrap();
+            let trade_type = array[3].as_string()?;
             // TODO: Check whether inversion is right
             if trade_type == "s" {
                 // sell

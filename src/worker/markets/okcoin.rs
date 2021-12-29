@@ -47,13 +47,13 @@ impl Market for Okcoin {
     }
 
     fn parse_ticker_json(&mut self, pair: String, json: Json) -> Option<()> {
-        let array = json.as_object().unwrap().get("data")?;
+        let array = json.as_object()?.get("data")?;
 
-        for object in array.as_array().unwrap() {
-            let object = object.as_object().unwrap();
+        for object in array.as_array()? {
+            let object = object.as_object()?;
 
             // TODO: Check whether key `base_volume_24h` is right
-            let volume: f64 = parse_str_from_json_object(object, "base_volume_24h").unwrap();
+            let volume: f64 = parse_str_from_json_object(object, "base_volume_24h")?;
 
             self.parse_ticker_json_inner(pair.clone(), volume);
         }
@@ -62,15 +62,15 @@ impl Market for Okcoin {
     }
 
     fn parse_last_trade_json(&mut self, pair: String, json: Json) -> Option<()> {
-        let array = json.as_object().unwrap().get("data")?;
+        let array = json.as_object()?.get("data")?;
 
-        for object in array.as_array().unwrap() {
-            let object = object.as_object().unwrap();
+        for object in array.as_array()? {
+            let object = object.as_object()?;
 
-            let last_trade_volume: f64 = parse_str_from_json_object(object, "size").unwrap();
-            let mut last_trade_price: f64 = parse_str_from_json_object(object, "price").unwrap();
+            let last_trade_volume: f64 = parse_str_from_json_object(object, "size")?;
+            let mut last_trade_price: f64 = parse_str_from_json_object(object, "price")?;
 
-            let trade_type = object.get("side").unwrap().as_string().unwrap();
+            let trade_type = object.get("side")?.as_string()?;
             // TODO: Check whether inversion is right
             if trade_type == "sell" {
                 // sell
@@ -89,9 +89,9 @@ impl Market for Okcoin {
         let object = json.as_object()?;
         let array = object.get("data")?;
 
-        if object.get("action").unwrap().as_string().unwrap() == "partial" {
-            for object in array.as_array().unwrap() {
-                let object = object.as_object().unwrap();
+        if object.get("action")?.as_string()? == "partial" {
+            for object in array.as_array()? {
+                let object = object.as_object()?;
 
                 if let Some(asks) = object.get("asks") {
                     if let Some(bids) = object.get("bids") {

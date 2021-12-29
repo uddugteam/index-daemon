@@ -99,8 +99,8 @@ impl Market for Poloniex {
     /// Poloniex sends us coin instead of pair, then we create pair coin-USD
     /// TODO: Check whether function takes right values from json (in the meaning of coin/pair misunderstanding)
     fn parse_ticker_json(&mut self, _pair: String, json: Json) -> Option<()> {
-        let array = json.as_array().unwrap().get(2)?;
-        let object = array.as_array().unwrap().get(2).unwrap().as_object()?;
+        let array = json.as_array()?.get(2)?;
+        let object = array.as_array()?.get(2)?.as_object()?;
 
         let volumes: HashMap<String, f64> = object
             .iter()
@@ -132,10 +132,10 @@ impl Market for Poloniex {
     fn parse_last_trade_json(&mut self, pair: String, json: Json) -> Option<()> {
         let array = json.as_array()?;
 
-        let mut last_trade_price: f64 = parse_str_from_json_array(array, 3).unwrap();
-        let last_trade_volume: f64 = parse_str_from_json_array(array, 4).unwrap();
+        let mut last_trade_price: f64 = parse_str_from_json_array(array, 3)?;
+        let last_trade_volume: f64 = parse_str_from_json_array(array, 4)?;
 
-        let trade_type = array[2].as_u64().unwrap();
+        let trade_type = array[2].as_u64()?;
         // TODO: Check whether inversion is right
         if trade_type == 0 {
             // sell
@@ -150,14 +150,14 @@ impl Market for Poloniex {
     }
 
     fn parse_depth_json(&mut self, pair: String, json: Json) -> Option<()> {
-        let json = json.as_array().unwrap().get(2)?;
+        let json = json.as_array()?.get(2)?;
 
-        for array in json.as_array().unwrap() {
-            let array = array.as_array().unwrap();
+        for array in json.as_array()? {
+            let array = array.as_array()?;
 
-            if array[0].as_string().unwrap() == "i" {
+            if array[0].as_string()? == "i" {
                 // book
-                if let Some(object) = array.get(1).unwrap().as_object() {
+                if let Some(object) = array.get(1)?.as_object() {
                     if let Some(object) = object.get("orderBook") {
                         if let Some(array) = object.as_array() {
                             let asks = &array[0];
@@ -170,7 +170,7 @@ impl Market for Poloniex {
                         }
                     }
                 }
-            } else if array[0].as_string().unwrap() == "t" {
+            } else if array[0].as_string()? == "t" {
                 // trades
 
                 self.parse_last_trade_json(pair.clone(), array.to_json());

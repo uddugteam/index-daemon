@@ -46,14 +46,9 @@ impl Market for Hitbtc {
     fn parse_ticker_json(&mut self, pair: String, json: Json) -> Option<()> {
         let object = json.as_object()?;
         let object = object.get("data")?;
-        let object = object
-            .as_object()
-            .unwrap()
-            .get(&pair)
-            .unwrap()
-            .as_object()?;
+        let object = object.as_object()?.get(&pair)?.as_object()?;
 
-        let volume: f64 = parse_str_from_json_object(object, "v").unwrap();
+        let volume: f64 = parse_str_from_json_object(object, "v")?;
         self.parse_ticker_json_inner(pair, volume);
 
         Some(())
@@ -62,15 +57,15 @@ impl Market for Hitbtc {
     fn parse_last_trade_json(&mut self, pair: String, json: Json) -> Option<()> {
         let object = json.as_object()?;
         let object = object.get("update")?;
-        let array = object.as_object().unwrap().get(&pair).unwrap().as_array()?;
+        let array = object.as_object()?.get(&pair)?.as_array()?;
 
         for object in array {
-            let object = object.as_object().unwrap();
+            let object = object.as_object()?;
 
-            let last_trade_volume: f64 = parse_str_from_json_object(object, "q").unwrap();
-            let mut last_trade_price: f64 = parse_str_from_json_object(object, "p").unwrap();
+            let last_trade_volume: f64 = parse_str_from_json_object(object, "q")?;
+            let mut last_trade_price: f64 = parse_str_from_json_object(object, "p")?;
 
-            let trade_type = object.get("s").unwrap().as_string().unwrap();
+            let trade_type = object.get("s")?.as_string()?;
             // TODO: Check whether inversion is right
             if trade_type == "sell" {
                 // sell
@@ -88,12 +83,7 @@ impl Market for Hitbtc {
     fn parse_depth_json(&mut self, pair: String, json: Json) -> Option<()> {
         let object = json.as_object()?;
         let object = object.get("snapshot")?;
-        let object = object
-            .as_object()
-            .unwrap()
-            .get(&pair)
-            .unwrap()
-            .as_object()?;
+        let object = object.as_object()?.get(&pair)?.as_object()?;
         let asks = object.get("a")?;
         let bids = object.get("b")?;
 

@@ -1,7 +1,7 @@
 use rustc_serialize::json::{Array, Json};
 
 use crate::worker::market_helpers::market::{
-    depth_helper_v1, parse_str_from_json_array, parse_str_from_json_object, Market,
+    parse_str_from_json_array, parse_str_from_json_object, Market,
 };
 use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
@@ -112,19 +112,9 @@ impl Market for Gemini {
         let message_type = object.get("type")?.as_string()?;
 
         if message_type == "l2_updates" {
-            let ask_sum: f64 = self
-                .spine
-                .get_exchange_pairs()
-                .get(&pair)
-                .unwrap()
-                .get_total_ask();
+            let ask_sum: f64 = self.spine.get_exchange_pairs().get(&pair)?.get_total_ask();
 
-            let bid_sum: f64 = self
-                .spine
-                .get_exchange_pairs()
-                .get(&pair)
-                .unwrap()
-                .get_total_bid();
+            let bid_sum: f64 = self.spine.get_exchange_pairs().get(&pair)?.get_total_bid();
 
             let array = object.get("changes")?.as_array()?;
             let (asks, bids) = Self::depth_helper(ask_sum, bid_sum, array);
