@@ -132,14 +132,14 @@ impl Market for Poloniex {
     fn parse_last_trade_json(&mut self, pair: String, json: Json) -> Option<()> {
         let array = json.as_array()?;
 
-        let mut last_trade_price: f64 = parse_str_from_json_array(array, 3)?;
-        let last_trade_volume: f64 = parse_str_from_json_array(array, 4)?;
+        let last_trade_price: f64 = parse_str_from_json_array(array, 3)?;
+        let mut last_trade_volume: f64 = parse_str_from_json_array(array, 4)?;
 
         let trade_type = array[2].as_u64()?;
         // TODO: Check whether inversion is right
         if trade_type == 0 {
             // sell
-            last_trade_price *= -1.0;
+            last_trade_volume *= -1.0;
         } else if trade_type == 1 {
             // buy
         }

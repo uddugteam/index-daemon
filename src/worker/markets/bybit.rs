@@ -79,14 +79,14 @@ impl Market for Bybit {
         for item in array {
             let item = item.as_object()?;
 
-            let mut last_trade_price = item.get("price")?.as_f64()?;
-            let last_trade_volume = item.get("size")?.as_f64()?;
+            let last_trade_price = item.get("price")?.as_f64()?;
+            let mut last_trade_volume = item.get("size")?.as_f64()?;
 
             let trade_type = item.get("side")?.as_string()?;
             // TODO: Check whether inversion is right
             if trade_type == "Sell" {
                 // sell
-                last_trade_price *= -1.0;
+                last_trade_volume *= -1.0;
             } else if trade_type == "Buy" {
                 // buy
             }

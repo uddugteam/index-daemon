@@ -84,14 +84,14 @@ impl Market for Gemini {
         let message_type = object.get("type")?.as_string()?;
 
         if message_type == "trade" {
-            let mut last_trade_price: f64 = parse_str_from_json_object(object, "price")?;
-            let last_trade_volume: f64 = parse_str_from_json_object(object, "quantity")?;
+            let last_trade_price: f64 = parse_str_from_json_object(object, "price")?;
+            let mut last_trade_volume: f64 = parse_str_from_json_object(object, "quantity")?;
 
             let trade_type = object.get("side")?.as_string()?;
             // TODO: Check whether inversion is right
             if trade_type == "sell" {
                 // sell
-                last_trade_price *= -1.0;
+                last_trade_volume *= -1.0;
             } else if trade_type == "buy" {
                 // buy
             }

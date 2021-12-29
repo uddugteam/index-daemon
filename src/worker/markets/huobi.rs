@@ -69,14 +69,14 @@ impl Market for Huobi {
         for object in array.as_array()? {
             let object = object.as_object()?;
 
-            let last_trade_volume: f64 = object.get("amount")?.as_f64()?;
-            let mut last_trade_price: f64 = object.get("price")?.as_f64()?;
+            let mut last_trade_volume: f64 = object.get("amount")?.as_f64()?;
+            let last_trade_price: f64 = object.get("price")?.as_f64()?;
 
             let trade_type = object.get("direction")?.as_string()?;
             // TODO: Check whether inversion is right
             if trade_type == "sell" {
                 // sell
-                last_trade_price *= -1.0;
+                last_trade_volume *= -1.0;
             } else if trade_type == "buy" {
                 // buy
             }

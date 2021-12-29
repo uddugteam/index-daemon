@@ -60,14 +60,14 @@ impl Market for Kraken {
         for array in array[1].as_array()? {
             let array = array.as_array()?;
 
-            let mut last_trade_price: f64 = parse_str_from_json_array(array, 0)?;
-            let last_trade_volume: f64 = parse_str_from_json_array(array, 1)?;
+            let last_trade_price: f64 = parse_str_from_json_array(array, 0)?;
+            let mut last_trade_volume: f64 = parse_str_from_json_array(array, 1)?;
 
             let trade_type = array[3].as_string()?;
             // TODO: Check whether inversion is right
             if trade_type == "s" {
                 // sell
-                last_trade_price *= -1.0;
+                last_trade_volume *= -1.0;
             } else if trade_type == "b" {
                 // buy
             }

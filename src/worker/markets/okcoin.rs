@@ -60,14 +60,14 @@ impl Market for Okcoin {
         for object in array.as_array()? {
             let object = object.as_object()?;
 
-            let last_trade_volume: f64 = parse_str_from_json_object(object, "size")?;
-            let mut last_trade_price: f64 = parse_str_from_json_object(object, "price")?;
+            let mut last_trade_volume: f64 = parse_str_from_json_object(object, "size")?;
+            let last_trade_price: f64 = parse_str_from_json_object(object, "price")?;
 
             let trade_type = object.get("side")?.as_string()?;
             // TODO: Check whether inversion is right
             if trade_type == "sell" {
                 // sell
-                last_trade_price *= -1.0;
+                last_trade_volume *= -1.0;
             } else if trade_type == "buy" {
                 // buy
             }

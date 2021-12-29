@@ -57,14 +57,14 @@ impl Market for Hitbtc {
         for object in array {
             let object = object.as_object()?;
 
-            let last_trade_volume: f64 = parse_str_from_json_object(object, "q")?;
-            let mut last_trade_price: f64 = parse_str_from_json_object(object, "p")?;
+            let mut last_trade_volume: f64 = parse_str_from_json_object(object, "q")?;
+            let last_trade_price: f64 = parse_str_from_json_object(object, "p")?;
 
             let trade_type = object.get("s")?.as_string()?;
             // TODO: Check whether inversion is right
             if trade_type == "sell" {
                 // sell
-                last_trade_price *= -1.0;
+                last_trade_volume *= -1.0;
             } else if trade_type == "buy" {
                 // buy
             }
