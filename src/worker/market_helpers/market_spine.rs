@@ -116,7 +116,7 @@ impl MarketSpine {
                 self.exchange_pairs
                     .get_mut(pair)
                     .unwrap()
-                    .set_total_volume(value.abs());
+                    .set_total_volume(value);
 
                 self.update_market_pair(pair, "totalValues", false);
 

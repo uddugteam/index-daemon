@@ -3,14 +3,18 @@ use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
 use crate::worker::markets::binance::Binance;
 use crate::worker::markets::bitfinex::Bitfinex;
+use crate::worker::markets::bybit::Bybit;
 use crate::worker::markets::coinbase::Coinbase;
+use crate::worker::markets::gemini::Gemini;
 use crate::worker::markets::hitbtc::Hitbtc;
 use crate::worker::markets::huobi::Huobi;
 use crate::worker::markets::kraken::Kraken;
 use crate::worker::markets::okcoin::Okcoin;
 use crate::worker::markets::poloniex::Poloniex;
 use crate::worker::network_helpers::socket_helper::SocketHelper;
-use rustc_serialize::json::{Array, Object};
+use chrono::Utc;
+use regex::Regex;
+use rustc_serialize::json::{Array, Json, Object};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -40,6 +44,8 @@ pub fn market_factory(
         "huobi" => Arc::new(Mutex::new(Huobi { spine })),
         "hitbtc" => Arc::new(Mutex::new(Hitbtc { spine })),
         "okcoin" => Arc::new(Mutex::new(Okcoin { spine })),
+        "gemini" => Arc::new(Mutex::new(Gemini { spine })),
+        "bybit" => Arc::new(Mutex::new(Bybit { spine })),
         _ => panic!("Market not found: {}", spine.name),
     };
 
@@ -72,17 +78,29 @@ pub fn subscribe_channel(
         channel,
     );
 
-    let socker_helper =
-        SocketHelper::new(
-            url,
-            on_open_msg,
-            pair,
-            |pair: String, info: String| match channel {
-                MarketChannels::Ticker => market.lock().unwrap().parse_ticker_info(pair, info),
-                MarketChannels::Trades => market.lock().unwrap().parse_last_trade_info(pair, info),
-                MarketChannels::Book => market.lock().unwrap().parse_depth_info(pair, info),
-            },
-        );
+    let socker_helper = SocketHelper::new(url, on_open_msg, pair, |pair: String, info: String| {
+        // This block is needed for Huobi::parse_last_trade_json()
+        let json = if let Ok(json) = Json::from_str(&info) {
+            Some(json)
+        } else {
+            // Error: invalid number (integer is too long).
+            // Since we don't need its real value, we can to replace it with fake, but valid number.
+            let regex_too_big_integer = Regex::new("^(.*)(\\D)(?P<n>\\d{18,})(\\D)(.*)$").unwrap();
+            let too_big_integer = regex_too_big_integer.replace_all(&info, "$n").to_string();
+
+            let info = info.replace(&too_big_integer, "123456");
+
+            Json::from_str(&info).ok()
+        };
+        if let Some(json) = json {
+            // This match returns value, but we shouldn't use it
+            match channel {
+                MarketChannels::Ticker => market.lock().unwrap().parse_ticker_json(pair, json),
+                MarketChannels::Trades => market.lock().unwrap().parse_last_trade_json(pair, json),
+                MarketChannels::Book => market.lock().unwrap().parse_depth_json(pair, json),
+            };
+        }
+    });
     socker_helper.start();
 }
 
@@ -110,8 +128,30 @@ pub fn parse_str_from_json_array<T: FromStr>(array: &Array, key: usize) -> Optio
     None
 }
 
+pub fn depth_helper_v1(json: &Json) -> Vec<(f64, f64)> {
+    json.as_array()
+        .unwrap()
+        .iter()
+        .map(|v| {
+            let v = v.as_array().unwrap();
+            (
+                parse_str_from_json_array(v, 0).unwrap(),
+                parse_str_from_json_array(v, 1).unwrap(),
+            )
+        })
+        .collect()
+}
+
 fn update(market: Arc<Mutex<dyn Market + Send>>) {
-    let channels = MarketChannels::get_all();
+    let market_is_poloniex = market.lock().unwrap().get_spine().name == "poloniex";
+    let market_is_gemini = market.lock().unwrap().get_spine().name == "gemini";
+
+    // Market Gemini has no channels (i.e. has single general channel), so we parse channel data from its single channel
+    let channels = if market_is_gemini {
+        [MarketChannels::Ticker].to_vec()
+    } else {
+        MarketChannels::get_all().to_vec()
+    };
     let exchange_pairs: Vec<String> = market
         .lock()
         .unwrap()
@@ -121,10 +161,9 @@ fn update(market: Arc<Mutex<dyn Market + Send>>) {
         .cloned()
         .collect();
     let exchange_pairs_dummy = vec!["dummy".to_string()];
-    let market_is_poloniex = market.lock().unwrap().get_spine().name == "poloniex";
 
     for channel in channels {
-        // There are no distinct Trades channel in Poloniex. We get Trades inside of Book channel.
+        // There is no distinct Trades channel in Poloniex. We get Trades inside of Book channel.
         if market_is_poloniex {
             if let MarketChannels::Trades = channel {
                 continue;
@@ -183,7 +222,23 @@ fn update(market: Arc<Mutex<dyn Market + Send>>) {
 pub trait Market {
     fn get_spine(&self) -> &MarketSpine;
     fn get_spine_mut(&mut self) -> &mut MarketSpine;
-    fn make_pair(&self, pair: (&str, &str)) -> String;
+    fn make_pair(&self, pair: (&str, &str)) -> String {
+        match self.get_spine().name.as_str() {
+            "hitbtc" | "bybit" | "gemini" => {
+                (self.get_spine().get_masked_value(pair.0).to_string()
+                    + self.get_spine().get_masked_value(pair.1))
+                .to_uppercase()
+            }
+            "binance" | "huobi" => (self.get_spine().get_masked_value(pair.0).to_string()
+                + self.get_spine().get_masked_value(pair.1))
+            .to_lowercase(),
+            "coinbase" | "okcoin" => (self.get_spine().get_masked_value(pair.0).to_string()
+                + "-"
+                + self.get_spine().get_masked_value(pair.1))
+            .to_uppercase(),
+            _ => panic!("fn make_pair is not implemented"),
+        }
+    }
 
     fn add_exchange_pair(&mut self, exchange_pair: ExchangePair) {
         let pair_string = self.make_pair(exchange_pair.get_pair_ref());
@@ -241,9 +296,95 @@ pub trait Market {
             .unwrap();
         self.get_spine().tx.send(thread).unwrap();
     }
-    fn parse_ticker_info(&mut self, pair: String, info: String);
-    fn parse_last_trade_info(&mut self, pair: String, info: String);
-    fn parse_depth_info(&mut self, pair: String, info: String);
+
+    fn get_pair_text_view(&self, pair: String) -> String {
+        let pair_text_view = if self.get_spine().name == "poloniex" {
+            let pair_tuple = self.get_spine().get_pairs().get(&pair).unwrap();
+            format!("{:?}", pair_tuple)
+        } else {
+            pair
+        };
+
+        pair_text_view
+    }
+
+    fn parse_ticker_json(&mut self, pair: String, json: Json) -> Option<()>;
+    fn parse_ticker_json_inner(&mut self, pair: String, volume: f64) {
+        let pair_text_view = self.get_pair_text_view(pair.clone());
+
+        info!(
+            "new {} ticker on {} with volume: {}",
+            pair_text_view,
+            self.get_spine().name,
+            volume,
+        );
+
+        let conversion_coef: f64 = self.get_spine().get_conversion_coef(&pair);
+        self.get_spine_mut()
+            .set_total_volume(&pair, volume * conversion_coef);
+    }
+
+    fn parse_last_trade_json(&mut self, pair: String, json: Json) -> Option<()>;
+    fn parse_last_trade_json_inner(
+        &mut self,
+        pair: String,
+        last_trade_volume: f64,
+        last_trade_price: f64,
+    ) {
+        let pair_text_view = self.get_pair_text_view(pair.clone());
+
+        info!(
+            "new {} trade on {} with volume: {}, price: {}",
+            pair_text_view,
+            self.get_spine().name,
+            last_trade_volume,
+            last_trade_price,
+        );
+
+        let conversion_coef: f64 = self.get_spine().get_conversion_coef(&pair);
+        self.get_spine_mut()
+            .set_last_trade_volume(&pair, last_trade_volume);
+        self.get_spine_mut()
+            .set_last_trade_price(&pair, last_trade_price * conversion_coef);
+    }
+
+    fn parse_depth_json(&mut self, pair: String, json: Json) -> Option<()>;
+    fn parse_depth_json_inner(
+        &mut self,
+        pair: String,
+        asks: Vec<(f64, f64)>,
+        bids: Vec<(f64, f64)>,
+    ) {
+        let pair_text_view = self.get_pair_text_view(pair.clone());
+
+        let mut ask_sum: f64 = 0.0;
+        for (_price, size) in asks {
+            ask_sum += size;
+        }
+        self.get_spine_mut().set_total_ask(&pair, ask_sum);
+
+        let mut bid_sum: f64 = 0.0;
+        for (price, size) in bids {
+            bid_sum += size * price;
+        }
+        bid_sum *= self.get_spine().get_conversion_coef(&pair);
+        self.get_spine_mut().set_total_bid(&pair, bid_sum);
+
+        info!(
+            "new {} book on {} with ask_sum: {}, bid_sum: {}",
+            pair_text_view,
+            self.get_spine().name,
+            ask_sum,
+            bid_sum
+        );
+
+        let timestamp = Utc::now();
+        self.get_spine_mut()
+            .get_exchange_pairs_mut()
+            .get_mut(&pair)
+            .unwrap()
+            .set_timestamp(timestamp);
+    }
 }
 
 #[cfg(test)]
