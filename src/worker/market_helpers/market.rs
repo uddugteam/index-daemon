@@ -3,6 +3,7 @@ use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
 use crate::worker::markets::binance::Binance;
 use crate::worker::markets::bitfinex::Bitfinex;
+use crate::worker::markets::bybit::Bybit;
 use crate::worker::markets::coinbase::Coinbase;
 use crate::worker::markets::gemini::Gemini;
 use crate::worker::markets::hitbtc::Hitbtc;
@@ -44,6 +45,7 @@ pub fn market_factory(
         "hitbtc" => Arc::new(Mutex::new(Hitbtc { spine })),
         "okcoin" => Arc::new(Mutex::new(Okcoin { spine })),
         "gemini" => Arc::new(Mutex::new(Gemini { spine })),
+        "bybit" => Arc::new(Mutex::new(Bybit { spine })),
         _ => panic!("Market not found: {}", spine.name),
     };
 
