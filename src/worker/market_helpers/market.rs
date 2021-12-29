@@ -222,7 +222,23 @@ fn update(market: Arc<Mutex<dyn Market + Send>>) {
 pub trait Market {
     fn get_spine(&self) -> &MarketSpine;
     fn get_spine_mut(&mut self) -> &mut MarketSpine;
-    fn make_pair(&self, pair: (&str, &str)) -> String;
+    fn make_pair(&self, pair: (&str, &str)) -> String {
+        match self.get_spine().name.as_str() {
+            "hitbtc" | "bybit" | "gemini" => {
+                (self.get_spine().get_masked_value(pair.0).to_string()
+                    + self.get_spine().get_masked_value(pair.1))
+                .to_uppercase()
+            }
+            "binance" | "huobi" => (self.get_spine().get_masked_value(pair.0).to_string()
+                + self.get_spine().get_masked_value(pair.1))
+            .to_lowercase(),
+            "coinbase" | "okcoin" => (self.get_spine().get_masked_value(pair.0).to_string()
+                + "-"
+                + self.get_spine().get_masked_value(pair.1))
+            .to_uppercase(),
+            _ => panic!("fn make_pair is not implemented"),
+        }
+    }
 
     fn add_exchange_pair(&mut self, exchange_pair: ExchangePair) {
         let pair_string = self.make_pair(exchange_pair.get_pair_ref());

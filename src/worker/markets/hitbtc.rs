@@ -17,11 +17,6 @@ impl Market for Hitbtc {
         &mut self.spine
     }
 
-    fn make_pair(&self, pair: (&str, &str)) -> String {
-        (self.spine.get_masked_value(pair.0).to_string() + self.spine.get_masked_value(pair.1))
-            .to_uppercase()
-    }
-
     fn get_channel_text_view(&self, channel: MarketChannels) -> String {
         match channel {
             MarketChannels::Ticker => "ticker/1s",
