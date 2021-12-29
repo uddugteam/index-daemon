@@ -40,6 +40,7 @@ You can use _env vars_ or _config file_. You can specify _config file_ in _CLI p
 - huobi
 - hitbtc
 - okcoin
+- gemini
 
 ## Note
 

@@ -4,6 +4,7 @@ use crate::worker::market_helpers::market_spine::MarketSpine;
 use crate::worker::markets::binance::Binance;
 use crate::worker::markets::bitfinex::Bitfinex;
 use crate::worker::markets::coinbase::Coinbase;
+use crate::worker::markets::gemini::Gemini;
 use crate::worker::markets::hitbtc::Hitbtc;
 use crate::worker::markets::huobi::Huobi;
 use crate::worker::markets::kraken::Kraken;
@@ -42,6 +43,7 @@ pub fn market_factory(
         "huobi" => Arc::new(Mutex::new(Huobi { spine })),
         "hitbtc" => Arc::new(Mutex::new(Hitbtc { spine })),
         "okcoin" => Arc::new(Mutex::new(Okcoin { spine })),
+        "gemini" => Arc::new(Mutex::new(Gemini { spine })),
         _ => panic!("Market not found: {}", spine.name),
     };
 
@@ -139,7 +141,15 @@ pub fn depth_helper_v1(json: &Json) -> Vec<(f64, f64)> {
 }
 
 fn update(market: Arc<Mutex<dyn Market + Send>>) {
-    let channels = MarketChannels::get_all();
+    let market_is_poloniex = market.lock().unwrap().get_spine().name == "poloniex";
+    let market_is_gemini = market.lock().unwrap().get_spine().name == "gemini";
+
+    // Market Gemini has no channels (i.e. has single general channel), so we parse channel data from its single channel
+    let channels = if market_is_gemini {
+        [MarketChannels::Ticker].to_vec()
+    } else {
+        MarketChannels::get_all().to_vec()
+    };
     let exchange_pairs: Vec<String> = market
         .lock()
         .unwrap()
@@ -149,7 +159,6 @@ fn update(market: Arc<Mutex<dyn Market + Send>>) {
         .cloned()
         .collect();
     let exchange_pairs_dummy = vec!["dummy".to_string()];
-    let market_is_poloniex = market.lock().unwrap().get_spine().name == "poloniex";
 
     for channel in channels {
         // There is no distinct Trades channel in Poloniex. We get Trades inside of Book channel.
