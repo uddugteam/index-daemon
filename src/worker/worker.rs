@@ -137,8 +137,8 @@ impl Worker {
     ) -> Vec<ExchangePair> {
         let mut exchange_pairs = Vec::new();
 
-        let coins = coins.unwrap_or(Vec::from(COINS));
-        let fiats = fiats.unwrap_or(Vec::from(FIATS));
+        let coins = coins.unwrap_or(COINS.to_vec());
+        let fiats = fiats.unwrap_or(FIATS.to_vec());
 
         for coin in coins {
             for fiat in &fiats {
@@ -153,7 +153,7 @@ impl Worker {
     }
 
     fn configure(&mut self, markets: Option<Vec<&str>>, coins: Option<Vec<&str>>) {
-        let market_names = markets.unwrap_or(Vec::from(MARKETS));
+        let market_names = markets.unwrap_or(MARKETS.to_vec());
         let exchange_pairs = Self::make_exchange_pairs(coins, None);
 
         for market_name in market_names {
@@ -242,7 +242,7 @@ pub mod test {
             .unwrap()
             .configure(markets.clone(), coins.clone());
 
-        let markets = markets.unwrap_or(Vec::from(MARKETS));
+        let markets = markets.unwrap_or(MARKETS.to_vec());
         assert_eq!(markets.len(), worker.lock().unwrap().markets.len());
 
         for (i, market) in worker.lock().unwrap().markets.iter().enumerate() {
@@ -382,7 +382,7 @@ pub mod test {
         let (worker, _, rx) = make_worker();
 
         let mut thread_names = Vec::new();
-        for market in markets.clone().unwrap_or(Vec::from(MARKETS)) {
+        for market in markets.clone().unwrap_or(MARKETS.to_vec()) {
             let thread_name = format!("fn: perform, market: {}", market);
             thread_names.push(thread_name);
         }
