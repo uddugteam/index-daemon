@@ -2,6 +2,7 @@ use crate::worker::market_helpers::conversion_type::ConversionType;
 use crate::worker::market_helpers::exchange_pair::ExchangePair;
 use crate::worker::market_helpers::exchange_pair_info::ExchangePairInfo;
 use crate::worker::market_helpers::market::Market;
+use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::worker::Worker;
 use std::collections::HashMap;
 use std::sync::mpsc::Sender;
@@ -20,9 +21,32 @@ pub struct MarketSpine {
     exchange_pairs: HashMap<String, ExchangePairInfo>,
     conversions: HashMap<String, ConversionType>,
     pairs: HashMap<String, (String, String)>,
+    pub channels: Vec<MarketChannels>,
 }
 impl MarketSpine {
-    pub fn new(worker: Arc<Mutex<Worker>>, tx: Sender<JoinHandle<()>>, name: String) -> Self {
+    pub fn new(
+        worker: Arc<Mutex<Worker>>,
+        tx: Sender<JoinHandle<()>>,
+        name: String,
+        channels: Option<Vec<MarketChannels>>,
+    ) -> Self {
+        let channels = channels.unwrap_or(MarketChannels::get_all().to_vec());
+
+        let channels = match name.as_str() {
+            "poloniex" => {
+                // There is no distinct Trades channel in Poloniex. We get Trades inside of Book channel.
+                channels
+                    .into_iter()
+                    .filter(|v| !matches!(v, MarketChannels::Trades))
+                    .collect()
+            }
+            "gemini" => {
+                // Market Gemini has no channels (i.e. has single general channel), so we parse channel data from its single channel
+                [MarketChannels::Ticker].to_vec()
+            }
+            _ => channels,
+        };
+
         Self {
             worker,
             arc: None,
@@ -33,6 +57,7 @@ impl MarketSpine {
             exchange_pairs: HashMap::new(),
             conversions: HashMap::new(),
             pairs: HashMap::new(),
+            channels,
         }
     }
 
@@ -258,7 +283,7 @@ pub mod test {
         let market_name = market_name.unwrap_or("binance").to_string();
         let (worker, tx, rx) = make_worker();
 
-        (MarketSpine::new(worker, tx, market_name), rx)
+        (MarketSpine::new(worker, tx, market_name, None), rx)
     }
 
     #[test]

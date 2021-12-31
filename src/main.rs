@@ -84,13 +84,19 @@ fn main() {
         .as_ref()
         .map(|v| v.iter().map(|v| v.as_str()).collect());
 
+    let channels: Option<Vec<String>> =
+        get_param_value_as_vec_of_string(&market_config, "channels");
+    let channels: Option<Vec<&str>> = channels
+        .as_ref()
+        .map(|v| v.iter().map(|v| v.as_str()).collect());
+
     let (tx, rx) = mpsc::channel();
     let pair_average_trade_price_repository = PairAverageTradePrice::new();
     let worker = Worker::new(
         tx,
         Arc::new(Mutex::new(pair_average_trade_price_repository)),
     );
-    worker.lock().unwrap().start(markets, coins);
+    worker.lock().unwrap().start(markets, coins, channels);
 
     for received_thread in rx {
         let _ = received_thread.join();

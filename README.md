@@ -19,6 +19,7 @@ You can use _env vars_ or _config file_. You can specify _config file_ in _CLI p
 
 - **exchanges** - array (contains market names in _lowercase_. E.g. "binance")
 - **coins** - array (contains coin name abbreviations in _uppercase_. E.g. "BTC")
+- **channels** - array. Variants: ticker, trades, book.
 
 ### Env vars format description
 

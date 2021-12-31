@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 #[derive(Debug)]
 pub enum MarketChannels {
     Ticker,
@@ -11,6 +13,19 @@ impl MarketChannels {
     }
 }
 
+// TODO: Replace error type with correct
+impl FromStr for MarketChannels {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "ticker" => Ok(Self::Ticker),
+            "trades" => Ok(Self::Trades),
+            "book" => Ok(Self::Book),
+            _ => Err(()),
+        }
+    }
+}
 impl Clone for MarketChannels {
     fn clone(&self) -> Self {
         *self

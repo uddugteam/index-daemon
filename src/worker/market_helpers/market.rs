@@ -146,14 +146,8 @@ pub fn depth_helper_v1(json: &Json) -> Vec<(f64, f64)> {
 
 fn update(market: Arc<Mutex<dyn Market + Send>>) {
     let market_is_poloniex = market.lock().unwrap().get_spine().name == "poloniex";
-    let market_is_gemini = market.lock().unwrap().get_spine().name == "gemini";
 
-    // Market Gemini has no channels (i.e. has single general channel), so we parse channel data from its single channel
-    let channels = if market_is_gemini {
-        [MarketChannels::Ticker].to_vec()
-    } else {
-        MarketChannels::get_all().to_vec()
-    };
+    let channels = market.lock().unwrap().get_spine().channels.clone();
     let exchange_pairs: Vec<String> = market
         .lock()
         .unwrap()
@@ -165,22 +159,11 @@ fn update(market: Arc<Mutex<dyn Market + Send>>) {
     let exchange_pairs_dummy = vec!["dummy".to_string()];
 
     for channel in channels {
-        // There is no distinct Trades channel in Poloniex. We get Trades inside of Book channel.
-        if market_is_poloniex {
-            if let MarketChannels::Trades = channel {
-                continue;
-            }
-        }
-
         // Channel Ticker of Poloniex has different subscription system
         // - we can subscribe only for all exchange pairs together,
         // thus, we need to subscribe to a channel only once
-        let exchange_pairs = if market_is_poloniex {
-            if let MarketChannels::Ticker = channel {
-                &exchange_pairs_dummy
-            } else {
-                &exchange_pairs
-            }
+        let exchange_pairs = if market_is_poloniex && matches!(channel, MarketChannels::Ticker) {
+            &exchange_pairs_dummy
         } else {
             &exchange_pairs
         };
