@@ -33,8 +33,12 @@ impl MarketSpine {
         let channels = channels.unwrap_or(MarketChannels::get_all().to_vec());
 
         let channels = match name.as_str() {
-            "poloniex" => {
+            "poloniex" | "kucoin" => {
                 // There is no distinct Trades channel in Poloniex. We get Trades inside of Book channel.
+
+                // TODO: Implement Trades channel for Kucoin
+                // Trades channel for Kucoin is not implemented.
+
                 channels
                     .into_iter()
                     .filter(|v| !matches!(v, MarketChannels::Trades))

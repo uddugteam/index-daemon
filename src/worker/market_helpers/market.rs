@@ -10,6 +10,7 @@ use crate::worker::markets::gemini::Gemini;
 use crate::worker::markets::hitbtc::Hitbtc;
 use crate::worker::markets::huobi::Huobi;
 use crate::worker::markets::kraken::Kraken;
+use crate::worker::markets::kucoin::Kucoin;
 use crate::worker::markets::okcoin::Okcoin;
 use crate::worker::markets::poloniex::Poloniex;
 use crate::worker::network_helpers::socket_helper::SocketHelper;
@@ -30,7 +31,7 @@ pub fn market_factory(
         "bitfinex" => vec![("DASH", "dsh"), ("QTUM", "QTM")],
         "poloniex" => vec![("USD", "USDT"), ("XLM", "STR")],
         "kraken" => vec![("BTC", "XBT")],
-        "huobi" | "hitbtc" | "okcoin" | "gateio" => vec![("USD", "USDT")],
+        "huobi" | "hitbtc" | "okcoin" | "gateio" | "kucoin" => vec![("USD", "USDT")],
         _ => vec![],
     };
 
@@ -48,6 +49,7 @@ pub fn market_factory(
         "gemini" => Arc::new(Mutex::new(Gemini { spine })),
         "bybit" => Arc::new(Mutex::new(Bybit { spine })),
         "gateio" => Arc::new(Mutex::new(Gateio { spine })),
+        "kucoin" => Arc::new(Mutex::new(Kucoin { spine })),
         _ => panic!("Market not found: {}", spine.name),
     };
 
@@ -217,10 +219,12 @@ pub trait Market {
             "binance" | "huobi" => (self.get_spine().get_masked_value(pair.0).to_string()
                 + self.get_spine().get_masked_value(pair.1))
             .to_lowercase(),
-            "coinbase" | "okcoin" => (self.get_spine().get_masked_value(pair.0).to_string()
-                + "-"
-                + self.get_spine().get_masked_value(pair.1))
-            .to_uppercase(),
+            "coinbase" | "okcoin" | "kucoin" => {
+                (self.get_spine().get_masked_value(pair.0).to_string()
+                    + "-"
+                    + self.get_spine().get_masked_value(pair.1))
+                .to_uppercase()
+            }
             _ => panic!("fn make_pair is not implemented"),
         }
     }

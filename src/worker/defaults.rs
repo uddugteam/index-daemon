@@ -1,6 +1,6 @@
-pub const MARKETS: [&str; 11] = [
+pub const MARKETS: [&str; 12] = [
     "binance", "bitfinex", "coinbase", "poloniex", "kraken", "huobi", "hitbtc", "okcoin", "gemini",
-    "bybit", "gateio",
+    "bybit", "gateio", "kucoin",
 ];
 pub const FIATS: [&str; 1] = ["USD"];
 pub const COINS: [&str; 2] = ["BTC", "ETH"];

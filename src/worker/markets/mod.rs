@@ -7,5 +7,6 @@ pub mod gemini;
 pub mod hitbtc;
 pub mod huobi;
 pub mod kraken;
+pub mod kucoin;
 pub mod okcoin;
 pub mod poloniex;
