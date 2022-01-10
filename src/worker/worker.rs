@@ -13,7 +13,6 @@ use std::thread::{self, JoinHandle};
 use std::time;
 
 use crate::worker::market_helpers::market::{market_factory, Market};
-use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
 
 pub struct Worker {

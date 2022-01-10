@@ -1,4 +1,3 @@
-use log::kv::Source;
 use rand::Rng;
 use rustc_serialize::json::Json;
 
@@ -35,7 +34,7 @@ impl Market for Gateio {
         .to_string()
     }
 
-    fn get_websocket_url(&self, pair: &str, channel: MarketChannels) -> String {
+    fn get_websocket_url(&self, _pair: &str, _channel: MarketChannels) -> String {
         "wss://ws.gate.io/v3/".to_string()
     }
 
