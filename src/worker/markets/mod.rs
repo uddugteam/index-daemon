@@ -2,6 +2,7 @@ pub mod binance;
 pub mod bitfinex;
 pub mod bybit;
 pub mod coinbase;
+pub mod ftx;
 pub mod gateio;
 pub mod gemini;
 pub mod hitbtc;
