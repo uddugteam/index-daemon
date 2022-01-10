@@ -81,8 +81,7 @@ impl Market for Kucoin {
 
     fn parse_ticker_json(&mut self, pair: String, json: Json) -> Option<()> {
         let object = json.as_object()?;
-        let object = object.get("data")?;
-        let object = object.as_object()?;
+        let object = object.get("data")?.as_object()?;
 
         let volume: f64 = parse_str_from_json_object(object, "size")?;
         self.parse_ticker_json_inner(pair, volume);
@@ -97,8 +96,7 @@ impl Market for Kucoin {
 
     fn parse_depth_json(&mut self, pair: String, json: Json) -> Option<()> {
         let object = json.as_object()?;
-        let object = object.get("data")?;
-        let object = object.as_object()?;
+        let object = object.get("data")?.as_object()?;
         let asks = object.get("asks")?;
         let bids = object.get("bids")?;
 
