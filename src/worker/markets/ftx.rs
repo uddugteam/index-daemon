@@ -1,7 +1,7 @@
 use rustc_serialize::json::Json;
 
 use crate::worker::market_helpers::market::{
-    depth_helper_v1, depth_helper_v2, parse_str_from_json_object, Market,
+    depth_helper_v2, Market,
 };
 use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
