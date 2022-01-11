@@ -1,0 +1,4 @@
+{
+  "channel": "spot/depth_l2_tbt:BTC-USDT",
+  "event": "subscribe"
+}

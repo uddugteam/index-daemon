@@ -1,0 +1,11 @@
+{
+  "channelID": 320,
+  "channelName": "book-10",
+  "event": "subscriptionStatus",
+  "pair": "XBT/USD",
+  "status": "subscribed",
+  "subscription": {
+    "depth": 10,
+    "name": "book"
+  }
+}

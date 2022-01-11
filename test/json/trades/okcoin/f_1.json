@@ -1,0 +1,13 @@
+{
+  "data": [
+    {
+      "instrument_id": "BTC-USDT",
+      "price": "42394",
+      "side": "sell",
+      "size": "0.0027",
+      "timestamp": "2022-01-11T18:05:05.450Z",
+      "trade_id": "76260"
+    }
+  ],
+  "table": "spot/trade"
+}

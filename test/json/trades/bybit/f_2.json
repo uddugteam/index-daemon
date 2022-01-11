@@ -1,0 +1,16 @@
+{
+  "data": [
+    {
+      "cross_seq": 11477845793,
+      "price": 42424.5,
+      "side": "Buy",
+      "size": 25,
+      "symbol": "BTCUSD",
+      "tick_direction": "PlusTick",
+      "timestamp": "2022-01-11T18:05:08.000Z",
+      "trade_id": "b6f236ed-3c05-5400-8830-797089423c35",
+      "trade_time_ms": 1641924308231
+    }
+  ],
+  "topic": "trade.BTCUSD"
+}

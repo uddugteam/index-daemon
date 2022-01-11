@@ -1,0 +1,4 @@
+{
+  "channel": "spot/ticker:BTC-USDT",
+  "event": "subscribe"
+}

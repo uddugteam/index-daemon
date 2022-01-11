@@ -1,0 +1,10 @@
+{
+  "channelID": 321,
+  "channelName": "trade",
+  "event": "subscriptionStatus",
+  "pair": "XBT/USD",
+  "status": "subscribed",
+  "subscription": {
+    "name": "trade"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "channelID": 324,
+  "channelName": "ticker",
+  "event": "subscriptionStatus",
+  "pair": "XBT/USD",
+  "status": "subscribed",
+  "subscription": {
+    "name": "ticker"
+  }
+}

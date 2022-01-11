@@ -1,0 +1,119 @@
+{
+  "cross_seq": 11477847082,
+  "data": {
+    "delete": [
+      {
+        "id": 426205000,
+        "price": "42620.50",
+        "side": "Sell",
+        "symbol": "BTCUSD"
+      }
+    ],
+    "insert": [
+      {
+        "id": 424225000,
+        "price": "42422.50",
+        "side": "Sell",
+        "size": 21298,
+        "symbol": "BTCUSD"
+      }
+    ],
+    "transactTimeE6": 0,
+    "update": [
+      {
+        "id": 423890000,
+        "price": "42389.00",
+        "side": "Buy",
+        "size": 28594,
+        "symbol": "BTCUSD"
+      },
+      {
+        "id": 424215000,
+        "price": "42421.50",
+        "side": "Sell",
+        "size": 14989,
+        "symbol": "BTCUSD"
+      },
+      {
+        "id": 423885000,
+        "price": "42388.50",
+        "side": "Buy",
+        "size": 504,
+        "symbol": "BTCUSD"
+      },
+      {
+        "id": 424210000,
+        "price": "42421.00",
+        "side": "Sell",
+        "size": 61031,
+        "symbol": "BTCUSD"
+      },
+      {
+        "id": 424205000,
+        "price": "42420.50",
+        "side": "Sell",
+        "size": 5820,
+        "symbol": "BTCUSD"
+      },
+      {
+        "id": 423905000,
+        "price": "42390.50",
+        "side": "Buy",
+        "size": 397514,
+        "symbol": "BTCUSD"
+      },
+      {
+        "id": 423880000,
+        "price": "42388.00",
+        "side": "Buy",
+        "size": 350,
+        "symbol": "BTCUSD"
+      },
+      {
+        "id": 424200000,
+        "price": "42420.00",
+        "side": "Sell",
+        "size": 500,
+        "symbol": "BTCUSD"
+      },
+      {
+        "id": 424125000,
+        "price": "42412.50",
+        "side": "Buy",
+        "size": 571060,
+        "symbol": "BTCUSD"
+      },
+      {
+        "id": 423900000,
+        "price": "42390.00",
+        "side": "Buy",
+        "size": 3130,
+        "symbol": "BTCUSD"
+      },
+      {
+        "id": 423915000,
+        "price": "42391.50",
+        "side": "Buy",
+        "size": 31698,
+        "symbol": "BTCUSD"
+      },
+      {
+        "id": 423680000,
+        "price": "42368.00",
+        "side": "Buy",
+        "size": 1622,
+        "symbol": "BTCUSD"
+      },
+      {
+        "id": 423895000,
+        "price": "42389.50",
+        "side": "Buy",
+        "size": 13687,
+        "symbol": "BTCUSD"
+      }
+    ]
+  },
+  "timestamp_e6": 1641924317257378,
+  "topic": "orderBook_200.100ms.BTCUSD",
+  "type": "delta"
+}

@@ -1,0 +1,8 @@
+{
+  "result": {
+    "ch": "ticker/1s",
+    "subscriptions": [
+      "BTCUSDT"
+    ]
+  }
+}

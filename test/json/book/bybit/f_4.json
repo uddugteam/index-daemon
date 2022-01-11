@@ -1,0 +1,27 @@
+{
+  "cross_seq": 11477847102,
+  "data": {
+    "delete": [
+      {
+        "id": 425675000,
+        "price": "42567.50",
+        "side": "Sell",
+        "symbol": "BTCUSD"
+      }
+    ],
+    "insert": [
+      {
+        "id": 426200000,
+        "price": "42620.00",
+        "side": "Sell",
+        "size": 506,
+        "symbol": "BTCUSD"
+      }
+    ],
+    "transactTimeE6": 0,
+    "update": []
+  },
+  "timestamp_e6": 1641924317557481,
+  "topic": "orderBook_200.100ms.BTCUSD",
+  "type": "delta"
+}

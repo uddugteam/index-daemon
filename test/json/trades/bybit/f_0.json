@@ -1,0 +1,11 @@
+{
+  "conn_id": "d953db01-a1e9-473d-8ac1-8ff3f68f42e6",
+  "request": {
+    "args": [
+      "trade.BTCUSD"
+    ],
+    "op": "subscribe"
+  },
+  "ret_msg": "",
+  "success": true
+}

@@ -1,0 +1,22 @@
+{
+  "data": [
+    {
+      "base_volume_24h": "6.7839",
+      "best_ask": "42415.2",
+      "best_ask_size": "0.0698",
+      "best_bid": "42398.2",
+      "best_bid_size": "0.0562",
+      "high_24h": "43033.8",
+      "instrument_id": "BTC-USDT",
+      "last": "42394",
+      "last_qty": "0.0562",
+      "low_24h": "41118.6",
+      "open_24h": "41118.6",
+      "open_utc0": "41848.5",
+      "open_utc8": "41713.6",
+      "quote_volume_24h": "286484.5993",
+      "timestamp": "2022-01-11T18:05:05.463Z"
+    }
+  ],
+  "table": "spot/ticker"
+}

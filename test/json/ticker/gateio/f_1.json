@@ -1,0 +1,18 @@
+{
+  "id": null,
+  "method": "ticker.update",
+  "params": [
+    "BTC_USDT",
+    {
+      "baseVolume": "135023362.964532616131",
+      "change": "3.12",
+      "close": "42433.42",
+      "high": "43088.23",
+      "last": "42433.42",
+      "low": "41154.4",
+      "open": "41157.43",
+      "period": 86400,
+      "quoteVolume": "3220.1410902294"
+    }
+  ]
+}

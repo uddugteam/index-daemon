@@ -18,6 +18,9 @@ use crate::worker::network_helpers::socket_helper::SocketHelper;
 use chrono::Utc;
 use regex::Regex;
 use rustc_serialize::json::{Array, Json, Object};
+use std::fs::{self, File};
+use std::io::Write;
+use std::path::Path;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -69,6 +72,25 @@ pub fn market_factory(
     market
 }
 
+/// Debug
+fn debug_write_json_to_file(market_name: &str, channel: MarketChannels, json: &Json) {
+    let dir_path = format!("test/json/{:?}/{}/", channel, market_name).to_lowercase();
+    let _ = fs::create_dir_all(dir_path.clone());
+
+    for i in 0..10 {
+        let file_name = format!("f_{}.json", i);
+        let path = dir_path.clone() + &file_name;
+
+        if !Path::new(&path).exists() {
+            if let Ok(mut file) = File::create(path) {
+                let _ = write!(file, "{}", json.to_string());
+
+                break;
+            }
+        }
+    }
+}
+
 // Establishes websocket connection with market (subscribes to the channel with pair)
 // and calls lambda (param "callback" of SocketHelper constructor) when gets message from market
 pub fn subscribe_channel(
@@ -100,6 +122,11 @@ pub fn subscribe_channel(
             Json::from_str(&info).ok()
         };
         if let Some(json) = json {
+            // TODO: Remove debug
+            if true {
+                debug_write_json_to_file(&market.lock().unwrap().get_spine().name, channel, &json);
+            }
+
             // This match returns value, but we shouldn't use it
             match channel {
                 MarketChannels::Ticker => market.lock().unwrap().parse_ticker_json(pair, json),

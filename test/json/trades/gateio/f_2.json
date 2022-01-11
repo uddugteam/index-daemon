@@ -1,0 +1,16 @@
+{
+  "id": null,
+  "method": "trades.update",
+  "params": [
+    "BTC_USDT",
+    [
+      {
+        "amount": "0.0005",
+        "id": 2589324820,
+        "price": "42407.73",
+        "time": 1641924315.706121,
+        "type": "buy"
+      }
+    ]
+  ]
+}

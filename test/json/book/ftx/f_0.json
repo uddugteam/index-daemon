@@ -1,0 +1,5 @@
+{
+  "channel": "orderbook",
+  "market": "BTC-PERP",
+  "type": "subscribed"
+}

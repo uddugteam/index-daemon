@@ -1,0 +1,16 @@
+{
+  "data": [
+    {
+      "cross_seq": 11477845625,
+      "price": 42424,
+      "side": "Sell",
+      "size": 100,
+      "symbol": "BTCUSD",
+      "tick_direction": "MinusTick",
+      "timestamp": "2022-01-11T18:05:06.000Z",
+      "trade_id": "30428165-0caa-5e41-aed9-d258b5b2616d",
+      "trade_time_ms": 1641924306248
+    }
+  ],
+  "topic": "trade.BTCUSD"
+}

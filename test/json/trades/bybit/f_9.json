@@ -1,0 +1,159 @@
+{
+  "data": [
+    {
+      "cross_seq": 11477846328,
+      "price": 42424,
+      "side": "Sell",
+      "size": 4,
+      "symbol": "BTCUSD",
+      "tick_direction": "ZeroMinusTick",
+      "timestamp": "2022-01-11T18:05:14.000Z",
+      "trade_id": "68c16b3d-393d-5062-897c-84f223e01022",
+      "trade_time_ms": 1641924314270
+    },
+    {
+      "cross_seq": 11477846328,
+      "price": 42424,
+      "side": "Sell",
+      "size": 1,
+      "symbol": "BTCUSD",
+      "tick_direction": "ZeroMinusTick",
+      "timestamp": "2022-01-11T18:05:14.000Z",
+      "trade_id": "04656db8-9772-5202-8653-d319ab6b8d00",
+      "trade_time_ms": 1641924314270
+    },
+    {
+      "cross_seq": 11477846328,
+      "price": 42424,
+      "side": "Sell",
+      "size": 21,
+      "symbol": "BTCUSD",
+      "tick_direction": "ZeroMinusTick",
+      "timestamp": "2022-01-11T18:05:14.000Z",
+      "trade_id": "f3eef201-8f0f-59fd-910b-ed1fbb08caac",
+      "trade_time_ms": 1641924314270
+    },
+    {
+      "cross_seq": 11477846328,
+      "price": 42424,
+      "side": "Sell",
+      "size": 9,
+      "symbol": "BTCUSD",
+      "tick_direction": "ZeroMinusTick",
+      "timestamp": "2022-01-11T18:05:14.000Z",
+      "trade_id": "1fc3fc72-1add-5774-827a-0e95641281f2",
+      "trade_time_ms": 1641924314270
+    },
+    {
+      "cross_seq": 11477846328,
+      "price": 42424,
+      "side": "Sell",
+      "size": 13,
+      "symbol": "BTCUSD",
+      "tick_direction": "ZeroMinusTick",
+      "timestamp": "2022-01-11T18:05:14.000Z",
+      "trade_id": "f5957ee7-6239-5c69-82f8-6a04eb033f33",
+      "trade_time_ms": 1641924314270
+    },
+    {
+      "cross_seq": 11477846328,
+      "price": 42424,
+      "side": "Sell",
+      "size": 4,
+      "symbol": "BTCUSD",
+      "tick_direction": "ZeroMinusTick",
+      "timestamp": "2022-01-11T18:05:14.000Z",
+      "trade_id": "60f138df-e21e-58e2-9474-25d3ff247110",
+      "trade_time_ms": 1641924314270
+    },
+    {
+      "cross_seq": 11477846328,
+      "price": 42424,
+      "side": "Sell",
+      "size": 10,
+      "symbol": "BTCUSD",
+      "tick_direction": "ZeroMinusTick",
+      "timestamp": "2022-01-11T18:05:14.000Z",
+      "trade_id": "09a8caeb-0705-5ae2-8975-e0dd38c3f878",
+      "trade_time_ms": 1641924314270
+    },
+    {
+      "cross_seq": 11477846328,
+      "price": 42424,
+      "side": "Buy",
+      "size": 1,
+      "symbol": "BTCUSD",
+      "tick_direction": "ZeroMinusTick",
+      "timestamp": "2022-01-11T18:05:14.000Z",
+      "trade_id": "74864a73-b39a-5558-b0b9-e2e16d1135e7",
+      "trade_time_ms": 1641924314274
+    },
+    {
+      "cross_seq": 11477846328,
+      "price": 42424,
+      "side": "Buy",
+      "size": 1,
+      "symbol": "BTCUSD",
+      "tick_direction": "ZeroMinusTick",
+      "timestamp": "2022-01-11T18:05:14.000Z",
+      "trade_id": "84ecf855-9a77-5529-a6c9-3f6805326520",
+      "trade_time_ms": 1641924314276
+    },
+    {
+      "cross_seq": 11477846328,
+      "price": 42424,
+      "side": "Buy",
+      "size": 1,
+      "symbol": "BTCUSD",
+      "tick_direction": "ZeroMinusTick",
+      "timestamp": "2022-01-11T18:05:14.000Z",
+      "trade_id": "a98972ea-6457-54bf-9d6e-46e4cbd52707",
+      "trade_time_ms": 1641924314297
+    },
+    {
+      "cross_seq": 11477846328,
+      "price": 42424,
+      "side": "Buy",
+      "size": 1,
+      "symbol": "BTCUSD",
+      "tick_direction": "ZeroMinusTick",
+      "timestamp": "2022-01-11T18:05:14.000Z",
+      "trade_id": "5b7351ea-f51f-5242-8cc8-8c56dc17fca7",
+      "trade_time_ms": 1641924314305
+    },
+    {
+      "cross_seq": 11477846328,
+      "price": 42424,
+      "side": "Buy",
+      "size": 1,
+      "symbol": "BTCUSD",
+      "tick_direction": "ZeroMinusTick",
+      "timestamp": "2022-01-11T18:05:14.000Z",
+      "trade_id": "148e4a2f-80f9-5df2-a3dc-2b578196159c",
+      "trade_time_ms": 1641924314326
+    },
+    {
+      "cross_seq": 11477846328,
+      "price": 42424,
+      "side": "Buy",
+      "size": 1,
+      "symbol": "BTCUSD",
+      "tick_direction": "ZeroMinusTick",
+      "timestamp": "2022-01-11T18:05:14.000Z",
+      "trade_id": "a3ca9591-b9e3-570c-8cf6-5f426dd647b3",
+      "trade_time_ms": 1641924314327
+    },
+    {
+      "cross_seq": 11477846328,
+      "price": 42424,
+      "side": "Buy",
+      "size": 1,
+      "symbol": "BTCUSD",
+      "tick_direction": "ZeroMinusTick",
+      "timestamp": "2022-01-11T18:05:14.000Z",
+      "trade_id": "fde65206-10c0-57c5-a91b-5ba3bdc9e8c6",
+      "trade_time_ms": 1641924314332
+    }
+  ],
+  "topic": "trade.BTCUSD"
+}

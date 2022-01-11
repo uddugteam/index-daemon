@@ -1,0 +1,31 @@
+{
+  "channel": "trades",
+  "data": [
+    {
+      "id": 3056257940,
+      "liquidation": false,
+      "price": 42424.0,
+      "side": "sell",
+      "size": 0.0034000000000000002,
+      "time": "2022-01-11T18:05:14.659966+00:00"
+    },
+    {
+      "id": 3056257941,
+      "liquidation": false,
+      "price": 42424.0,
+      "side": "sell",
+      "size": 0.0148,
+      "time": "2022-01-11T18:05:14.659966+00:00"
+    },
+    {
+      "id": 3056257942,
+      "liquidation": false,
+      "price": 42422.0,
+      "side": "sell",
+      "size": 0.0054,
+      "time": "2022-01-11T18:05:14.659966+00:00"
+    }
+  ],
+  "market": "BTC-PERP",
+  "type": "update"
+}

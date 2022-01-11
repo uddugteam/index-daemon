@@ -1,0 +1,11 @@
+{
+  "conn_id": "d9c05fcf-fe8c-4267-9a09-e6b83db3452d",
+  "request": {
+    "args": [
+      "orderBook_200.100ms.BTCUSD"
+    ],
+    "op": "subscribe"
+  },
+  "ret_msg": "",
+  "success": true
+}
