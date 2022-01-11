@@ -96,10 +96,12 @@ impl Market for Bitfinex {
     /// Response description: https://docs.bitfinex.com/reference?ref=https://coder.social#rest-public-book
     fn parse_depth_json(&mut self, pair: String, json: Json) -> Option<()> {
         let array = json.as_array()?;
-        let array = array[1].as_array()?;
+        let array = array.get(1)?.as_array()?;
 
-        let (asks, bids) = Self::depth_helper(array);
-        self.parse_depth_json_inner(pair, asks, bids);
+        if array.get(0)?.is_array() {
+            let (asks, bids) = Self::depth_helper(array);
+            self.parse_depth_json_inner(pair, asks, bids);
+        }
 
         Some(())
     }
