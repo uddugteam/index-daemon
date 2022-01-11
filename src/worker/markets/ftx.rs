@@ -1,14 +1,16 @@
 use rustc_serialize::json::Json;
 
-use crate::worker::market_helpers::market::{depth_helper_v2, Market};
+use crate::worker::market_helpers::market::{
+    depth_helper_v2, Market,
+};
 use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
 
-pub struct Huobi {
+pub struct Ftx {
     pub spine: MarketSpine,
 }
 
-impl Market for Huobi {
+impl Market for Ftx {
     fn get_spine(&self) -> &MarketSpine {
         &self.spine
     }
@@ -20,46 +22,48 @@ impl Market for Huobi {
     fn get_channel_text_view(&self, channel: MarketChannels) -> String {
         match channel {
             MarketChannels::Ticker => "ticker",
-            MarketChannels::Trades => "trade.detail",
-            MarketChannels::Book => "depth.step0",
+            MarketChannels::Trades => "trades",
+            MarketChannels::Book => "orderbook",
         }
         .to_string()
     }
 
     fn get_websocket_url(&self, _pair: &str, _channel: MarketChannels) -> String {
-        "wss://api.huobi.pro/ws".to_string()
+        "wss://ftx.com/ws/".to_string()
     }
 
     fn get_websocket_on_open_msg(&self, pair: &str, channel: MarketChannels) -> Option<String> {
         Some(format!(
-            "{{\"sub\": \"market.{}.{}\"}}",
+            "{{\"op\": \"subscribe\", \"channel\": \"{}\", \"market\": \"{}\"}}",
+            self.get_channel_text_view(channel),
             pair,
-            self.get_channel_text_view(channel)
         ))
     }
 
     fn parse_ticker_json(&mut self, pair: String, json: Json) -> Option<()> {
         let object = json.as_object()?;
-        let object = object.get("tick")?;
-        let object = object.as_object()?;
+        let object = object.get("data")?.as_object()?;
 
-        let volume: f64 = object.get("vol")?.as_f64()?;
+        // TODO: Check whether chosen keys and calculation method are right
+        let ask_size = object.get("askSize")?.as_f64()?;
+        let bid_size = object.get("bidSize")?.as_f64()?;
+        let volume = ask_size + bid_size;
         self.parse_ticker_json_inner(pair, volume);
 
         Some(())
     }
 
     fn parse_last_trade_json(&mut self, pair: String, json: Json) -> Option<()> {
-        let object = json.as_object()?.get("tick")?;
-        let array = object.as_object()?.get("data")?;
+        let object = json.as_object()?;
+        let array = object.get("data")?.as_array()?;
 
-        for object in array.as_array()? {
+        for object in array {
             let object = object.as_object()?;
 
-            let mut last_trade_volume: f64 = object.get("amount")?.as_f64()?;
+            let mut last_trade_volume: f64 = object.get("size")?.as_f64()?;
             let last_trade_price: f64 = object.get("price")?.as_f64()?;
 
-            let trade_type = object.get("direction")?.as_string()?;
+            let trade_type = object.get("side")?.as_string()?;
             // TODO: Check whether inversion is right
             if trade_type == "sell" {
                 // sell
@@ -75,14 +79,17 @@ impl Market for Huobi {
     }
 
     fn parse_depth_json(&mut self, pair: String, json: Json) -> Option<()> {
-        let object = json.as_object()?.get("tick")?;
-        let object = object.as_object()?;
-        let asks = object.get("asks")?;
-        let bids = object.get("bids")?;
+        let object = json.as_object()?;
+        let object = object.get("data")?.as_object()?;
 
-        let asks = depth_helper_v2(asks);
-        let bids = depth_helper_v2(bids);
-        self.parse_depth_json_inner(pair, asks, bids);
+        if object.get("action")?.as_string()? == "partial" {
+            let asks = object.get("asks")?;
+            let bids = object.get("bids")?;
+
+            let asks = depth_helper_v2(asks);
+            let bids = depth_helper_v2(bids);
+            self.parse_depth_json_inner(pair, asks, bids);
+        }
 
         Some(())
     }

@@ -4,7 +4,7 @@ pub enum ConversionType {
     None,
 
     /// Needed conversion from fiat currency to USD
-    Fiat,
+    _Fiat,
 
     /// Needed conversion from cryptocurrency to USD
     Crypto,

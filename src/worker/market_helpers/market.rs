@@ -5,10 +5,13 @@ use crate::worker::markets::binance::Binance;
 use crate::worker::markets::bitfinex::Bitfinex;
 use crate::worker::markets::bybit::Bybit;
 use crate::worker::markets::coinbase::Coinbase;
+use crate::worker::markets::ftx::Ftx;
+use crate::worker::markets::gateio::Gateio;
 use crate::worker::markets::gemini::Gemini;
 use crate::worker::markets::hitbtc::Hitbtc;
 use crate::worker::markets::huobi::Huobi;
 use crate::worker::markets::kraken::Kraken;
+use crate::worker::markets::kucoin::Kucoin;
 use crate::worker::markets::okcoin::Okcoin;
 use crate::worker::markets::poloniex::Poloniex;
 use crate::worker::network_helpers::socket_helper::SocketHelper;
@@ -29,7 +32,8 @@ pub fn market_factory(
         "bitfinex" => vec![("DASH", "dsh"), ("QTUM", "QTM")],
         "poloniex" => vec![("USD", "USDT"), ("XLM", "STR")],
         "kraken" => vec![("BTC", "XBT")],
-        "huobi" | "hitbtc" | "okcoin" => vec![("USD", "USDT")],
+        "huobi" | "hitbtc" | "okcoin" | "gateio" | "kucoin" => vec![("USD", "USDT")],
+        "ftx" => vec![("USD", "PERP")],
         _ => vec![],
     };
 
@@ -46,6 +50,9 @@ pub fn market_factory(
         "okcoin" => Arc::new(Mutex::new(Okcoin { spine })),
         "gemini" => Arc::new(Mutex::new(Gemini { spine })),
         "bybit" => Arc::new(Mutex::new(Bybit { spine })),
+        "gateio" => Arc::new(Mutex::new(Gateio { spine })),
+        "kucoin" => Arc::new(Mutex::new(Kucoin { spine })),
+        "ftx" => Arc::new(Mutex::new(Ftx { spine })),
         _ => panic!("Market not found: {}", spine.name),
     };
 
@@ -142,16 +149,21 @@ pub fn depth_helper_v1(json: &Json) -> Vec<(f64, f64)> {
         .collect()
 }
 
+pub fn depth_helper_v2(json: &Json) -> Vec<(f64, f64)> {
+    json.as_array()
+        .unwrap()
+        .iter()
+        .map(|v| {
+            let v = v.as_array().unwrap();
+            (v[0].as_f64().unwrap(), v[1].as_f64().unwrap())
+        })
+        .collect()
+}
+
 fn update(market: Arc<Mutex<dyn Market + Send>>) {
     let market_is_poloniex = market.lock().unwrap().get_spine().name == "poloniex";
-    let market_is_gemini = market.lock().unwrap().get_spine().name == "gemini";
 
-    // Market Gemini has no channels (i.e. has single general channel), so we parse channel data from its single channel
-    let channels = if market_is_gemini {
-        [MarketChannels::Ticker].to_vec()
-    } else {
-        MarketChannels::get_all().to_vec()
-    };
+    let channels = market.lock().unwrap().get_spine().channels.clone();
     let exchange_pairs: Vec<String> = market
         .lock()
         .unwrap()
@@ -163,22 +175,11 @@ fn update(market: Arc<Mutex<dyn Market + Send>>) {
     let exchange_pairs_dummy = vec!["dummy".to_string()];
 
     for channel in channels {
-        // There is no distinct Trades channel in Poloniex. We get Trades inside of Book channel.
-        if market_is_poloniex {
-            if let MarketChannels::Trades = channel {
-                continue;
-            }
-        }
-
         // Channel Ticker of Poloniex has different subscription system
         // - we can subscribe only for all exchange pairs together,
         // thus, we need to subscribe to a channel only once
-        let exchange_pairs = if market_is_poloniex {
-            if let MarketChannels::Ticker = channel {
-                &exchange_pairs_dummy
-            } else {
-                &exchange_pairs
-            }
+        let exchange_pairs = if market_is_poloniex && matches!(channel, MarketChannels::Ticker) {
+            &exchange_pairs_dummy
         } else {
             &exchange_pairs
         };
@@ -232,10 +233,12 @@ pub trait Market {
             "binance" | "huobi" => (self.get_spine().get_masked_value(pair.0).to_string()
                 + self.get_spine().get_masked_value(pair.1))
             .to_lowercase(),
-            "coinbase" | "okcoin" => (self.get_spine().get_masked_value(pair.0).to_string()
-                + "-"
-                + self.get_spine().get_masked_value(pair.1))
-            .to_uppercase(),
+            "coinbase" | "okcoin" | "kucoin" | "ftx" => {
+                (self.get_spine().get_masked_value(pair.0).to_string()
+                    + "-"
+                    + self.get_spine().get_masked_value(pair.1))
+                .to_uppercase()
+            }
             _ => panic!("fn make_pair is not implemented"),
         }
     }
