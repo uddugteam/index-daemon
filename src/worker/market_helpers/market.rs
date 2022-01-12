@@ -69,6 +69,23 @@ pub fn market_factory(
     market
 }
 
+/// This fn is needed for Huobi::parse_last_trade_json()
+/// Function replaces too big integer with a dummy.
+fn repair_json(info: String) -> Option<Json> {
+    if let Ok(json) = Json::from_str(&info) {
+        Some(json)
+    } else {
+        // Error: invalid number (integer is too long).
+        // Since we don't need its real value, we can to replace it with fake, but valid number.
+        let regex_too_big_integer = Regex::new("^(.*)(\\D)(?P<n>\\d{18,})(\\D)(.*)$").unwrap();
+        let too_big_integer = regex_too_big_integer.replace_all(&info, "$n").to_string();
+
+        let info = info.replace(&too_big_integer, "123456");
+
+        Json::from_str(&info).ok()
+    }
+}
+
 // Establishes websocket connection with market (subscribes to the channel with pair)
 // and calls lambda (param "callback" of SocketHelper constructor) when gets message from market
 pub fn subscribe_channel(
@@ -86,21 +103,10 @@ pub fn subscribe_channel(
     );
 
     let socker_helper = SocketHelper::new(url, on_open_msg, pair, |pair: String, info: String| {
-        // This block is needed for Huobi::parse_last_trade_json()
-        let json = if let Ok(json) = Json::from_str(&info) {
-            Some(json)
-        } else {
-            // Error: invalid number (integer is too long).
-            // Since we don't need its real value, we can to replace it with fake, but valid number.
-            let regex_too_big_integer = Regex::new("^(.*)(\\D)(?P<n>\\d{18,})(\\D)(.*)$").unwrap();
-            let too_big_integer = regex_too_big_integer.replace_all(&info, "$n").to_string();
-
-            let info = info.replace(&too_big_integer, "123456");
-
-            Json::from_str(&info).ok()
-        };
+        // This is needed for Huobi::parse_last_trade_json()
+        let json = repair_json(info);
         if let Some(json) = json {
-            // This match returns value, but we shouldn't use it
+            // This "match" returns value, but we shouldn't use it
             match channel {
                 MarketChannels::Ticker => market.lock().unwrap().parse_ticker_json(pair, json),
                 MarketChannels::Trades => market.lock().unwrap().parse_last_trade_json(pair, json),
