@@ -1,8 +1,7 @@
+use reqwest::blocking::Client;
 use rustc_serialize::json::Json;
 
-use crate::worker::market_helpers::market::{
-    depth_helper_v2, Market,
-};
+use crate::worker::market_helpers::market::{depth_helper_v2, Market};
 use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
 
@@ -21,7 +20,12 @@ impl Market for Ftx {
 
     fn get_channel_text_view(&self, channel: MarketChannels) -> String {
         match channel {
-            MarketChannels::Ticker => "ticker",
+            MarketChannels::Ticker => {
+                // Ticker channel of market FTX is not implemented, because it has no useful info.
+                // Instead of websocket, we get needed info by REST API.
+                panic!("Ticker channel of market FTX is not implemented, because it has no useful info.");
+                // "ticker" 
+            },
             MarketChannels::Trades => "trades",
             MarketChannels::Book => "orderbook",
         }
@@ -40,17 +44,34 @@ impl Market for Ftx {
         ))
     }
 
-    fn parse_ticker_json(&mut self, pair: String, json: Json) -> Option<()> {
-        let object = json.as_object()?;
-        let object = object.get("data")?.as_object()?;
+    fn update_ticker(&mut self) -> Option<()> {
+        let response = Client::new().get("https://ftx.com/api/markets").send();
 
-        // TODO: Check whether chosen keys and calculation method are right
-        let ask_size = object.get("askSize")?.as_f64()?;
-        let bid_size = object.get("bidSize")?.as_f64()?;
-        let volume = ask_size + bid_size;
-        self.parse_ticker_json_inner(pair, volume);
+        let response = response.ok()?;
+        let response = response.text().ok()?;
+        let json = Json::from_str(&response).ok()?;
+
+        let object = json.as_object()?;
+        let array = object.get("result")?.as_array()?;
+
+        for object in array {
+            let object = object.as_object()?;
+
+            let pair = object.get("name")?.as_string()?.to_string();
+            // Process only needed pairs
+            if self.spine.get_exchange_pairs().contains_key(&pair) {
+                let volume = object.get("quoteVolume24h")?.as_f64()?;
+                self.parse_ticker_json_inner(pair, volume);
+            }
+        }
 
         Some(())
+    }
+
+    fn parse_ticker_json(&mut self, _pair: String, _json: Json) -> Option<()> {
+        // Ticker channel of market FTX is not implemented, because it has no useful info.
+        // Instead of websocket, we get needed info by REST API.
+        panic!("Ticker channel of market FTX is not implemented, because it has no useful info.");
     }
 
     fn parse_last_trade_json(&mut self, pair: String, json: Json) -> Option<()> {
