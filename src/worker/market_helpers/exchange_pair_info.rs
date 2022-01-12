@@ -1,7 +1,10 @@
+use crate::repository::f64_repository::F64Repository;
+use crate::repository::repository::ExchangePairInfoRepository;
+use crate::repository::timestamp_repository::TimestampRepository;
 use chrono::{DateTime, Utc, MIN_DATETIME};
 use std::fmt::{Display, Formatter};
+use std::sync::{Arc, Mutex};
 
-#[derive(Debug)]
 pub struct ExchangePairInfo {
     last_trade_price: f64,
     last_trade_volume: f64,
@@ -9,10 +12,16 @@ pub struct ExchangePairInfo {
     total_ask: f64,
     total_bid: f64,
     timestamp: DateTime<Utc>,
+    repository: ExchangePairInfoRepository,
 }
 
 impl ExchangePairInfo {
     pub fn new() -> Self {
+        let repository = ExchangePairInfoRepository {
+            volume_24h: Arc::new(Mutex::new(F64Repository::new())),
+            timestamp: Arc::new(Mutex::new(TimestampRepository::new())),
+        };
+
         ExchangePairInfo {
             last_trade_price: 0.0,
             last_trade_volume: 0.0,
@@ -20,6 +29,7 @@ impl ExchangePairInfo {
             total_ask: 0.0,
             total_bid: 0.0,
             timestamp: MIN_DATETIME,
+            repository,
         }
     }
 
@@ -29,6 +39,17 @@ impl ExchangePairInfo {
     pub fn set_total_volume(&mut self, value: f64) {
         self.volume = value;
         self.timestamp = Utc::now();
+
+        self.repository
+            .volume_24h
+            .lock()
+            .unwrap()
+            .insert(self.volume);
+        self.repository
+            .timestamp
+            .lock()
+            .unwrap()
+            .insert(self.timestamp);
     }
 
     pub fn get_total_ask(&self) -> f64 {
@@ -67,14 +88,6 @@ impl ExchangePairInfo {
         self.timestamp = timestamp;
     }
 }
-
-impl Clone for ExchangePairInfo {
-    fn clone(&self) -> Self {
-        Self { ..*self }
-    }
-}
-
-impl Copy for ExchangePairInfo {}
 
 impl Display for ExchangePairInfo {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {

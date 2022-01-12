@@ -1,4 +1,5 @@
-use crate::repository::repository::Repository;
+use crate::repository::pair_average_trade_price::PairAverageTradePrice;
+use crate::repository::repository::Crud;
 use crate::worker::defaults::{COINS, FIATS, MARKETS};
 use crate::worker::market_helpers::conversion_type::ConversionType;
 use crate::worker::market_helpers::exchange_pair::ExchangePair;
@@ -20,18 +21,16 @@ pub struct Worker {
     tx: Sender<JoinHandle<()>>,
     markets: Vec<Arc<Mutex<dyn Market + Send>>>,
     pair_average_trade_price: HashMap<(String, String), f64>,
-    pair_average_trade_price_repository: Arc<Mutex<dyn Repository<(String, String), f64> + Send>>,
+    pair_average_trade_price_repository: Arc<Mutex<dyn Crud<(String, String), f64> + Send>>,
     capitalization: HashMap<String, f64>,
     last_capitalization_refresh: DateTime<Utc>,
 }
 
 impl Worker {
-    pub fn new(
-        tx: Sender<JoinHandle<()>>,
-        pair_average_trade_price_repository: Arc<
-            Mutex<dyn Repository<(String, String), f64> + Send>,
-        >,
-    ) -> Arc<Mutex<Self>> {
+    pub fn new(tx: Sender<JoinHandle<()>>) -> Arc<Mutex<Self>> {
+        let pair_average_trade_price_repository =
+            Arc::new(Mutex::new(PairAverageTradePrice::new()));
+
         let worker = Worker {
             arc: None,
             tx,
@@ -204,7 +203,6 @@ impl Worker {
 
 #[cfg(test)]
 pub mod test {
-    use crate::repository::pair_average_trade_price::PairAverageTradePrice;
     use crate::worker::defaults::MARKETS;
     use crate::worker::market_helpers::conversion_type::ConversionType;
     use crate::worker::market_helpers::exchange_pair::ExchangePair;
@@ -221,11 +219,7 @@ pub mod test {
         Receiver<JoinHandle<()>>,
     ) {
         let (tx, rx) = mpsc::channel();
-        let pair_average_trade_price_repository = PairAverageTradePrice::new();
-        let worker = Worker::new(
-            tx.clone(),
-            Arc::new(Mutex::new(pair_average_trade_price_repository)),
-        );
+        let worker = Worker::new(tx.clone());
 
         (worker, tx, rx)
     }

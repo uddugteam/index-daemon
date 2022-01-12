@@ -1,0 +1,23 @@
+use crate::repository::repository::CrudKeyless;
+
+pub struct F64Repository(Option<f64>);
+
+impl F64Repository {
+    pub fn new() -> Self {
+        Self(None)
+    }
+}
+
+impl CrudKeyless<f64> for F64Repository {
+    fn read(&self) -> Option<f64> {
+        self.0
+    }
+
+    fn insert(&mut self, new_value: f64) {
+        self.0 = Some(new_value);
+    }
+
+    fn delete(&mut self) {
+        self.0 = None;
+    }
+}

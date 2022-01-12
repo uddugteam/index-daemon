@@ -1,8 +1,7 @@
 use clap::{App, Arg};
 use env_logger::Builder;
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::mpsc;
 
-use crate::repository::pair_average_trade_price::PairAverageTradePrice;
 use crate::worker::worker::Worker;
 
 #[macro_use]
@@ -91,11 +90,7 @@ fn main() {
         .map(|v| v.iter().map(|v| v.as_str()).collect());
 
     let (tx, rx) = mpsc::channel();
-    let pair_average_trade_price_repository = PairAverageTradePrice::new();
-    let worker = Worker::new(
-        tx,
-        Arc::new(Mutex::new(pair_average_trade_price_repository)),
-    );
+    let worker = Worker::new(tx);
     worker.lock().unwrap().start(markets, coins, channels);
 
     for received_thread in rx {
