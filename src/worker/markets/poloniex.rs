@@ -118,7 +118,7 @@ impl Market for Poloniex {
             })
             .filter(|(k, _)| {
                 // Remove unneeded pairs
-                self.spine.get_exchange_pairs().get(k).is_some()
+                self.spine.get_exchange_pairs().contains_key(k)
             })
             .collect();
 
