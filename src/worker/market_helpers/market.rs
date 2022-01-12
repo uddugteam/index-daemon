@@ -92,8 +92,6 @@ pub fn subscribe_channel(
     market: Arc<Mutex<dyn Market + Send>>,
     pair: String,
     channel: MarketChannels,
-    url: String,
-    on_open_msg: Option<String>,
 ) {
     trace!(
         "called subscribe_channel(). Market: {}, pair: {}, channel: {:?}",
@@ -101,6 +99,13 @@ pub fn subscribe_channel(
         pair,
         channel,
     );
+
+    let url = market.lock().unwrap().get_websocket_url(&pair, channel);
+
+    let on_open_msg = market
+        .lock()
+        .unwrap()
+        .get_websocket_on_open_msg(&pair, channel);
 
     let socker_helper = SocketHelper::new(url, on_open_msg, pair, |pair: String, info: String| {
         // This is needed for Huobi::parse_last_trade_json()
@@ -193,12 +198,6 @@ fn update(market: Arc<Mutex<dyn Market + Send>>) {
         for exchange_pair in exchange_pairs {
             let market_2 = Arc::clone(&market);
             let pair = exchange_pair.to_string();
-            let url = market.lock().unwrap().get_websocket_url(&pair, channel);
-
-            let on_open_msg = market
-                .lock()
-                .unwrap()
-                .get_websocket_on_open_msg(&pair, channel);
 
             let thread_name = format!(
                 "fn: subscribe_channel, market: {}, pair: {}, channel: {:?}",
@@ -209,13 +208,7 @@ fn update(market: Arc<Mutex<dyn Market + Send>>) {
             let thread = thread::Builder::new()
                 .name(thread_name)
                 .spawn(move || loop {
-                    subscribe_channel(
-                        Arc::clone(&market_2),
-                        pair.clone(),
-                        channel,
-                        url.clone(),
-                        on_open_msg.clone(),
-                    );
+                    subscribe_channel(Arc::clone(&market_2), pair.clone(), channel);
                     thread::sleep(time::Duration::from_millis(10000));
                 })
                 .unwrap();
