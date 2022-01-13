@@ -44,7 +44,7 @@ impl Market for Ftx {
         ))
     }
 
-    fn update_ticker(&mut self) -> Option<()> {
+    fn update_ticker(&mut self, _pair: String) -> Option<()> {
         let response = Client::new().get("https://ftx.com/api/markets").send();
 
         let response = response.ok()?;

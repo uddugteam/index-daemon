@@ -174,6 +174,7 @@ pub fn depth_helper_v2(json: &Json) -> Vec<(f64, f64)> {
 fn update(market: Arc<Mutex<dyn Market + Send>>) {
     let market_is_poloniex = market.lock().unwrap().get_spine().name == "poloniex";
     let market_is_ftx = market.lock().unwrap().get_spine().name == "ftx";
+    let market_is_gemini = market.lock().unwrap().get_spine().name == "gemini";
 
     let channels = market.lock().unwrap().get_spine().channels.clone();
     let exchange_pairs: Vec<String> = market
@@ -191,7 +192,7 @@ fn update(market: Arc<Mutex<dyn Market + Send>>) {
 
         // Channel Ticker of Poloniex has different subscription system
         // - we can subscribe only for all exchange pairs together,
-        // thus, we need to subscribe to a channel only once
+        // thus, we need to subscribe to a channel only once.
         // -----------------------------------------------------------------------------
         // Ticker channel of market FTX is not implemented, because it has no useful info.
         // Instead of websocket, we get needed info by REST API.
@@ -203,22 +204,27 @@ fn update(market: Arc<Mutex<dyn Market + Send>>) {
             &exchange_pairs
         };
 
-        for exchange_pair in exchange_pairs {
-            let market_2 = Arc::clone(&market);
-            let pair = exchange_pair.to_string();
+        let do_rest_api = channel_is_ticker && (market_is_ftx || market_is_gemini);
+        let do_websocket = !(market_is_ftx && channel_is_ticker) || market_is_gemini;
 
-            let thread_name = format!(
-                "fn: subscribe_channel, market: {}, pair: {}, channel: {:?}",
-                market.lock().unwrap().get_spine().name,
-                pair,
-                channel
-            );
-            let thread = thread::Builder::new()
-                .name(thread_name)
-                .spawn(move || loop {
-                    if market_is_ftx && channel_is_ticker {
-                        // REST API
-                        if market_2.lock().unwrap().update_ticker().is_some() {
+        for exchange_pair in exchange_pairs {
+            if do_rest_api {
+                let market_2 = Arc::clone(&market);
+                let pair = exchange_pair.to_string();
+
+                let thread_name = format!(
+                    "fn: subscribe_channel, market: {}, pair: {}, channel: {:?}, REST API",
+                    market.lock().unwrap().get_spine().name,
+                    pair,
+                    channel
+                );
+
+                let thread = thread::Builder::new()
+                    .name(thread_name)
+                    .spawn(move || loop {
+                        let update_ticker_result =
+                            market_2.lock().unwrap().update_ticker(pair.clone());
+                        if update_ticker_result.is_some() {
                             // if success
                             let rest_timeout_sec =
                                 market_2.lock().unwrap().get_spine().rest_timeout_sec;
@@ -227,16 +233,33 @@ fn update(market: Arc<Mutex<dyn Market + Send>>) {
                             // if error
                             thread::sleep(time::Duration::from_millis(10000));
                         }
-                    } else {
-                        // Websocket
+                    })
+                    .unwrap();
+                thread::sleep(time::Duration::from_millis(12000));
+                market.lock().unwrap().get_spine().tx.send(thread).unwrap();
+            }
+
+            if do_websocket {
+                let market_2 = Arc::clone(&market);
+                let pair = exchange_pair.to_string();
+
+                let thread_name = format!(
+                    "fn: subscribe_channel, market: {}, pair: {}, channel: {:?}",
+                    market.lock().unwrap().get_spine().name,
+                    pair,
+                    channel
+                );
+
+                let thread = thread::Builder::new()
+                    .name(thread_name)
+                    .spawn(move || loop {
                         subscribe_channel(Arc::clone(&market_2), pair.clone(), channel);
                         thread::sleep(time::Duration::from_millis(10000));
-                    }
-                })
-                .unwrap();
-            thread::sleep(time::Duration::from_millis(12000));
-
-            market.lock().unwrap().get_spine().tx.send(thread).unwrap();
+                    })
+                    .unwrap();
+                thread::sleep(time::Duration::from_millis(12000));
+                market.lock().unwrap().get_spine().tx.send(thread).unwrap();
+            }
         }
     }
 }
@@ -332,7 +355,7 @@ pub trait Market {
         pair_text_view
     }
 
-    fn update_ticker(&mut self) -> Option<()> {
+    fn update_ticker(&mut self, _pair: String) -> Option<()> {
         panic!("fn update_ticker is not implemented.");
     }
 
