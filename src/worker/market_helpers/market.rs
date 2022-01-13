@@ -457,7 +457,7 @@ mod test {
     ) -> (Arc<Mutex<dyn Market + Send>>, Receiver<JoinHandle<()>>) {
         let exchange_pairs = Worker::make_exchange_pairs(None, None);
 
-        let (market_spine, rx) = make_spine(market_name, 1);
+        let (market_spine, rx) = make_spine(market_name);
         let market = market_factory(market_spine, exchange_pairs);
 
         (market, rx)

@@ -367,10 +367,13 @@ pub mod test {
         assert!(now - last_capitalization_refresh <= Duration::milliseconds(5000));
     }
 
-    #[test]
+    // #[test]
+    /// TODO: Rework (make test independent of coinmarketcap.com)
     fn test_refresh_capitalization() {
         let (worker, _, _) = make_worker();
-        worker.lock().unwrap().refresh_capitalization();
+        let result = Worker::refresh_capitalization(Arc::clone(&worker));
+
+        assert!(result.is_some());
 
         inner_test_refresh_capitalization(worker);
     }
@@ -439,6 +442,7 @@ pub mod test {
         let (worker, _, rx) = make_worker();
 
         let mut thread_names = Vec::new();
+        thread_names.push("fn: refresh_capitalization".to_string());
         for market in markets.clone().unwrap_or(MARKETS.to_vec()) {
             let thread_name = format!("fn: perform, market: {}", market);
             thread_names.push(thread_name);
@@ -446,8 +450,6 @@ pub mod test {
 
         worker.lock().unwrap().start(markets, coins, channels, None);
         check_threads(thread_names, rx);
-
-        inner_test_refresh_capitalization(worker);
     }
 
     #[test]
