@@ -220,8 +220,9 @@ fn update(market: Arc<Mutex<dyn Market + Send>>) {
                         // REST API
                         if market_2.lock().unwrap().update_ticker().is_some() {
                             // if success
-                            // TODO: Move hardcoded value (1000 millis) into parameter.
-                            thread::sleep(time::Duration::from_millis(1000));
+                            let rest_timeout_sec =
+                                market_2.lock().unwrap().get_spine().rest_timeout_sec;
+                            thread::sleep(time::Duration::from_secs(rest_timeout_sec));
                         } else {
                             // if error
                             thread::sleep(time::Duration::from_millis(10000));
@@ -433,7 +434,7 @@ mod test {
     ) -> (Arc<Mutex<dyn Market + Send>>, Receiver<JoinHandle<()>>) {
         let exchange_pairs = Worker::make_exchange_pairs(None, None);
 
-        let (market_spine, rx) = make_spine(market_name);
+        let (market_spine, rx) = make_spine(market_name, 1);
         let market = market_factory(market_spine, exchange_pairs);
 
         (market, rx)

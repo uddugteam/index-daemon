@@ -66,6 +66,11 @@ fn main() {
         .get_str("log_level")
         .unwrap_or("trace".to_string());
 
+    let rest_timeout_sec: Option<u64> = service_config
+        .get_str("rest_timeout_sec")
+        .map(|v| v.parse().unwrap())
+        .ok();
+
     let mut builder = Builder::from_default_env();
     builder.filter(Some("index_daemon"), log_level.parse().unwrap());
     builder.init();
@@ -91,7 +96,10 @@ fn main() {
 
     let (tx, rx) = mpsc::channel();
     let worker = Worker::new(tx);
-    worker.lock().unwrap().start(markets, coins, channels);
+    worker
+        .lock()
+        .unwrap()
+        .start(markets, coins, channels, rest_timeout_sec);
 
     for received_thread in rx {
         let _ = received_thread.join();

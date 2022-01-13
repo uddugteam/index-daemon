@@ -156,17 +156,19 @@ impl Worker {
         markets: Option<Vec<&str>>,
         coins: Option<Vec<&str>>,
         channels: Option<Vec<&str>>,
+        rest_timeout_sec: Option<u64>,
     ) {
         let market_names = markets.unwrap_or(MARKETS.to_vec());
         let exchange_pairs = Self::make_exchange_pairs(coins, None);
-
         let channels = channels.map(|v| v.into_iter().map(|v| v.parse().unwrap()).collect());
+        let rest_timeout_sec = rest_timeout_sec.unwrap_or(1);
 
         for market_name in market_names {
             let worker_2 = Arc::clone(self.arc.as_ref().unwrap());
             let market_spine = MarketSpine::new(
                 worker_2,
                 self.tx.clone(),
+                rest_timeout_sec,
                 market_name.to_string(),
                 channels.clone(),
             );
@@ -181,8 +183,9 @@ impl Worker {
         markets: Option<Vec<&str>>,
         coins: Option<Vec<&str>>,
         channels: Option<Vec<&str>>,
+        rest_timeout_sec: Option<u64>,
     ) {
-        self.configure(markets, coins, channels);
+        self.configure(markets, coins, channels, rest_timeout_sec);
         self.refresh_capitalization();
 
         for market in self.markets.iter().cloned() {
@@ -255,7 +258,7 @@ pub mod test {
         worker
             .lock()
             .unwrap()
-            .configure(markets.clone(), coins.clone(), channels.clone());
+            .configure(markets.clone(), coins.clone(), channels.clone(), None);
 
         let markets = markets.unwrap_or(MARKETS.to_vec());
         assert_eq!(markets.len(), worker.lock().unwrap().markets.len());
@@ -423,7 +426,7 @@ pub mod test {
             thread_names.push(thread_name);
         }
 
-        worker.lock().unwrap().start(markets, coins, channels);
+        worker.lock().unwrap().start(markets, coins, channels, None);
         check_threads(thread_names, rx);
 
         inner_test_refresh_capitalization(worker);
