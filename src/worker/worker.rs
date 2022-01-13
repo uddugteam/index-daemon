@@ -76,54 +76,57 @@ impl Worker {
         self.set_pair_average_trade_price(pair, new_avg);
     }
 
-    pub fn refresh_capitalization(&mut self) {
-        loop {
-            let response = Client::new()
-                .get("https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest")
-                .header("Accepts", "application/json")
-                .header("X-CMC_PRO_API_KEY", "388b6445-3e65-4b86-913e-f0534596068b")
-                .multipart(
-                    Form::new()
-                        .part("start", Part::text("1"))
-                        .part("limit", Part::text("10"))
-                        .part("convert", Part::text("USD")),
-                )
-                .send();
+    fn refresh_capitalization(worker: Arc<Mutex<Self>>) -> Option<()> {
+        let response = Client::new()
+            .get("https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest")
+            .header("Accepts", "application/json")
+            .header("X-CMC_PRO_API_KEY", "388b6445-3e65-4b86-913e-f0534596068b")
+            .multipart(
+                Form::new()
+                    .part("start", Part::text("1"))
+                    .part("limit", Part::text("10"))
+                    .part("convert", Part::text("USD")),
+            )
+            .send();
 
-            match response {
-                Ok(response) => match response.text() {
-                    Ok(response) => match Json::from_str(&response) {
-                        Ok(json) => {
-                            let json_object = json.as_object().unwrap();
-                            let coins = json_object.get("data").unwrap().as_array().unwrap();
+        match response {
+            Ok(response) => match response.text() {
+                Ok(response) => match Json::from_str(&response) {
+                    Ok(json) => {
+                        let json_object = json.as_object().unwrap();
+                        let coins = json_object.get("data").unwrap().as_array().unwrap();
 
-                            for coin in coins.iter().map(|j| j.as_object().unwrap()) {
-                                let mut curr = coin.get("symbol").unwrap().as_string().unwrap();
-                                if curr == "MIOTA" {
-                                    curr = "IOT";
-                                }
-
-                                let total_supply =
-                                    coin.get("total_supply").unwrap().as_f64().unwrap();
-
-                                self.capitalization.insert(curr.to_string(), total_supply);
+                        for coin in coins.iter().map(|j| j.as_object().unwrap()) {
+                            let mut curr = coin.get("symbol").unwrap().as_string().unwrap();
+                            if curr == "MIOTA" {
+                                curr = "IOT";
                             }
 
-                            self.last_capitalization_refresh = Utc::now();
-                            break;
-                        }
-                        Err(e) => error!("Coinmarketcap.com: Failed to parse json. Error: {}", e),
-                    },
-                    Err(e) => error!(
-                        "Coinmarketcap.com: Failed to get message text. Error: {}",
-                        e
-                    ),
-                },
-                Err(e) => error!("Coinmarketcap.com: Failed to connect. Error: {}", e),
-            }
+                            let total_supply = coin.get("total_supply").unwrap().as_f64().unwrap();
 
-            thread::sleep(time::Duration::from_millis(10000));
+                            worker
+                                .lock()
+                                .unwrap()
+                                .capitalization
+                                .insert(curr.to_string(), total_supply);
+                        }
+
+                        worker.lock().unwrap().last_capitalization_refresh = Utc::now();
+                        return Some(());
+                    }
+                    Err(e) => {
+                        error!("Coinmarketcap.com: Failed to parse json. Error: {}", e)
+                    }
+                },
+                Err(e) => error!(
+                    "Coinmarketcap.com: Failed to get message text. Error: {}",
+                    e
+                ),
+            },
+            Err(e) => error!("Coinmarketcap.com: Failed to connect. Error: {}", e),
         }
+
+        None
     }
 
     fn get_last_capitalization_refresh(&self) -> DateTime<Utc> {
@@ -186,7 +189,22 @@ impl Worker {
         rest_timeout_sec: Option<u64>,
     ) {
         self.configure(markets, coins, channels, rest_timeout_sec);
-        self.refresh_capitalization();
+
+        let worker = Arc::clone(self.arc.as_ref().unwrap());
+        let thread_name = "fn: refresh_capitalization".to_string();
+        let thread = thread::Builder::new()
+            .name(thread_name)
+            .spawn(move || loop {
+                if Self::refresh_capitalization(Arc::clone(&worker)).is_some() {
+                    // if success
+                    break;
+                } else {
+                    //if error
+                    thread::sleep(time::Duration::from_millis(10000));
+                }
+            })
+            .unwrap();
+        self.tx.send(thread).unwrap();
 
         for market in self.markets.iter().cloned() {
             let thread_name = format!(
