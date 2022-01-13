@@ -462,8 +462,7 @@ mod test {
             .unwrap()
             .get_spine()
             .get_exchange_pairs()
-            .get(&pair_string)
-            .is_some());
+            .contains_key(&pair_string));
 
         assert_eq!(
             market
