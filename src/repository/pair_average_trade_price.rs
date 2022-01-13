@@ -1,4 +1,4 @@
-use crate::repository::repository::Crud;
+use crate::repository::repository::Repository;
 use std::collections::HashMap;
 
 pub struct PairAverageTradePrice(HashMap<(String, String), f64>);
@@ -9,7 +9,7 @@ impl PairAverageTradePrice {
     }
 }
 
-impl Crud<(String, String), f64> for PairAverageTradePrice {
+impl Repository<(String, String), f64> for PairAverageTradePrice {
     fn read(&self, primary: (String, String)) -> Option<f64> {
         self.0.get(&primary).copied()
     }

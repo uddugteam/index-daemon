@@ -1,4 +1,4 @@
-use crate::repository::repository::CrudKeyless;
+use crate::repository::repository::RepositoryKeyless;
 
 pub struct F64Repository(Option<f64>);
 
@@ -8,7 +8,7 @@ impl F64Repository {
     }
 }
 
-impl CrudKeyless<f64> for F64Repository {
+impl RepositoryKeyless<f64> for F64Repository {
     fn read(&self) -> Option<f64> {
         self.0
     }

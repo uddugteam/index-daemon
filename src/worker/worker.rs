@@ -1,5 +1,5 @@
 use crate::repository::pair_average_trade_price::PairAverageTradePrice;
-use crate::repository::repository::Crud;
+use crate::repository::repository::Repository;
 use crate::worker::defaults::{COINS, FIATS, MARKETS};
 use crate::worker::market_helpers::conversion_type::ConversionType;
 use crate::worker::market_helpers::exchange_pair::ExchangePair;
@@ -21,7 +21,7 @@ pub struct Worker {
     tx: Sender<JoinHandle<()>>,
     markets: Vec<Arc<Mutex<dyn Market + Send>>>,
     pair_average_trade_price: HashMap<(String, String), f64>,
-    pair_average_trade_price_repository: Arc<Mutex<dyn Crud<(String, String), f64> + Send>>,
+    pair_average_trade_price_repository: Arc<Mutex<dyn Repository<(String, String), f64> + Send>>,
     capitalization: HashMap<String, f64>,
     last_capitalization_refresh: DateTime<Utc>,
 }

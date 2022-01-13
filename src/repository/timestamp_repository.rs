@@ -1,4 +1,4 @@
-use crate::repository::repository::CrudKeyless;
+use crate::repository::repository::RepositoryKeyless;
 use chrono::{DateTime, Utc};
 
 pub struct TimestampRepository(Option<DateTime<Utc>>);
@@ -9,7 +9,7 @@ impl TimestampRepository {
     }
 }
 
-impl CrudKeyless<DateTime<Utc>> for TimestampRepository {
+impl RepositoryKeyless<DateTime<Utc>> for TimestampRepository {
     fn read(&self) -> Option<DateTime<Utc>> {
         self.0
     }
