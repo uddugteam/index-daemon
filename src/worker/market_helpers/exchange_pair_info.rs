@@ -1,9 +1,26 @@
-use crate::repository::f64_repository::F64Repository;
-use crate::repository::repository::ExchangePairInfoRepository;
-use crate::repository::timestamp_repository::TimestampRepository;
+use crate::repository::exchange_pair_info_cache::ExchangePairInfoCache;
 use chrono::{DateTime, Utc, MIN_DATETIME};
 use std::fmt::{Display, Formatter};
 use std::sync::{Arc, Mutex};
+
+pub trait ExchangePairInfoTrait: Send {
+    fn get_total_volume(&self) -> f64;
+    fn set_total_volume(&mut self, value: f64);
+
+    fn get_total_ask(&self) -> f64;
+    fn set_total_ask(&mut self, value: f64);
+
+    fn get_total_bid(&self) -> f64;
+    fn set_total_bid(&mut self, value: f64);
+
+    fn get_last_trade_volume(&self) -> f64;
+    fn set_last_trade_volume(&mut self, value: f64);
+
+    fn get_last_trade_price(&self) -> f64;
+    fn set_last_trade_price(&mut self, value: f64);
+
+    fn set_timestamp(&mut self, timestamp: DateTime<Utc>);
+}
 
 pub struct ExchangePairInfo {
     last_trade_price: f64,
@@ -12,15 +29,12 @@ pub struct ExchangePairInfo {
     total_ask: f64,
     total_bid: f64,
     timestamp: DateTime<Utc>,
-    repository: ExchangePairInfoRepository,
+    repository: Arc<Mutex<dyn ExchangePairInfoTrait>>,
 }
 
 impl ExchangePairInfo {
     pub fn new() -> Self {
-        let repository = ExchangePairInfoRepository {
-            volume_24h: Arc::new(Mutex::new(F64Repository::new())),
-            timestamp: Arc::new(Mutex::new(TimestampRepository::new())),
-        };
+        let repository = Arc::new(Mutex::new(ExchangePairInfoCache::new()));
 
         ExchangePairInfo {
             last_trade_price: 0.0,
@@ -32,59 +46,59 @@ impl ExchangePairInfo {
             repository,
         }
     }
+}
 
-    pub fn get_total_volume(&self) -> f64 {
+impl ExchangePairInfoTrait for ExchangePairInfo {
+    fn get_total_volume(&self) -> f64 {
         self.volume
     }
-    pub fn set_total_volume(&mut self, value: f64) {
+    fn set_total_volume(&mut self, value: f64) {
         self.volume = value;
         self.timestamp = Utc::now();
 
         self.repository
-            .volume_24h
             .lock()
             .unwrap()
-            .insert(self.volume);
+            .set_total_volume(self.volume);
         self.repository
-            .timestamp
             .lock()
             .unwrap()
-            .insert(self.timestamp);
+            .set_timestamp(self.timestamp);
     }
 
-    pub fn get_total_ask(&self) -> f64 {
+    fn get_total_ask(&self) -> f64 {
         self.total_ask
     }
-    pub fn set_total_ask(&mut self, value: f64) {
+    fn set_total_ask(&mut self, value: f64) {
         self.total_ask = value;
         self.timestamp = Utc::now();
     }
 
-    pub fn get_total_bid(&self) -> f64 {
+    fn get_total_bid(&self) -> f64 {
         self.total_bid
     }
-    pub fn set_total_bid(&mut self, value: f64) {
+    fn set_total_bid(&mut self, value: f64) {
         self.total_bid = value;
         self.timestamp = Utc::now();
     }
 
-    pub fn get_last_trade_volume(&self) -> f64 {
+    fn get_last_trade_volume(&self) -> f64 {
         self.last_trade_volume
     }
-    pub fn set_last_trade_volume(&mut self, value: f64) {
+    fn set_last_trade_volume(&mut self, value: f64) {
         self.last_trade_volume = value;
         self.timestamp = Utc::now();
     }
 
-    pub fn get_last_trade_price(&self) -> f64 {
+    fn get_last_trade_price(&self) -> f64 {
         self.last_trade_price
     }
-    pub fn set_last_trade_price(&mut self, value: f64) {
+    fn set_last_trade_price(&mut self, value: f64) {
         self.last_trade_price = value;
         self.timestamp = Utc::now();
     }
 
-    pub fn set_timestamp(&mut self, timestamp: DateTime<Utc>) {
+    fn set_timestamp(&mut self, timestamp: DateTime<Utc>) {
         self.timestamp = timestamp;
     }
 }

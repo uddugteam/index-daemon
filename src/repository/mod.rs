@@ -1,4 +1,3 @@
-pub mod f64_repository;
+pub mod exchange_pair_info_cache;
 pub mod pair_average_trade_price;
 pub mod repository;
-pub mod timestamp_repository;
