@@ -14,6 +14,7 @@ You can use _env vars_ or _config file_. You can specify _config file_ in _CLI p
 #### service_config
 
 - **log_level** - string. Variants: error, warn, info, debug, trace.
+- **rest_timeout_sec** - u64. Timeout in seconds between requests to REST API.
 
 #### market_config
 

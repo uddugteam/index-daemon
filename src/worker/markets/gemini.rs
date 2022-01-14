@@ -1,3 +1,5 @@
+use crate::worker::market_helpers::exchange_pair_info::ExchangePairInfoTrait;
+use reqwest::blocking::Client;
 use rustc_serialize::json::{Array, Json};
 
 use crate::worker::market_helpers::market::{
@@ -59,6 +61,25 @@ impl Market for Gemini {
 
     fn get_websocket_on_open_msg(&self, pair: &str, _channel: MarketChannels) -> Option<String> {
         Some(format!("{{\"type\": \"subscribe\",\"subscriptions\":[{{\"name\":\"l2\",\"symbols\":[\"{}\"]}}]}}", pair))
+    }
+
+    fn update_ticker(&mut self, pair: String) -> Option<()> {
+        let url = format!("https://api.gemini.com/v1/pubticker/{}", pair);
+        let response = Client::new().get(url).send();
+
+        let response = response.ok()?;
+        let response = response.text().ok()?;
+
+        let json = Json::from_str(&response).ok()?;
+        let object = json.as_object()?;
+        let object = object.get("volume")?.as_object()?;
+
+        // TODO: Check whether chosen key (pair_tuple.0) is right
+        let pair_tuple = self.get_spine().get_pairs().get(&pair).unwrap();
+        let volume = parse_str_from_json_object(object, &pair_tuple.0)?;
+        self.parse_ticker_json_inner(pair, volume);
+
+        Some(())
     }
 
     /// Market Gemini has no channels (i.e. has single general channel), so we parse channel data from its single channel

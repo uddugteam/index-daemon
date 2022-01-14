@@ -45,7 +45,7 @@ impl Poloniex {
 
     fn coin_exists(&self, coin: &str) -> bool {
         let pair = (coin.to_string(), "USD".to_string());
-        self.pair_codes.get(&pair).is_some()
+        self.pair_codes.contains_key(&pair)
     }
 }
 
@@ -118,7 +118,7 @@ impl Market for Poloniex {
             })
             .filter(|(k, _)| {
                 // Remove unneeded pairs
-                self.spine.get_exchange_pairs().get(k).is_some()
+                self.spine.get_exchange_pairs().contains_key(k)
             })
             .collect();
 

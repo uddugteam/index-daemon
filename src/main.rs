@@ -1,8 +1,7 @@
 use clap::{App, Arg};
 use env_logger::Builder;
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::mpsc;
 
-use crate::repository::pair_average_trade_price::PairAverageTradePrice;
 use crate::worker::worker::Worker;
 
 #[macro_use]
@@ -67,6 +66,11 @@ fn main() {
         .get_str("log_level")
         .unwrap_or("trace".to_string());
 
+    let rest_timeout_sec: Option<u64> = service_config
+        .get_str("rest_timeout_sec")
+        .map(|v| v.parse().unwrap())
+        .ok();
+
     let mut builder = Builder::from_default_env();
     builder.filter(Some("index_daemon"), log_level.parse().unwrap());
     builder.init();
@@ -91,12 +95,11 @@ fn main() {
         .map(|v| v.iter().map(|v| v.as_str()).collect());
 
     let (tx, rx) = mpsc::channel();
-    let pair_average_trade_price_repository = PairAverageTradePrice::new();
-    let worker = Worker::new(
-        tx,
-        Arc::new(Mutex::new(pair_average_trade_price_repository)),
-    );
-    worker.lock().unwrap().start(markets, coins, channels);
+    let worker = Worker::new(tx);
+    worker
+        .lock()
+        .unwrap()
+        .start(markets, coins, channels, rest_timeout_sec);
 
     for received_thread in rx {
         let _ = received_thread.join();

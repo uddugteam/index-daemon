@@ -1,6 +1,7 @@
 use crate::worker::market_helpers::conversion_type::ConversionType;
 use crate::worker::market_helpers::exchange_pair::ExchangePair;
 use crate::worker::market_helpers::exchange_pair_info::ExchangePairInfo;
+use crate::worker::market_helpers::exchange_pair_info::ExchangePairInfoTrait;
 use crate::worker::market_helpers::market::Market;
 use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::worker::Worker;
@@ -15,6 +16,7 @@ pub struct MarketSpine {
     worker: Arc<Mutex<Worker>>,
     pub arc: Option<Arc<Mutex<dyn Market + Send>>>,
     pub tx: Sender<JoinHandle<()>>,
+    pub rest_timeout_sec: u64,
     pub name: String,
     mask_pairs: HashMap<String, String>,
     unmask_pairs: HashMap<String, String>,
@@ -27,6 +29,7 @@ impl MarketSpine {
     pub fn new(
         worker: Arc<Mutex<Worker>>,
         tx: Sender<JoinHandle<()>>,
+        rest_timeout_sec: u64,
         name: String,
         channels: Option<Vec<MarketChannels>>,
     ) -> Self {
@@ -55,6 +58,7 @@ impl MarketSpine {
             worker,
             arc: None,
             tx,
+            rest_timeout_sec,
             name,
             mask_pairs: HashMap::new(),
             unmask_pairs: HashMap::new(),
@@ -287,7 +291,7 @@ pub mod test {
         let market_name = market_name.unwrap_or("binance").to_string();
         let (worker, tx, rx) = make_worker();
 
-        (MarketSpine::new(worker, tx, market_name, None), rx)
+        (MarketSpine::new(worker, tx, 1, market_name, None), rx)
     }
 
     #[test]
