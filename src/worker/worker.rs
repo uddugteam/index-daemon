@@ -1,4 +1,4 @@
-use crate::repository::pair_average_trade_price::PairAverageTradePrice;
+use crate::repository::pair_average_trade_price_cache::PairAverageTradePriceCache;
 use crate::repository::repository::Repository;
 use crate::worker::defaults::{COINS, FIATS, MARKETS};
 use crate::worker::market_helpers::conversion_type::ConversionType;
@@ -29,7 +29,7 @@ pub struct Worker {
 impl Worker {
     pub fn new(tx: Sender<JoinHandle<()>>) -> Arc<Mutex<Self>> {
         let pair_average_trade_price_repository =
-            Arc::new(Mutex::new(PairAverageTradePrice::new()));
+            Arc::new(Mutex::new(PairAverageTradePriceCache::new()));
 
         let worker = Worker {
             arc: None,
