@@ -9,7 +9,7 @@ use std::io::prelude::Read;
 use std::thread;
 use std::time;
 
-pub struct SocketHelper<F>
+pub struct WsClient<F>
 where
     F: Fn(String, String),
 {
@@ -19,7 +19,7 @@ where
     callback: F,
 }
 
-impl<F> SocketHelper<F>
+impl<F> WsClient<F>
 where
     F: Fn(String, String),
 {
@@ -47,16 +47,16 @@ fn unzip<T: Read>(mut decoder: T) -> Option<String> {
     }
 }
 
-async fn run<F>(socket_helper: SocketHelper<F>)
+async fn run<F>(ws_client: WsClient<F>)
 where
     F: Fn(String, String),
 {
-    match connect_async(&socket_helper.uri).await {
+    match connect_async(&ws_client.uri).await {
         Ok((ws_stream, _)) => {
             let (stdin_tx, stdin_rx) = futures::channel::mpsc::unbounded();
 
-            let on_open_msg = socket_helper.on_open_msg.clone();
-            if let Some(on_open_msg) = socket_helper.on_open_msg {
+            let on_open_msg = ws_client.on_open_msg.clone();
+            if let Some(on_open_msg) = ws_client.on_open_msg {
                 stdin_tx.unbounded_send(Message::text(on_open_msg)).unwrap();
             }
 
@@ -102,7 +102,7 @@ where
                         }
 
                         if !message_is_ping {
-                            (socket_helper.callback)(socket_helper.pair.clone(), message);
+                            (ws_client.callback)(ws_client.pair.clone(), message);
                         }
 
                         if market_is_okcoin {
@@ -121,7 +121,7 @@ where
         }
         Err(e) => error!(
             "Websocket: Failed to connect. Url: {}, pair: {}, error: {:?}",
-            socket_helper.uri, socket_helper.pair, e
+            ws_client.uri, ws_client.pair, e
         ),
     }
 }

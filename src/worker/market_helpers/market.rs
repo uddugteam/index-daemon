@@ -15,7 +15,7 @@ use crate::worker::markets::kraken::Kraken;
 use crate::worker::markets::kucoin::Kucoin;
 use crate::worker::markets::okcoin::Okcoin;
 use crate::worker::markets::poloniex::Poloniex;
-use crate::worker::network_helpers::socket_helper::SocketHelper;
+use crate::worker::network_helpers::ws_client::WsClient;
 use chrono::Utc;
 use regex::Regex;
 use rustc_serialize::json::{Array, Json, Object};
@@ -108,7 +108,7 @@ pub fn subscribe_channel(
         .unwrap()
         .get_websocket_on_open_msg(&pair, channel);
 
-    let socker_helper = SocketHelper::new(url, on_open_msg, pair, |pair: String, info: String| {
+    let ws_client = WsClient::new(url, on_open_msg, pair, |pair: String, info: String| {
         // This is needed for Huobi::parse_last_trade_json()
         let json = repair_json(info);
         if let Some(json) = json {
@@ -120,7 +120,7 @@ pub fn subscribe_channel(
             };
         }
     });
-    socker_helper.start();
+    ws_client.start();
 }
 
 pub fn parse_str_from_json_object<T: FromStr>(object: &Object, key: &str) -> Option<T> {

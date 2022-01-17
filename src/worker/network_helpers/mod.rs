@@ -1,1 +1,1 @@
-pub mod socket_helper;
+pub mod ws_client;
