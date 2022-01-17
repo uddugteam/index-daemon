@@ -183,11 +183,21 @@ impl Worker {
 
     pub fn start(
         &mut self,
-        markets: Option<Vec<&str>>,
-        coins: Option<Vec<&str>>,
-        channels: Option<Vec<&str>>,
+        markets: Option<Vec<String>>,
+        coins: Option<Vec<String>>,
+        channels: Option<Vec<String>>,
         rest_timeout_sec: Option<u64>,
     ) {
+        let markets = markets
+            .as_ref()
+            .map(|v| v.iter().map(|v| v.as_str()).collect());
+        let coins = coins
+            .as_ref()
+            .map(|v| v.iter().map(|v| v.as_str()).collect());
+        let channels = channels
+            .as_ref()
+            .map(|v| v.iter().map(|v| v.as_str()).collect());
+
         self.configure(markets, coins, channels, rest_timeout_sec);
 
         let worker = Arc::clone(self.arc.as_ref().unwrap());
@@ -435,15 +445,20 @@ pub mod test {
     }
 
     fn inner_test_start(
-        markets: Option<Vec<&str>>,
-        coins: Option<Vec<&str>>,
-        channels: Option<Vec<&str>>,
+        markets: Option<Vec<String>>,
+        coins: Option<Vec<String>>,
+        channels: Option<Vec<String>>,
     ) {
         let (worker, _, rx) = make_worker();
 
+        let markets_2 = markets
+            .as_ref()
+            .map(|v| v.iter().map(|v| v.as_str()).collect())
+            .unwrap_or(MARKETS.to_vec());
+
         let mut thread_names = Vec::new();
         thread_names.push("fn: refresh_capitalization".to_string());
-        for market in markets.clone().unwrap_or(MARKETS.to_vec()) {
+        for market in markets_2 {
             let thread_name = format!("fn: perform, market: {}", market);
             thread_names.push(thread_name);
         }
@@ -461,9 +476,9 @@ pub mod test {
     #[test]
     #[timeout(2000)]
     fn test_start_with_custom_params() {
-        let markets = Some(vec!["binance", "bitfinex"]);
-        let coins = Some(vec!["ABC", "DEF"]);
-        let channels = Some(vec!["ticker"]);
+        let markets = Some(vec!["binance".to_string(), "bitfinex".to_string()]);
+        let coins = Some(vec!["ABC".to_string(), "DEF".to_string()]);
+        let channels = Some(vec!["ticker".to_string()]);
 
         inner_test_start(markets, coins, channels);
     }
@@ -471,7 +486,7 @@ pub mod test {
     #[test]
     #[should_panic]
     fn test_start_panic() {
-        let markets = Some(vec!["not_existing_market"]);
+        let markets = Some(vec!["not_existing_market".to_string()]);
 
         inner_test_start(markets, None, None);
     }
@@ -479,7 +494,7 @@ pub mod test {
     #[test]
     #[should_panic]
     fn test_start_panic_2() {
-        let channels = Some(vec!["not_existing_channel"]);
+        let channels = Some(vec!["not_existing_channel".to_string()]);
 
         inner_test_start(None, None, channels);
     }
