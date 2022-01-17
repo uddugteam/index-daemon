@@ -160,12 +160,11 @@ impl Worker {
         markets: Option<Vec<&str>>,
         coins: Option<Vec<&str>>,
         channels: Option<Vec<&str>>,
-        rest_timeout_sec: Option<u64>,
+        rest_timeout_sec: u64,
     ) {
         let market_names = markets.unwrap_or(MARKETS.to_vec());
         let exchange_pairs = Self::make_exchange_pairs(coins, None);
         let channels = channels.map(|v| v.into_iter().map(|v| v.parse().unwrap()).collect());
-        let rest_timeout_sec = rest_timeout_sec.unwrap_or(1);
 
         for market_name in market_names {
             let worker_2 = Arc::clone(self.arc.as_ref().unwrap());
@@ -205,7 +204,7 @@ impl Worker {
         markets: Option<Vec<String>>,
         coins: Option<Vec<String>>,
         channels: Option<Vec<String>>,
-        rest_timeout_sec: Option<u64>,
+        rest_timeout_sec: u64,
         ws: bool,
         ws_host: String,
         ws_port: String,

@@ -63,7 +63,7 @@ fn get_all_configs() -> (
     Option<Vec<String>>,
     Option<Vec<String>>,
     Option<Vec<String>>,
-    Option<u64>,
+    u64,
     bool,
     String,
     String,
@@ -78,7 +78,7 @@ fn get_all_configs() -> (
     let rest_timeout_sec = service_config
         .get_str("rest_timeout_sec")
         .map(|v| v.parse().unwrap())
-        .ok();
+        .unwrap_or(1);
 
     let ws = if let Ok(ws) = service_config.get_str("ws") {
         if ws == "1" {
