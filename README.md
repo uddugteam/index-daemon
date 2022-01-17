@@ -17,6 +17,9 @@ All configs are optional.
 
 - **log_level** - string. Variants: error, warn, info, debug, trace.
 - **rest_timeout_sec** - u64. Timeout in seconds between requests to REST API.
+- **ws** - string ("1" - on, default - off). Turn on websocket sever.
+- **ws_host** - string (default: 127.0.0.1). Websocket server host.
+- **ws_port** - string (default: 8080). Websocket server port.
 
 #### market_config
 

@@ -15,6 +15,7 @@ use std::time;
 
 use crate::worker::market_helpers::market::{market_factory, Market};
 use crate::worker::market_helpers::market_spine::MarketSpine;
+use crate::worker::network_helpers::ws_server::WsServer;
 
 pub struct Worker {
     arc: Option<Arc<Mutex<Self>>>,
@@ -181,12 +182,29 @@ impl Worker {
         }
     }
 
+    fn start_ws(&self, ws: bool, ws_host: String, ws_port: String) {
+        if ws {
+            let thread_name = "fn: start_ws".to_string();
+            let thread = thread::Builder::new()
+                .name(thread_name)
+                .spawn(move || {
+                    let ws_server = WsServer { ws_host, ws_port };
+                    ws_server.start();
+                })
+                .unwrap();
+            self.tx.send(thread).unwrap();
+        }
+    }
+
     pub fn start(
         &mut self,
         markets: Option<Vec<String>>,
         coins: Option<Vec<String>>,
         channels: Option<Vec<String>>,
         rest_timeout_sec: Option<u64>,
+        ws: bool,
+        ws_host: String,
+        ws_port: String,
     ) {
         let markets = markets
             .as_ref()
@@ -199,6 +217,7 @@ impl Worker {
             .map(|v| v.iter().map(|v| v.as_str()).collect());
 
         self.configure(markets, coins, channels, rest_timeout_sec);
+        self.start_ws(ws, ws_host, ws_port);
 
         let worker = Arc::clone(self.arc.as_ref().unwrap());
         let thread_name = "fn: refresh_capitalization".to_string();
