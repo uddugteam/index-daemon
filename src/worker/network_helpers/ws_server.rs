@@ -47,6 +47,7 @@ impl WsServer {
         loop {
             // Answer with the same message
             if broadcast_recipient.unbounded_send(msg.clone()).is_ok() {
+                // TODO: Replace hardcoded value (1000 millis) with param
                 thread::sleep(time::Duration::from_millis(1000));
             } else {
                 // Send msg error. The client is likely disconnected. We stop sending him messages.

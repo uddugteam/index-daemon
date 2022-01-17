@@ -228,7 +228,7 @@ impl Worker {
                     // if success
                     break;
                 } else {
-                    //if error
+                    // if error
                     thread::sleep(time::Duration::from_millis(10000));
                 }
             })
