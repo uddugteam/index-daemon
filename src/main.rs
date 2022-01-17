@@ -74,11 +74,16 @@ fn get_all_configs() -> (
     let log_level = service_config
         .get_str("log_level")
         .unwrap_or("trace".to_string());
-
     let rest_timeout_sec = service_config
         .get_str("rest_timeout_sec")
         .map(|v| v.parse().unwrap())
         .unwrap_or(1);
+    if rest_timeout_sec < 1 {
+        panic!(
+            "Got wrong config value. service_config: rest_timeout_sec={}",
+            rest_timeout_sec
+        );
+    }
 
     let ws = if let Ok(ws) = service_config.get_str("ws") {
         if ws == "1" {
@@ -103,11 +108,16 @@ fn get_all_configs() -> (
     let ws_port = service_config
         .get_str("ws_port")
         .unwrap_or("8080".to_string());
-
     let ws_answer_timeout_sec = service_config
         .get_str("ws_answer_timeout_sec")
         .map(|v| v.parse().unwrap())
         .unwrap_or(1);
+    if ws_answer_timeout_sec < 1 {
+        panic!(
+            "Got wrong config value. service_config: ws_answer_timeout_sec={}",
+            ws_answer_timeout_sec
+        );
+    }
 
     let mut builder = Builder::from_default_env();
     builder.filter(Some("index_daemon"), log_level.parse().unwrap());
