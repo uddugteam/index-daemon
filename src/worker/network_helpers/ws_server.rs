@@ -22,6 +22,7 @@ type PeerMap = Arc<Mutex<HashMap<SocketAddr, Tx>>>;
 pub struct WsServer {
     pub ws_host: String,
     pub ws_port: String,
+    pub ws_answer_timeout_sec: u64,
 }
 
 impl WsServer {
@@ -37,7 +38,12 @@ impl WsServer {
         )
     }
 
-    fn process_request(client_addr: &SocketAddr, broadcast_recipient: Tx, msg: Message) {
+    fn process_request(
+        client_addr: &SocketAddr,
+        broadcast_recipient: Tx,
+        msg: Message,
+        ws_answer_timeout_sec: u64,
+    ) {
         // There we should parse json to get request params
         info!(
             "Client with addr: {} subscribed with params: {}",
@@ -47,8 +53,7 @@ impl WsServer {
         loop {
             // Answer with the same message
             if broadcast_recipient.unbounded_send(msg.clone()).is_ok() {
-                // TODO: Replace hardcoded value (1000 millis) with param
-                thread::sleep(time::Duration::from_millis(1000));
+                thread::sleep(time::Duration::from_millis(ws_answer_timeout_sec));
             } else {
                 // Send msg error. The client is likely disconnected. We stop sending him messages.
                 break;
@@ -56,7 +61,12 @@ impl WsServer {
         }
     }
 
-    async fn handle_connection(peer_map: PeerMap, raw_stream: TcpStream, client_addr: SocketAddr) {
+    async fn handle_connection(
+        peer_map: PeerMap,
+        raw_stream: TcpStream,
+        client_addr: SocketAddr,
+        ws_answer_timeout_sec: u64,
+    ) {
         match async_tungstenite::accept_async(raw_stream).await {
             Ok(ws_stream) => {
                 info!(
@@ -86,7 +96,12 @@ impl WsServer {
                             thread::Builder::new()
                                 .name(thread_name)
                                 .spawn(move || {
-                                    Self::process_request(&client_addr, broadcast_recipient, msg)
+                                    Self::process_request(
+                                        &client_addr,
+                                        broadcast_recipient,
+                                        msg,
+                                        ws_answer_timeout_sec,
+                                    )
                                 })
                                 .unwrap();
                         } else {
@@ -125,7 +140,12 @@ impl WsServer {
 
         // Let's spawn the handling of each connection in a separate task.
         while let Ok((stream, client_addr)) = listener.accept().await {
-            let _ = task::spawn(Self::handle_connection(state.clone(), stream, client_addr));
+            let _ = task::spawn(Self::handle_connection(
+                state.clone(),
+                stream,
+                client_addr,
+                self.ws_answer_timeout_sec,
+            ));
         }
 
         Ok(())

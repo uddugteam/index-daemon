@@ -182,13 +182,17 @@ impl Worker {
         }
     }
 
-    fn start_ws(&self, ws: bool, ws_host: String, ws_port: String) {
+    fn start_ws(&self, ws: bool, ws_host: String, ws_port: String, ws_answer_timeout_sec: u64) {
         if ws {
             let thread_name = "fn: start_ws".to_string();
             let thread = thread::Builder::new()
                 .name(thread_name)
                 .spawn(move || {
-                    let ws_server = WsServer { ws_host, ws_port };
+                    let ws_server = WsServer {
+                        ws_host,
+                        ws_port,
+                        ws_answer_timeout_sec,
+                    };
                     ws_server.start();
                 })
                 .unwrap();
@@ -205,6 +209,7 @@ impl Worker {
         ws: bool,
         ws_host: String,
         ws_port: String,
+        ws_answer_timeout_sec: u64,
     ) {
         let markets = markets
             .as_ref()
@@ -217,7 +222,7 @@ impl Worker {
             .map(|v| v.iter().map(|v| v.as_str()).collect());
 
         self.configure(markets, coins, channels, rest_timeout_sec);
-        self.start_ws(ws, ws_host, ws_port);
+        self.start_ws(ws, ws_host, ws_port, ws_answer_timeout_sec);
 
         let worker = Arc::clone(self.arc.as_ref().unwrap());
         let thread_name = "fn: refresh_capitalization".to_string();

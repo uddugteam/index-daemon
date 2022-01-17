@@ -67,6 +67,7 @@ fn get_all_configs() -> (
     bool,
     String,
     String,
+    u64,
 ) {
     let service_config = get_config("service_config");
 
@@ -89,11 +90,11 @@ fn get_all_configs() -> (
         false
     };
     if !ws
-        && (service_config.get_str("ws_host").is_ok() || service_config.get_str("ws_port").is_ok())
+        && (service_config.get_str("ws_host").is_ok()
+            || service_config.get_str("ws_port").is_ok()
+            || service_config.get_str("ws_answer_timeout_sec").is_ok())
     {
-        panic!(
-            "Got unexpected config. service_config: ws_host. That config is allowed only if ws=1"
-        );
+        panic!("Got unexpected config. service_config: ws_*. That config is allowed only if ws=1");
     }
 
     let ws_host = service_config
@@ -102,6 +103,11 @@ fn get_all_configs() -> (
     let ws_port = service_config
         .get_str("ws_port")
         .unwrap_or("8080".to_string());
+
+    let ws_answer_timeout_sec = service_config
+        .get_str("ws_answer_timeout_sec")
+        .map(|v| v.parse().unwrap())
+        .unwrap_or(1);
 
     let mut builder = Builder::from_default_env();
     builder.filter(Some("index_daemon"), log_level.parse().unwrap());
@@ -121,11 +127,13 @@ fn get_all_configs() -> (
         ws,
         ws_host,
         ws_port,
+        ws_answer_timeout_sec,
     )
 }
 
 fn main() {
-    let (markets, coins, channels, rest_timeout_sec, ws, ws_host, ws_port) = get_all_configs();
+    let (markets, coins, channels, rest_timeout_sec, ws, ws_host, ws_port, ws_answer_timeout_sec) =
+        get_all_configs();
 
     let (tx, rx) = mpsc::channel();
     let worker = Worker::new(tx);
@@ -137,6 +145,7 @@ fn main() {
         ws,
         ws_host,
         ws_port,
+        ws_answer_timeout_sec,
     );
 
     for received_thread in rx {
