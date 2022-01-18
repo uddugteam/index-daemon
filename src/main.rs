@@ -1,6 +1,13 @@
 use clap::{App, Arg};
 use env_logger::Builder;
-use std::sync::mpsc;
+use libc::c_int;
+use signal_hook::{
+    consts::signal::{SIGINT, SIGQUIT, SIGTERM},
+    iterator::Signals,
+    low_level,
+};
+use std::sync::{mpsc, Arc, Mutex};
+use std::thread;
 
 use crate::worker::worker::Worker;
 
@@ -9,6 +16,8 @@ extern crate log;
 
 mod repository;
 mod worker;
+
+const SIGNALS: &[c_int] = &[SIGINT, SIGQUIT, SIGTERM];
 
 fn get_config_file_path(key: &str) -> Option<String> {
     let matches = App::new("ICEX")
@@ -141,12 +150,53 @@ fn get_all_configs() -> (
     )
 }
 
+fn start_force_shutdown_listener() {
+    let thread_name = "fn: start_force_shutdown_listener".to_string();
+    // Do not join
+    let _ = thread::Builder::new()
+        .name(thread_name)
+        .spawn(move || {
+            for signal in &mut Signals::new(SIGNALS).unwrap() {
+                println!("Force stopping...");
+                low_level::emulate_default_handler(signal).unwrap();
+            }
+        })
+        .unwrap();
+}
+
+fn start_graceful_shutdown_listener() -> Arc<Mutex<bool>> {
+    let graceful_shutdown = Arc::new(Mutex::new(false));
+    let graceful_shutdown_2 = Arc::clone(&graceful_shutdown);
+
+    let thread_name = "fn: start_graceful_shutdown_listener".to_string();
+    // Do not join
+    let _ = thread::Builder::new()
+        .name(thread_name)
+        .spawn(move || {
+            if (&mut Signals::new(SIGNALS).unwrap())
+                .into_iter()
+                .next()
+                .is_some()
+            {
+                println!("Gracefully stopping... (press Ctrl+C again to force)");
+                start_force_shutdown_listener();
+
+                *graceful_shutdown_2.lock().unwrap() = true;
+            }
+        })
+        .unwrap();
+
+    graceful_shutdown
+}
+
 fn main() {
+    let graceful_shutdown = start_graceful_shutdown_listener();
+
     let (markets, coins, channels, rest_timeout_sec, ws, ws_host, ws_port, ws_answer_timeout_sec) =
         get_all_configs();
 
     let (tx, rx) = mpsc::channel();
-    let worker = Worker::new(tx);
+    let worker = Worker::new(tx, Arc::clone(&graceful_shutdown));
     worker.lock().unwrap().start(
         markets,
         coins,
@@ -159,6 +209,23 @@ fn main() {
     );
 
     for received_thread in rx {
-        let _ = received_thread.join();
+        let thread_name = received_thread.thread().name().unwrap();
+        if *graceful_shutdown.lock().unwrap()
+            && (thread_name.starts_with("fn: perform")
+                || thread_name.starts_with("fn: update")
+                || thread_name.starts_with("fn: subscribe_channel")
+                || thread_name.starts_with("fn: refresh_capitalization")
+                || thread_name.starts_with("fn: recalculate_total_volume")
+                || thread_name.starts_with("fn: recalculate_pair_average_trade_price"))
+        {
+            // Do not join
+
+            // We do not join these threads, when graceful_shutdown is called, because we want but can't terminate them
+            println!("Do not join: {}", thread_name);
+        } else {
+            // Join
+            println!("Join: {}", thread_name);
+            let _ = received_thread.join();
+        }
     }
 }

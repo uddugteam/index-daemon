@@ -109,6 +109,10 @@ pub fn subscribe_channel(
         .get_websocket_on_open_msg(&pair, channel);
 
     let ws_client = WsClient::new(url, on_open_msg, pair, |pair: String, info: String| {
+        if is_graceful_shutdown(&market) {
+            return;
+        }
+
         // This is needed for Huobi::parse_last_trade_json()
         let json = repair_json(info);
         if let Some(json) = json {
@@ -172,6 +176,16 @@ pub fn depth_helper_v2(json: &Json) -> Vec<(f64, f64)> {
         .collect()
 }
 
+fn is_graceful_shutdown(market: &Arc<Mutex<dyn Market + Send>>) -> bool {
+    *market
+        .lock()
+        .unwrap()
+        .get_spine()
+        .graceful_shutdown
+        .lock()
+        .unwrap()
+}
+
 fn update(market: Arc<Mutex<dyn Market + Send>>) {
     let market_is_poloniex = market.lock().unwrap().get_spine().name == "poloniex";
     let market_is_ftx = market.lock().unwrap().get_spine().name == "ftx";
@@ -209,6 +223,10 @@ fn update(market: Arc<Mutex<dyn Market + Send>>) {
         let do_websocket = !(market_is_ftx && channel_is_ticker) || market_is_gemini;
 
         for exchange_pair in exchange_pairs {
+            if is_graceful_shutdown(&market) {
+                return;
+            }
+
             if do_rest_api {
                 let market_2 = Arc::clone(&market);
                 let pair = exchange_pair.to_string();
@@ -223,6 +241,10 @@ fn update(market: Arc<Mutex<dyn Market + Send>>) {
                 let thread = thread::Builder::new()
                     .name(thread_name)
                     .spawn(move || loop {
+                        if is_graceful_shutdown(&market_2) {
+                            return;
+                        }
+
                         let update_ticker_result =
                             market_2.lock().unwrap().update_ticker(pair.clone());
                         if update_ticker_result.is_some() {
@@ -254,6 +276,10 @@ fn update(market: Arc<Mutex<dyn Market + Send>>) {
                 let thread = thread::Builder::new()
                     .name(thread_name)
                     .spawn(move || loop {
+                        if is_graceful_shutdown(&market_2) {
+                            return;
+                        }
+
                         subscribe_channel(Arc::clone(&market_2), pair.clone(), channel);
                         thread::sleep(time::Duration::from_millis(10000));
                     })

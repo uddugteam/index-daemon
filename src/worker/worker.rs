@@ -20,6 +20,7 @@ use crate::worker::network_helpers::ws_server::WsServer;
 pub struct Worker {
     arc: Option<Arc<Mutex<Self>>>,
     tx: Sender<JoinHandle<()>>,
+    graceful_shutdown: Arc<Mutex<bool>>,
     markets: Vec<Arc<Mutex<dyn Market + Send>>>,
     pair_average_trade_price: HashMap<(String, String), f64>,
     pair_average_trade_price_repository: Arc<Mutex<dyn Repository<(String, String), f64> + Send>>,
@@ -27,14 +28,22 @@ pub struct Worker {
     last_capitalization_refresh: DateTime<Utc>,
 }
 
+pub fn is_graceful_shutdown(worker: &Arc<Mutex<Worker>>) -> bool {
+    *worker.lock().unwrap().graceful_shutdown.lock().unwrap()
+}
+
 impl Worker {
-    pub fn new(tx: Sender<JoinHandle<()>>) -> Arc<Mutex<Self>> {
+    pub fn new(
+        tx: Sender<JoinHandle<()>>,
+        graceful_shutdown: Arc<Mutex<bool>>,
+    ) -> Arc<Mutex<Self>> {
         let pair_average_trade_price_repository =
             Arc::new(Mutex::new(PairAverageTradePriceCache::new()));
 
         let worker = Worker {
             arc: None,
             tx,
+            graceful_shutdown,
             markets: Vec::new(),
             pair_average_trade_price: HashMap::new(),
             pair_average_trade_price_repository,
@@ -75,6 +84,28 @@ impl Worker {
         info!("new {}-{} average trade price: {}", pair.0, pair.1, new_avg);
 
         self.set_pair_average_trade_price(pair, new_avg);
+    }
+
+    fn refresh_capitalization_thread(&self) {
+        let worker = Arc::clone(self.arc.as_ref().unwrap());
+        let thread_name = "fn: refresh_capitalization".to_string();
+        let thread = thread::Builder::new()
+            .name(thread_name)
+            .spawn(move || loop {
+                if is_graceful_shutdown(&worker) {
+                    return;
+                }
+
+                if Self::refresh_capitalization(Arc::clone(&worker)).is_some() {
+                    // if success
+                    break;
+                } else {
+                    // if error
+                    thread::sleep(time::Duration::from_millis(10000));
+                }
+            })
+            .unwrap();
+        self.tx.send(thread).unwrap();
     }
 
     fn refresh_capitalization(worker: Arc<Mutex<Self>>) -> Option<()> {
@@ -155,6 +186,10 @@ impl Worker {
         exchange_pairs
     }
 
+    fn is_graceful_shutdown(&self) -> bool {
+        *self.graceful_shutdown.lock().unwrap()
+    }
+
     fn configure(
         &mut self,
         markets: Option<Vec<&str>>,
@@ -174,6 +209,7 @@ impl Worker {
                 rest_timeout_sec,
                 market_name.to_string(),
                 channels.clone(),
+                Arc::clone(&self.graceful_shutdown),
             );
             let market = market_factory(market_spine, exchange_pairs.clone());
 
@@ -181,7 +217,14 @@ impl Worker {
         }
     }
 
-    fn start_ws(&self, ws: bool, ws_host: String, ws_port: String, ws_answer_timeout_sec: u64) {
+    fn start_ws(
+        &self,
+        ws: bool,
+        ws_host: String,
+        ws_port: String,
+        ws_answer_timeout_sec: u64,
+        graceful_shutdown: Arc<Mutex<bool>>,
+    ) {
         if ws {
             let thread_name = "fn: start_ws".to_string();
             let thread = thread::Builder::new()
@@ -191,6 +234,7 @@ impl Worker {
                         ws_host,
                         ws_port,
                         ws_answer_timeout_sec,
+                        graceful_shutdown,
                     };
                     ws_server.start();
                 })
@@ -221,25 +265,21 @@ impl Worker {
             .map(|v| v.iter().map(|v| v.as_str()).collect());
 
         self.configure(markets, coins, channels, rest_timeout_sec);
-        self.start_ws(ws, ws_host, ws_port, ws_answer_timeout_sec);
+        self.start_ws(
+            ws,
+            ws_host,
+            ws_port,
+            ws_answer_timeout_sec,
+            self.graceful_shutdown.clone(),
+        );
 
-        let worker = Arc::clone(self.arc.as_ref().unwrap());
-        let thread_name = "fn: refresh_capitalization".to_string();
-        let thread = thread::Builder::new()
-            .name(thread_name)
-            .spawn(move || loop {
-                if Self::refresh_capitalization(Arc::clone(&worker)).is_some() {
-                    // if success
-                    break;
-                } else {
-                    // if error
-                    thread::sleep(time::Duration::from_millis(10000));
-                }
-            })
-            .unwrap();
-        self.tx.send(thread).unwrap();
+        self.refresh_capitalization_thread();
 
         for market in self.markets.iter().cloned() {
+            if self.is_graceful_shutdown() {
+                return;
+            }
+
             let thread_name = format!(
                 "fn: perform, market: {}",
                 market.lock().unwrap().get_spine().name,

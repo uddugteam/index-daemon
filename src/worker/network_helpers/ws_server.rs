@@ -19,6 +19,7 @@ pub struct WsServer {
     pub ws_host: String,
     pub ws_port: String,
     pub ws_answer_timeout_sec: u64,
+    pub graceful_shutdown: Arc<Mutex<bool>>,
 }
 
 impl WsServer {
@@ -51,6 +52,7 @@ impl WsServer {
         request: String,
         request_params: String,
         ws_answer_timeout_sec: u64,
+        graceful_shutdown: Arc<Mutex<bool>>,
     ) {
         info!(
             "Client with addr: {} subscribed with params: {}",
@@ -66,6 +68,10 @@ impl WsServer {
             let response = Message::from(response);
 
             loop {
+                if *graceful_shutdown.lock().unwrap() {
+                    return;
+                }
+
                 if broadcast_recipient.unbounded_send(response.clone()).is_ok() {
                     thread::sleep(time::Duration::from_millis(ws_answer_timeout_sec));
                 } else {
@@ -86,6 +92,7 @@ impl WsServer {
         raw_stream: TcpStream,
         client_addr: SocketAddr,
         ws_answer_timeout_sec: u64,
+        graceful_shutdown: Arc<Mutex<bool>>,
     ) {
         match async_tungstenite::accept_async(raw_stream).await {
             Ok(ws_stream) => {
@@ -107,6 +114,10 @@ impl WsServer {
                         future::ready(!request.is_close())
                     })
                     .try_for_each(|request| {
+                        if *graceful_shutdown.lock().unwrap() {
+                            return future::ok(());
+                        }
+
                         let request = request.to_string();
 
                         if let Some(request_params) = Self::parse_request_params(&request) {
@@ -115,6 +126,7 @@ impl WsServer {
 
                             // Change "remove" to "get" when multiple messages within one connection will be allowed
                             if let Some(broadcast_recipient) = peers.remove(&client_addr) {
+                                let graceful_shutdown_2 = Arc::clone(&graceful_shutdown);
                                 let thread_name = format!(
                                     "fn: process_request, addr: {} with params: {}",
                                     client_addr, request_params
@@ -128,6 +140,7 @@ impl WsServer {
                                             request,
                                             request_params,
                                             ws_answer_timeout_sec,
+                                            graceful_shutdown_2,
                                         )
                                     })
                                     .unwrap();
@@ -170,11 +183,16 @@ impl WsServer {
 
         // Let's spawn the handling of each connection in a separate task.
         while let Ok((stream, client_addr)) = listener.accept().await {
+            if *self.graceful_shutdown.lock().unwrap() {
+                break;
+            }
+
             let _ = task::spawn(Self::handle_connection(
                 state.clone(),
                 stream,
                 client_addr,
                 self.ws_answer_timeout_sec,
+                Arc::clone(&self.graceful_shutdown),
             ));
         }
 
