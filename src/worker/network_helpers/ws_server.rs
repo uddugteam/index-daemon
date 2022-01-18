@@ -1,20 +1,16 @@
-use std::collections::HashMap;
-use std::io;
-use std::net::SocketAddr;
-use std::sync::Arc;
-use std::sync::Mutex;
-use std::thread;
-use std::time;
-
-use futures::channel::mpsc::unbounded;
-use futures::channel::mpsc::UnboundedSender;
-use futures::future;
-use futures::pin_mut;
-use futures::prelude::*;
-
-use async_std::net::{TcpListener, TcpStream};
-use async_std::task;
+use async_std::{
+    net::{TcpListener, TcpStream},
+    task,
+};
 use async_tungstenite::tungstenite::protocol::Message;
+use futures::{
+    channel::mpsc::{unbounded, UnboundedSender},
+    future, pin_mut,
+    prelude::*,
+};
+use jsonrpc_core::{IoHandler, Params, Value};
+use rustc_serialize::json::Json;
+use std::{collections::HashMap, io, net::SocketAddr, sync::Arc, sync::Mutex, thread, time};
 
 type Tx = UnboundedSender<Message>;
 type PeerMap = Arc<Mutex<HashMap<SocketAddr, Tx>>>;
@@ -30,34 +26,58 @@ impl WsServer {
         let _ = task::block_on(Self::run(self));
     }
 
-    fn make_thread_name_for_request(client_addr: &SocketAddr, msg: &Message) -> String {
-        // There we should parse json to get request params
-        format!(
-            "fn: process_request, addr: {} with params: {}",
-            client_addr, "subscr_params"
-        )
+    fn parse_request_params(request: &str) -> Option<Json> {
+        let json = Json::from_str(request).ok()?;
+        let params = json.as_object()?.get("params").cloned();
+
+        params
+    }
+
+    // TODO: Implement
+    fn fill_response(response: &mut String, value: Json) {}
+
+    fn make_io_handler() -> IoHandler {
+        let mut io = IoHandler::new();
+        io.add_sync_method("say_hello", |_params: Params| {
+            Ok(Value::String("dummy".to_string()))
+        });
+
+        io
     }
 
     fn process_request(
         client_addr: &SocketAddr,
         broadcast_recipient: Tx,
-        msg: Message,
+        request: String,
+        request_params: String,
         ws_answer_timeout_sec: u64,
     ) {
-        // There we should parse json to get request params
         info!(
             "Client with addr: {} subscribed with params: {}",
-            client_addr, "subscr_params"
+            client_addr, request_params
         );
 
-        loop {
-            // Answer with the same message
-            if broadcast_recipient.unbounded_send(msg.clone()).is_ok() {
-                thread::sleep(time::Duration::from_millis(ws_answer_timeout_sec));
-            } else {
-                // Send msg error. The client is likely disconnected. We stop sending him messages.
-                break;
+        let io = Self::make_io_handler();
+
+        if let Some(mut response) = io.handle_request_sync(&request) {
+            // TODO: Replace dummy with real value
+            let response_json = Json::from_str("{}").unwrap();
+            Self::fill_response(&mut response, response_json);
+            let response = Message::from(response);
+
+            loop {
+                if broadcast_recipient.unbounded_send(response.clone()).is_ok() {
+                    thread::sleep(time::Duration::from_millis(ws_answer_timeout_sec));
+                } else {
+                    // Send msg error. The client is likely disconnected. We stop sending him messages.
+                    break;
+                }
             }
+        } else {
+            error!(
+                "Handle request error. Client addr: {}, params: {}",
+                client_addr, request_params
+            );
         }
     }
 
@@ -81,32 +101,42 @@ impl WsServer {
                 let (outgoing, incoming) = ws_stream.split();
 
                 let broadcast_incoming = incoming
-                    .try_filter(|msg| {
+                    .try_filter(|request| {
                         // Broadcasting a Close message from one client
                         // will close the other clients.
-                        future::ready(!msg.is_close())
+                        future::ready(!request.is_close())
                     })
-                    .try_for_each(|msg| {
-                        let mut peers = peer_map.lock().unwrap();
+                    .try_for_each(|request| {
+                        let request = request.to_string();
 
-                        // Change "remove" to "get" when multiple messages within one connection will be allowed
-                        if let Some(broadcast_recipient) = peers.remove(&client_addr) {
-                            let thread_name =
-                                Self::make_thread_name_for_request(&client_addr, &msg);
-                            thread::Builder::new()
-                                .name(thread_name)
-                                .spawn(move || {
-                                    Self::process_request(
-                                        &client_addr,
-                                        broadcast_recipient,
-                                        msg,
-                                        ws_answer_timeout_sec,
-                                    )
-                                })
-                                .unwrap();
+                        if let Some(request_params) = Self::parse_request_params(&request) {
+                            let request_params = request_params.to_string();
+                            let mut peers = peer_map.lock().unwrap();
+
+                            // Change "remove" to "get" when multiple messages within one connection will be allowed
+                            if let Some(broadcast_recipient) = peers.remove(&client_addr) {
+                                let thread_name = format!(
+                                    "fn: process_request, addr: {} with params: {}",
+                                    client_addr, request_params
+                                );
+                                thread::Builder::new()
+                                    .name(thread_name)
+                                    .spawn(move || {
+                                        Self::process_request(
+                                            &client_addr,
+                                            broadcast_recipient,
+                                            request,
+                                            request_params,
+                                            ws_answer_timeout_sec,
+                                        )
+                                    })
+                                    .unwrap();
+                            } else {
+                                // FSR broadcast recipient is not found. Likely he sent two messages,
+                                // while only one message within one connection is allowed.
+                            }
                         } else {
-                            // FSR broadcast recipient is not found. Likely he sent two messages,
-                            // while only one message within one connection is allowed.
+                            // Requests with no params are forbidden
                         }
 
                         future::ok(())
