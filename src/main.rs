@@ -196,7 +196,7 @@ fn main() {
         get_all_configs();
 
     let (tx, rx) = mpsc::channel();
-    let worker = Worker::new(tx, Arc::clone(&graceful_shutdown));
+    let worker = Worker::new(tx, graceful_shutdown);
     worker.lock().unwrap().start(
         markets,
         coins,
@@ -208,35 +208,7 @@ fn main() {
         ws_answer_timeout_sec,
     );
 
-    let dont_wait_for_ws_server_threads = !ws;
-    let mut start_ws_is_joined = false;
-    let mut process_request_is_joined = false;
-    loop {
-        let is_graceful_shutdown = *graceful_shutdown.lock().unwrap();
-
-        if let Ok(received_thread) = rx.try_recv() {
-            let thread_name = received_thread.thread().name().unwrap();
-
-            // If we received graceful_shutdown signal, we join only these threads
-            if thread_name.starts_with("fn: start_ws") {
-                start_ws_is_joined = true;
-                println!("Join: {}", thread_name);
-                let _ = received_thread.join();
-            } else if thread_name.starts_with("fn: process_request") {
-                process_request_is_joined = true;
-                println!("Join: {}", thread_name);
-                let _ = received_thread.join();
-            } else {
-                println!("Dont join: {}", thread_name);
-            }
-        }
-
-        let all_ws_server_threads_are_joined = start_ws_is_joined && process_request_is_joined;
-
-        if is_graceful_shutdown
-            && (dont_wait_for_ws_server_threads || all_ws_server_threads_are_joined)
-        {
-            break;
-        }
+    for received_thread in rx {
+        let _ = received_thread.join();
     }
 }
