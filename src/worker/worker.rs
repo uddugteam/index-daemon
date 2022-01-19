@@ -15,10 +15,12 @@ use std::time;
 
 use crate::worker::market_helpers::market::{market_factory, Market};
 use crate::worker::market_helpers::market_spine::MarketSpine;
+use crate::worker::network_helpers::ws_server::WsServer;
 
 pub struct Worker {
     arc: Option<Arc<Mutex<Self>>>,
     tx: Sender<JoinHandle<()>>,
+    graceful_shutdown: Arc<Mutex<bool>>,
     markets: Vec<Arc<Mutex<dyn Market + Send>>>,
     pair_average_trade_price: HashMap<(String, String), f64>,
     pair_average_trade_price_repository: Arc<Mutex<dyn Repository<(String, String), f64> + Send>>,
@@ -26,14 +28,22 @@ pub struct Worker {
     last_capitalization_refresh: DateTime<Utc>,
 }
 
+pub fn is_graceful_shutdown(worker: &Arc<Mutex<Worker>>) -> bool {
+    *worker.lock().unwrap().graceful_shutdown.lock().unwrap()
+}
+
 impl Worker {
-    pub fn new(tx: Sender<JoinHandle<()>>) -> Arc<Mutex<Self>> {
+    pub fn new(
+        tx: Sender<JoinHandle<()>>,
+        graceful_shutdown: Arc<Mutex<bool>>,
+    ) -> Arc<Mutex<Self>> {
         let pair_average_trade_price_repository =
             Arc::new(Mutex::new(PairAverageTradePriceCache::new()));
 
         let worker = Worker {
             arc: None,
             tx,
+            graceful_shutdown,
             markets: Vec::new(),
             pair_average_trade_price: HashMap::new(),
             pair_average_trade_price_repository,
@@ -74,6 +84,28 @@ impl Worker {
         info!("new {}-{} average trade price: {}", pair.0, pair.1, new_avg);
 
         self.set_pair_average_trade_price(pair, new_avg);
+    }
+
+    fn refresh_capitalization_thread(&self) {
+        let worker = Arc::clone(self.arc.as_ref().unwrap());
+        let thread_name = "fn: refresh_capitalization".to_string();
+        let thread = thread::Builder::new()
+            .name(thread_name)
+            .spawn(move || loop {
+                if is_graceful_shutdown(&worker) {
+                    return;
+                }
+
+                if Self::refresh_capitalization(Arc::clone(&worker)).is_some() {
+                    // if success
+                    break;
+                } else {
+                    // if error
+                    thread::sleep(time::Duration::from_millis(10000));
+                }
+            })
+            .unwrap();
+        self.tx.send(thread).unwrap();
     }
 
     fn refresh_capitalization(worker: Arc<Mutex<Self>>) -> Option<()> {
@@ -154,17 +186,20 @@ impl Worker {
         exchange_pairs
     }
 
+    fn is_graceful_shutdown(&self) -> bool {
+        *self.graceful_shutdown.lock().unwrap()
+    }
+
     fn configure(
         &mut self,
         markets: Option<Vec<&str>>,
         coins: Option<Vec<&str>>,
         channels: Option<Vec<&str>>,
-        rest_timeout_sec: Option<u64>,
+        rest_timeout_sec: u64,
     ) {
         let market_names = markets.unwrap_or(MARKETS.to_vec());
         let exchange_pairs = Self::make_exchange_pairs(coins, None);
         let channels = channels.map(|v| v.into_iter().map(|v| v.parse().unwrap()).collect());
-        let rest_timeout_sec = rest_timeout_sec.unwrap_or(1);
 
         for market_name in market_names {
             let worker_2 = Arc::clone(self.arc.as_ref().unwrap());
@@ -174,6 +209,7 @@ impl Worker {
                 rest_timeout_sec,
                 market_name.to_string(),
                 channels.clone(),
+                Arc::clone(&self.graceful_shutdown),
             );
             let market = market_factory(market_spine, exchange_pairs.clone());
 
@@ -181,32 +217,69 @@ impl Worker {
         }
     }
 
+    fn start_ws(
+        &self,
+        ws: bool,
+        ws_host: String,
+        ws_port: String,
+        ws_answer_timeout_sec: u64,
+        graceful_shutdown: Arc<Mutex<bool>>,
+    ) {
+        if ws {
+            let thread_name = "fn: start_ws".to_string();
+            let thread = thread::Builder::new()
+                .name(thread_name)
+                .spawn(move || {
+                    let ws_server = WsServer {
+                        ws_host,
+                        ws_port,
+                        ws_answer_timeout_sec,
+                        graceful_shutdown,
+                    };
+                    ws_server.start();
+                })
+                .unwrap();
+            self.tx.send(thread).unwrap();
+        }
+    }
+
     pub fn start(
         &mut self,
-        markets: Option<Vec<&str>>,
-        coins: Option<Vec<&str>>,
-        channels: Option<Vec<&str>>,
-        rest_timeout_sec: Option<u64>,
+        markets: Option<Vec<String>>,
+        coins: Option<Vec<String>>,
+        channels: Option<Vec<String>>,
+        rest_timeout_sec: u64,
+        ws: bool,
+        ws_host: String,
+        ws_port: String,
+        ws_answer_timeout_sec: u64,
     ) {
-        self.configure(markets, coins, channels, rest_timeout_sec);
+        let markets = markets
+            .as_ref()
+            .map(|v| v.iter().map(|v| v.as_str()).collect());
+        let coins = coins
+            .as_ref()
+            .map(|v| v.iter().map(|v| v.as_str()).collect());
+        let channels = channels
+            .as_ref()
+            .map(|v| v.iter().map(|v| v.as_str()).collect());
 
-        let worker = Arc::clone(self.arc.as_ref().unwrap());
-        let thread_name = "fn: refresh_capitalization".to_string();
-        let thread = thread::Builder::new()
-            .name(thread_name)
-            .spawn(move || loop {
-                if Self::refresh_capitalization(Arc::clone(&worker)).is_some() {
-                    // if success
-                    break;
-                } else {
-                    //if error
-                    thread::sleep(time::Duration::from_millis(10000));
-                }
-            })
-            .unwrap();
-        self.tx.send(thread).unwrap();
+        self.configure(markets, coins, channels, rest_timeout_sec);
+        self.start_ws(
+            ws,
+            ws_host,
+            ws_port,
+            ws_answer_timeout_sec,
+            self.graceful_shutdown.clone(),
+        );
+
+        self.refresh_capitalization_thread();
 
         for market in self.markets.iter().cloned() {
+            if self.is_graceful_shutdown() {
+                return;
+            }
+
             let thread_name = format!(
                 "fn: perform, market: {}",
                 market.lock().unwrap().get_spine().name,
@@ -240,7 +313,8 @@ pub mod test {
         Receiver<JoinHandle<()>>,
     ) {
         let (tx, rx) = mpsc::channel();
-        let worker = Worker::new(tx.clone());
+        let graceful_shutdown = Arc::new(Mutex::new(false));
+        let worker = Worker::new(tx.clone(), graceful_shutdown);
 
         (worker, tx, rx)
     }
@@ -276,7 +350,7 @@ pub mod test {
         worker
             .lock()
             .unwrap()
-            .configure(markets.clone(), coins.clone(), channels.clone(), None);
+            .configure(markets.clone(), coins.clone(), channels.clone(), 1);
 
         let markets = markets.unwrap_or(MARKETS.to_vec());
         assert_eq!(markets.len(), worker.lock().unwrap().markets.len());
@@ -434,21 +508,36 @@ pub mod test {
         inner_test_make_exchange_pairs(coins, fiats, expected_exchange_pairs);
     }
 
+    /// TODO: Add tests for WsServer
     fn inner_test_start(
-        markets: Option<Vec<&str>>,
-        coins: Option<Vec<&str>>,
-        channels: Option<Vec<&str>>,
+        markets: Option<Vec<String>>,
+        coins: Option<Vec<String>>,
+        channels: Option<Vec<String>>,
     ) {
         let (worker, _, rx) = make_worker();
 
+        let markets_2 = markets
+            .as_ref()
+            .map(|v| v.iter().map(|v| v.as_str()).collect())
+            .unwrap_or(MARKETS.to_vec());
+
         let mut thread_names = Vec::new();
         thread_names.push("fn: refresh_capitalization".to_string());
-        for market in markets.clone().unwrap_or(MARKETS.to_vec()) {
+        for market in markets_2 {
             let thread_name = format!("fn: perform, market: {}", market);
             thread_names.push(thread_name);
         }
 
-        worker.lock().unwrap().start(markets, coins, channels, None);
+        worker.lock().unwrap().start(
+            markets,
+            coins,
+            channels,
+            1,
+            false,
+            "".to_string(),
+            "".to_string(),
+            1,
+        );
         check_threads(thread_names, rx);
     }
 
@@ -461,9 +550,9 @@ pub mod test {
     #[test]
     #[timeout(2000)]
     fn test_start_with_custom_params() {
-        let markets = Some(vec!["binance", "bitfinex"]);
-        let coins = Some(vec!["ABC", "DEF"]);
-        let channels = Some(vec!["ticker"]);
+        let markets = Some(vec!["binance".to_string(), "bitfinex".to_string()]);
+        let coins = Some(vec!["ABC".to_string(), "DEF".to_string()]);
+        let channels = Some(vec!["ticker".to_string()]);
 
         inner_test_start(markets, coins, channels);
     }
@@ -471,7 +560,7 @@ pub mod test {
     #[test]
     #[should_panic]
     fn test_start_panic() {
-        let markets = Some(vec!["not_existing_market"]);
+        let markets = Some(vec!["not_existing_market".to_string()]);
 
         inner_test_start(markets, None, None);
     }
@@ -479,7 +568,7 @@ pub mod test {
     #[test]
     #[should_panic]
     fn test_start_panic_2() {
-        let channels = Some(vec!["not_existing_channel"]);
+        let channels = Some(vec!["not_existing_channel".to_string()]);
 
         inner_test_start(None, None, channels);
     }

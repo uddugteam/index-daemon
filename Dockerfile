@@ -20,11 +20,14 @@ FROM debian:bullseye-slim
 LABEL description="This is the 2nd stage: a very small image where we copy the Index-daemon binary."
 ARG PROFILE=release
 
+COPY --from=builder /app/target/$PROFILE/index-daemon /usr/local/bin
+
+RUN apt-get update \
+        && apt-get -y install make openssh-client ca-certificates && update-ca-certificates
+
 RUN mv /usr/share/ca* /tmp && \
 	rm -rf /usr/share/*  && \
 	mv /tmp/ca-certificates /usr/share/
-
-COPY --from=builder /app/target/$PROFILE/index-daemon /usr/local/bin
 
 # checks
 RUN ldd /usr/local/bin/index-daemon && \
@@ -33,8 +36,5 @@ RUN ldd /usr/local/bin/index-daemon && \
 # Shrinking
 RUN rm -rf /usr/lib/python* && \
 	rm -rf /usr/bin /usr/sbin /usr/share/man
-
-RUN apt-get update \
-        && apt-get -y install make openssh-client ca-certificates && update-ca-certificates
 
 CMD ["/usr/local/bin/index-daemon"]

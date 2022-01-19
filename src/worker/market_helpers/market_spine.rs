@@ -4,7 +4,7 @@ use crate::worker::market_helpers::exchange_pair_info::ExchangePairInfo;
 use crate::worker::market_helpers::exchange_pair_info::ExchangePairInfoTrait;
 use crate::worker::market_helpers::market::Market;
 use crate::worker::market_helpers::market_channels::MarketChannels;
-use crate::worker::worker::Worker;
+use crate::worker::worker::{self, Worker};
 use std::collections::HashMap;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
@@ -24,6 +24,7 @@ pub struct MarketSpine {
     conversions: HashMap<String, ConversionType>,
     pairs: HashMap<String, (String, String)>,
     pub channels: Vec<MarketChannels>,
+    pub graceful_shutdown: Arc<Mutex<bool>>,
 }
 impl MarketSpine {
     pub fn new(
@@ -32,6 +33,7 @@ impl MarketSpine {
         rest_timeout_sec: u64,
         name: String,
         channels: Option<Vec<MarketChannels>>,
+        graceful_shutdown: Arc<Mutex<bool>>,
     ) -> Self {
         let channels = channels.unwrap_or(MarketChannels::get_all().to_vec());
 
@@ -66,6 +68,7 @@ impl MarketSpine {
             conversions: HashMap::new(),
             pairs: HashMap::new(),
             channels,
+            graceful_shutdown,
         }
     }
 
@@ -169,6 +172,10 @@ impl MarketSpine {
         let thread = thread::Builder::new()
             .name(thread_name)
             .spawn(move || {
+                if worker::is_graceful_shutdown(&worker) {
+                    return;
+                }
+
                 worker.lock().unwrap().recalculate_total_volume(currency);
             })
             .unwrap();
@@ -185,6 +192,10 @@ impl MarketSpine {
         let thread = thread::Builder::new()
             .name(thread_name)
             .spawn(move || {
+                if worker::is_graceful_shutdown(&worker) {
+                    return;
+                }
+
                 worker
                     .lock()
                     .unwrap()
@@ -285,13 +296,17 @@ pub mod test {
     use crate::worker::worker::test::{check_threads, make_worker};
     use ntest::timeout;
     use std::sync::mpsc::Receiver;
+    use std::sync::{Arc, Mutex};
     use std::thread::JoinHandle;
 
     pub fn make_spine(market_name: Option<&str>) -> (MarketSpine, Receiver<JoinHandle<()>>) {
         let market_name = market_name.unwrap_or("binance").to_string();
         let (worker, tx, rx) = make_worker();
+        let graceful_shutdown = Arc::new(Mutex::new(false));
 
-        (MarketSpine::new(worker, tx, 1, market_name, None), rx)
+        let spine = MarketSpine::new(worker, tx, 1, market_name, None, graceful_shutdown);
+
+        (spine, rx)
     }
 
     #[test]

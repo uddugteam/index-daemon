@@ -35,10 +35,10 @@ impl Kucoin {
         loop {
             if let Some(token) = inner_fn() {
                 return token;
+            } else {
+                error!("api.kucoin.com: Get token error.");
+                thread::sleep(time::Duration::from_millis(10000));
             }
-
-            error!("api.kucoin.com: Get token error.");
-            thread::sleep(time::Duration::from_millis(10000));
         }
     }
 }
