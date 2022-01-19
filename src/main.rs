@@ -208,24 +208,35 @@ fn main() {
         ws_answer_timeout_sec,
     );
 
-    for received_thread in rx {
-        let thread_name = received_thread.thread().name().unwrap();
-        if *graceful_shutdown.lock().unwrap()
-            && (thread_name.starts_with("fn: perform")
-                || thread_name.starts_with("fn: update")
-                || thread_name.starts_with("fn: subscribe_channel")
-                || thread_name.starts_with("fn: refresh_capitalization")
-                || thread_name.starts_with("fn: recalculate_total_volume")
-                || thread_name.starts_with("fn: recalculate_pair_average_trade_price"))
-        {
-            // Do not join
+    let dont_wait_for_ws_server_threads = !ws;
+    let mut start_ws_is_joined = false;
+    let mut process_request_is_joined = false;
+    loop {
+        let is_graceful_shutdown = *graceful_shutdown.lock().unwrap();
 
-            // We do not join these threads, when graceful_shutdown is called, because we want but can't terminate them
-            println!("Do not join: {}", thread_name);
-        } else {
-            // Join
-            println!("Join: {}", thread_name);
-            let _ = received_thread.join();
+        if let Ok(received_thread) = rx.try_recv() {
+            let thread_name = received_thread.thread().name().unwrap();
+
+            // If we received graceful_shutdown signal, we join only these threads
+            if thread_name.starts_with("fn: start_ws") {
+                start_ws_is_joined = true;
+                println!("Join: {}", thread_name);
+                let _ = received_thread.join();
+            } else if thread_name.starts_with("fn: process_request") {
+                process_request_is_joined = true;
+                println!("Join: {}", thread_name);
+                let _ = received_thread.join();
+            } else {
+                println!("Dont join: {}", thread_name);
+            }
+        }
+
+        let all_ws_server_threads_are_joined = start_ws_is_joined && process_request_is_joined;
+
+        if is_graceful_shutdown
+            && (dont_wait_for_ws_server_threads || all_ws_server_threads_are_joined)
+        {
+            break;
         }
     }
 }
