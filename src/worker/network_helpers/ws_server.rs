@@ -35,7 +35,7 @@ impl WsServer {
     }
 
     // TODO: Implement
-    fn fill_response(response: &mut String, value: Json) {}
+    fn fill_response(_response: &mut String, _value: Json) {}
 
     fn make_io_handler() -> IoHandler {
         let mut io = IoHandler::new();
