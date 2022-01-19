@@ -296,13 +296,17 @@ pub mod test {
     use crate::worker::worker::test::{check_threads, make_worker};
     use ntest::timeout;
     use std::sync::mpsc::Receiver;
+    use std::sync::{Arc, Mutex};
     use std::thread::JoinHandle;
 
     pub fn make_spine(market_name: Option<&str>) -> (MarketSpine, Receiver<JoinHandle<()>>) {
         let market_name = market_name.unwrap_or("binance").to_string();
         let (worker, tx, rx) = make_worker();
+        let graceful_shutdown = Arc::new(Mutex::new(false));
 
-        (MarketSpine::new(worker, tx, 1, market_name, None), rx)
+        let spine = MarketSpine::new(worker, tx, 1, market_name, None, graceful_shutdown);
+
+        (spine, rx)
     }
 
     #[test]

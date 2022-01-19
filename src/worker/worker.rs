@@ -313,7 +313,8 @@ pub mod test {
         Receiver<JoinHandle<()>>,
     ) {
         let (tx, rx) = mpsc::channel();
-        let worker = Worker::new(tx.clone());
+        let graceful_shutdown = Arc::new(Mutex::new(false));
+        let worker = Worker::new(tx.clone(), graceful_shutdown);
 
         (worker, tx, rx)
     }
@@ -349,7 +350,7 @@ pub mod test {
         worker
             .lock()
             .unwrap()
-            .configure(markets.clone(), coins.clone(), channels.clone(), None);
+            .configure(markets.clone(), coins.clone(), channels.clone(), 1);
 
         let markets = markets.unwrap_or(MARKETS.to_vec());
         assert_eq!(markets.len(), worker.lock().unwrap().markets.len());
@@ -507,6 +508,7 @@ pub mod test {
         inner_test_make_exchange_pairs(coins, fiats, expected_exchange_pairs);
     }
 
+    /// TODO: Add tests for WsServer
     fn inner_test_start(
         markets: Option<Vec<String>>,
         coins: Option<Vec<String>>,
@@ -526,7 +528,16 @@ pub mod test {
             thread_names.push(thread_name);
         }
 
-        worker.lock().unwrap().start(markets, coins, channels, None);
+        worker.lock().unwrap().start(
+            markets,
+            coins,
+            channels,
+            1,
+            false,
+            "".to_string(),
+            "".to_string(),
+            1,
+        );
         check_threads(thread_names, rx);
     }
 
