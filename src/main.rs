@@ -13,6 +13,10 @@ use crate::worker::worker::Worker;
 
 #[macro_use]
 extern crate log;
+#[macro_use]
+extern crate serde_derive;
+#[macro_use]
+extern crate serde_json;
 
 mod repository;
 mod worker;
@@ -106,7 +110,7 @@ fn get_all_configs() -> (
     if !ws
         && (service_config.get_str("ws_host").is_ok()
             || service_config.get_str("ws_port").is_ok()
-            || service_config.get_str("ws_answer_timeout_sec").is_ok())
+            || service_config.get_str("ws_answer_timeout_ms").is_ok())
     {
         panic!("Got unexpected config. service_config: ws_*. That config is allowed only if ws=1");
     }
@@ -117,14 +121,14 @@ fn get_all_configs() -> (
     let ws_port = service_config
         .get_str("ws_port")
         .unwrap_or("8080".to_string());
-    let ws_answer_timeout_sec = service_config
-        .get_str("ws_answer_timeout_sec")
+    let ws_answer_timeout_ms = service_config
+        .get_str("ws_answer_timeout_ms")
         .map(|v| v.parse().unwrap())
-        .unwrap_or(1);
-    if ws_answer_timeout_sec < 1 {
+        .unwrap_or(100);
+    if ws_answer_timeout_ms < 100 {
         panic!(
-            "Got wrong config value. service_config: ws_answer_timeout_sec={}",
-            ws_answer_timeout_sec
+            "Got wrong config value. Value is less than allowed min. service_config: ws_answer_timeout_ms={}",
+            ws_answer_timeout_ms
         );
     }
 
@@ -146,7 +150,7 @@ fn get_all_configs() -> (
         ws,
         ws_host,
         ws_port,
-        ws_answer_timeout_sec,
+        ws_answer_timeout_ms,
     )
 }
 
@@ -192,7 +196,7 @@ fn start_graceful_shutdown_listener() -> Arc<Mutex<bool>> {
 fn main() {
     let graceful_shutdown = start_graceful_shutdown_listener();
 
-    let (markets, coins, channels, rest_timeout_sec, ws, ws_host, ws_port, ws_answer_timeout_sec) =
+    let (markets, coins, channels, rest_timeout_sec, ws, ws_host, ws_port, ws_answer_timeout_ms) =
         get_all_configs();
 
     let (tx, rx) = mpsc::channel();
@@ -205,7 +209,7 @@ fn main() {
         ws,
         ws_host,
         ws_port,
-        ws_answer_timeout_sec,
+        ws_answer_timeout_ms,
     );
 
     for received_thread in rx {

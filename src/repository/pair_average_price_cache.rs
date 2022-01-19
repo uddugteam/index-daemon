@@ -1,15 +1,15 @@
 use crate::repository::repository::Repository;
 use std::collections::HashMap;
 
-pub struct PairAverageTradePriceCache(HashMap<(String, String), f64>);
+pub struct PairAveragePriceCache(HashMap<(String, String), f64>);
 
-impl PairAverageTradePriceCache {
+impl PairAveragePriceCache {
     pub fn new() -> Self {
         Self(HashMap::new())
     }
 }
 
-impl Repository<(String, String), f64> for PairAverageTradePriceCache {
+impl Repository<(String, String), f64> for PairAveragePriceCache {
     fn read(&self, primary: (String, String)) -> Option<f64> {
         self.0.get(&primary).copied()
     }
