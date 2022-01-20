@@ -90,8 +90,7 @@ where
                                         if let Some(value) = value.as_u64() {
                                             // Message is ping, thus we need to answer with pong (needed for Huobi market)
                                             message_is_ping = true;
-                                            let pong =
-                                                format!("{{\"pong\":{}}}", value.to_string());
+                                            let pong = format!("{{\"pong\":{}}}", value);
                                             stdin_tx.unbounded_send(Message::text(pong)).unwrap();
                                         }
                                     }

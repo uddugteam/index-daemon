@@ -1,5 +1,3 @@
-
-use crate::repository::repository::Repository;
 use crate::worker::defaults::{COINS, FIATS, MARKETS};
 use crate::worker::market_helpers::conversion_type::ConversionType;
 use crate::worker::market_helpers::exchange_pair::ExchangePair;
@@ -16,7 +14,6 @@ use std::time;
 use crate::worker::market_helpers::market::{market_factory, Market};
 use crate::worker::market_helpers::market_spine::MarketSpine;
 use crate::worker::market_helpers::pair_average_price::PairAveragePrice;
-
 use crate::worker::network_helpers::ws_server::ws_server::WsServer;
 
 pub struct Worker {

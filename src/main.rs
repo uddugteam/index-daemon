@@ -15,8 +15,6 @@ use crate::worker::worker::Worker;
 extern crate log;
 #[macro_use]
 extern crate serde_derive;
-#[macro_use]
-extern crate serde_json;
 
 mod repository;
 mod worker;
