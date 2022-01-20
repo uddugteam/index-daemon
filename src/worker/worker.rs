@@ -1,4 +1,4 @@
-use crate::repository::pair_average_price_cache::PairAveragePriceCache;
+
 use crate::repository::repository::Repository;
 use crate::worker::defaults::{COINS, FIATS, MARKETS};
 use crate::worker::market_helpers::conversion_type::ConversionType;
@@ -16,7 +16,7 @@ use std::time;
 use crate::worker::market_helpers::market::{market_factory, Market};
 use crate::worker::market_helpers::market_spine::MarketSpine;
 use crate::worker::market_helpers::pair_average_price::PairAveragePrice;
-use crate::worker::network_helpers::ws_server::coin_average_price_channel_sender::CoinAveragePriceChannelSender;
+
 use crate::worker::network_helpers::ws_server::ws_server::WsServer;
 
 pub struct Worker {
