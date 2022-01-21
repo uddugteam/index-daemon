@@ -60,11 +60,11 @@ fn set_log_level(service_config: &config::Config) {
     builder.init();
 }
 
-pub struct ConfigLocal {
+pub struct ConfigScheme {
     pub market: MarketConfig,
     pub service: ServiceConfig,
 }
-impl ConfigLocal {
+impl ConfigScheme {
     pub fn new() -> Self {
         Self {
             market: MarketConfig::new(),

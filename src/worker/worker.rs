@@ -1,4 +1,4 @@
-use crate::config_local::config_local::{ConfigLocal, MarketConfig, ServiceConfig};
+use crate::config_scheme::config_scheme::{ConfigScheme, MarketConfig, ServiceConfig};
 use crate::worker::defaults::{COINS, FIATS, MARKETS};
 use crate::worker::market_helpers::conversion_type::ConversionType;
 use crate::worker::market_helpers::exchange_pair::ExchangePair;
@@ -232,8 +232,8 @@ impl Worker {
         }
     }
 
-    pub fn start(&mut self, config: ConfigLocal) {
-        let ConfigLocal { market, service } = config;
+    pub fn start(&mut self, config: ConfigScheme) {
+        let ConfigScheme { market, service } = config;
         let MarketConfig {
             markets,
             coins,
@@ -290,7 +290,7 @@ impl Worker {
 
 #[cfg(test)]
 pub mod test {
-    use crate::config_local::config_local::{ConfigLocal, MarketConfig, ServiceConfig};
+    use crate::config_scheme::config_scheme::{ConfigScheme, MarketConfig, ServiceConfig};
     use crate::worker::defaults::MARKETS;
     use crate::worker::market_helpers::conversion_type::ConversionType;
     use crate::worker::market_helpers::exchange_pair::ExchangePair;
@@ -524,7 +524,7 @@ pub mod test {
             ws_port: "".to_string(),
             ws_answer_timeout_ms: 1,
         };
-        let config = ConfigLocal { market, service };
+        let config = ConfigScheme { market, service };
 
         worker.lock().unwrap().start(config);
         check_threads(thread_names, rx);

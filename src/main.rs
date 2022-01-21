@@ -1,4 +1,4 @@
-use crate::config_local::config_local::ConfigLocal;
+use crate::config_scheme::config_scheme::ConfigScheme;
 use libc::c_int;
 use signal_hook::{
     consts::signal::{SIGINT, SIGQUIT, SIGTERM},
@@ -15,7 +15,7 @@ extern crate log;
 #[macro_use]
 extern crate serde_derive;
 
-mod config_local;
+mod config_scheme;
 mod repository;
 mod worker;
 
@@ -63,7 +63,7 @@ fn start_graceful_shutdown_listener() -> Arc<Mutex<bool>> {
 fn main() {
     let graceful_shutdown = start_graceful_shutdown_listener();
 
-    let config = ConfigLocal::new();
+    let config = ConfigScheme::new();
 
     let (tx, rx) = mpsc::channel();
     let worker = Worker::new(tx, graceful_shutdown);
