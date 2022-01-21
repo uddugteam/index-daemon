@@ -1,3 +1,4 @@
+use crate::config_local::config_local::{ConfigLocal, MarketConfig, ServiceConfig};
 use crate::worker::defaults::{COINS, FIATS, MARKETS};
 use crate::worker::market_helpers::conversion_type::ConversionType;
 use crate::worker::market_helpers::exchange_pair::ExchangePair;
@@ -231,17 +232,21 @@ impl Worker {
         }
     }
 
-    pub fn start(
-        &mut self,
-        markets: Option<Vec<String>>,
-        coins: Option<Vec<String>>,
-        channels: Option<Vec<String>>,
-        rest_timeout_sec: u64,
-        ws: bool,
-        ws_host: String,
-        ws_port: String,
-        ws_answer_timeout_ms: u64,
-    ) {
+    pub fn start(&mut self, config: ConfigLocal) {
+        let ConfigLocal { market, service } = config;
+        let MarketConfig {
+            markets,
+            coins,
+            channels,
+        } = market;
+        let ServiceConfig {
+            rest_timeout_sec,
+            ws,
+            ws_host,
+            ws_port,
+            ws_answer_timeout_ms,
+        } = service;
+
         let markets = markets
             .as_ref()
             .map(|v| v.iter().map(|v| v.as_str()).collect());
@@ -285,6 +290,7 @@ impl Worker {
 
 #[cfg(test)]
 pub mod test {
+    use crate::config_local::config_local::{ConfigLocal, MarketConfig, ServiceConfig};
     use crate::worker::defaults::MARKETS;
     use crate::worker::market_helpers::conversion_type::ConversionType;
     use crate::worker::market_helpers::exchange_pair::ExchangePair;
@@ -506,16 +512,21 @@ pub mod test {
             thread_names.push(thread_name);
         }
 
-        worker.lock().unwrap().start(
+        let market = MarketConfig {
             markets,
             coins,
             channels,
-            1,
-            false,
-            "".to_string(),
-            "".to_string(),
-            1,
-        );
+        };
+        let service = ServiceConfig {
+            rest_timeout_sec: 1,
+            ws: false,
+            ws_host: "".to_string(),
+            ws_port: "".to_string(),
+            ws_answer_timeout_ms: 1,
+        };
+        let config = ConfigLocal { market, service };
+
+        worker.lock().unwrap().start(config);
         check_threads(thread_names, rx);
     }
 
