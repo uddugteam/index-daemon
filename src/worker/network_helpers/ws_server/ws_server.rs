@@ -186,6 +186,46 @@ impl WsServer {
         }
     }
 
+    fn process_request(
+        request: Message,
+        worker: &Arc<Mutex<Worker>>,
+        peer_map: &PeerMap,
+        client_addr: SocketAddr,
+        id: &str,
+        ws_answer_timeout_ms: u64,
+        _graceful_shutdown: &Arc<Mutex<bool>>,
+    ) {
+        let (channel, response) = Self::preprocess_request(request);
+
+        let peers = peer_map.lock().unwrap();
+
+        if let Some(broadcast_recipient) = peers.get(&client_addr).cloned() {
+            let id_2 = id.to_string();
+            let worker_2 = Arc::clone(&worker);
+
+            let thread_name = format!(
+                "fn: process_request, addr: {}, channel: {:?}",
+                client_addr, channel
+            );
+            thread::Builder::new()
+                .name(thread_name)
+                .spawn(move || {
+                    Self::do_response(
+                        worker_2,
+                        &client_addr,
+                        broadcast_recipient,
+                        response,
+                        id_2,
+                        channel,
+                        ws_answer_timeout_ms,
+                    )
+                })
+                .unwrap();
+        } else {
+            // FSR broadcast recipient is not found
+        }
+    }
+
     async fn handle_connection(
         worker: Arc<Mutex<Worker>>,
         peer_map: PeerMap,
@@ -210,40 +250,15 @@ impl WsServer {
 
                 // TODO: Replace for_each with a simple loop (this is needed for graceful_shutdown)
                 let broadcast_incoming = incoming.try_for_each(|request| {
-                    if *graceful_shutdown.lock().unwrap() {
-                        return future::ok(());
-                    }
-
-                    let (channel, response) = Self::preprocess_request(request);
-
-                    let peers = peer_map.lock().unwrap();
-
-                    if let Some(broadcast_recipient) = peers.get(&client_addr).cloned() {
-                        let id_2 = id.to_string();
-                        let worker_2 = Arc::clone(&worker);
-
-                        let thread_name = format!(
-                            "fn: process_request, addr: {}, channel: {:?}",
-                            client_addr, channel
-                        );
-                        thread::Builder::new()
-                            .name(thread_name)
-                            .spawn(move || {
-                                Self::do_response(
-                                    worker_2,
-                                    &client_addr,
-                                    broadcast_recipient,
-                                    response,
-                                    id_2,
-                                    channel,
-                                    ws_answer_timeout_ms,
-                                )
-                            })
-                            .unwrap();
-                    } else {
-                        // FSR broadcast recipient is not found
-                    }
-
+                    Self::process_request(
+                        request,
+                        &worker,
+                        &peer_map,
+                        client_addr,
+                        &id,
+                        ws_answer_timeout_ms,
+                        &graceful_shutdown,
+                    );
                     future::ok(())
                 });
 
