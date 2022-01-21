@@ -1,5 +1,4 @@
-use crate::repository::pair_average_trade_price_cache::PairAverageTradePriceCache;
-use crate::repository::repository::Repository;
+use crate::config_local::config_local::{ConfigLocal, MarketConfig, ServiceConfig};
 use crate::worker::defaults::{COINS, FIATS, MARKETS};
 use crate::worker::market_helpers::conversion_type::ConversionType;
 use crate::worker::market_helpers::exchange_pair::ExchangePair;
@@ -15,15 +14,15 @@ use std::time;
 
 use crate::worker::market_helpers::market::{market_factory, Market};
 use crate::worker::market_helpers::market_spine::MarketSpine;
-use crate::worker::network_helpers::ws_server::WsServer;
+use crate::worker::market_helpers::pair_average_price::PairAveragePrice;
+use crate::worker::network_helpers::ws_server::ws_server::WsServer;
 
 pub struct Worker {
     arc: Option<Arc<Mutex<Self>>>,
     tx: Sender<JoinHandle<()>>,
     graceful_shutdown: Arc<Mutex<bool>>,
     markets: Vec<Arc<Mutex<dyn Market + Send>>>,
-    pair_average_trade_price: HashMap<(String, String), f64>,
-    pair_average_trade_price_repository: Arc<Mutex<dyn Repository<(String, String), f64> + Send>>,
+    pub pair_average_price: PairAveragePrice,
     capitalization: HashMap<String, f64>,
     last_capitalization_refresh: DateTime<Utc>,
 }
@@ -37,16 +36,12 @@ impl Worker {
         tx: Sender<JoinHandle<()>>,
         graceful_shutdown: Arc<Mutex<bool>>,
     ) -> Arc<Mutex<Self>> {
-        let pair_average_trade_price_repository =
-            Arc::new(Mutex::new(PairAverageTradePriceCache::new()));
-
         let worker = Worker {
             arc: None,
             tx,
             graceful_shutdown,
             markets: Vec::new(),
-            pair_average_trade_price: HashMap::new(),
-            pair_average_trade_price_repository,
+            pair_average_price: PairAveragePrice::new(),
             capitalization: HashMap::new(),
             last_capitalization_refresh: MIN_DATETIME,
         };
@@ -61,29 +56,20 @@ impl Worker {
         self.arc = Some(arc);
     }
 
-    fn set_pair_average_trade_price(&mut self, pair: (String, String), value: f64) {
-        self.pair_average_trade_price.insert(pair.clone(), value);
-
-        self.pair_average_trade_price_repository
-            .lock()
-            .unwrap()
-            .insert(pair, value);
-    }
-
     // TODO: Implement
     pub fn recalculate_total_volume(&self, _currency: String) {}
 
-    pub fn recalculate_pair_average_trade_price(&mut self, pair: (String, String), new_price: f64) {
-        let old_avg = *self
-            .pair_average_trade_price
-            .entry(pair.clone())
-            .or_insert(new_price);
+    pub fn recalculate_pair_average_price(&mut self, pair: (String, String), new_price: f64) {
+        let old_avg = self
+            .pair_average_price
+            .get_price(&pair)
+            .unwrap_or(new_price);
 
         let new_avg = (new_price + old_avg) / 2.0;
 
         info!("new {}-{} average trade price: {}", pair.0, pair.1, new_avg);
 
-        self.set_pair_average_trade_price(pair, new_avg);
+        self.pair_average_price.set_new_price(pair, new_avg);
     }
 
     fn refresh_capitalization_thread(&self) {
@@ -222,18 +208,21 @@ impl Worker {
         ws: bool,
         ws_host: String,
         ws_port: String,
-        ws_answer_timeout_sec: u64,
+        ws_answer_timeout_ms: u64,
         graceful_shutdown: Arc<Mutex<bool>>,
     ) {
         if ws {
+            let worker = Arc::clone(self.arc.as_ref().unwrap());
+
             let thread_name = "fn: start_ws".to_string();
             let thread = thread::Builder::new()
                 .name(thread_name)
                 .spawn(move || {
                     let ws_server = WsServer {
+                        worker,
                         ws_host,
                         ws_port,
-                        ws_answer_timeout_sec,
+                        ws_answer_timeout_ms,
                         graceful_shutdown,
                     };
                     ws_server.start();
@@ -243,17 +232,21 @@ impl Worker {
         }
     }
 
-    pub fn start(
-        &mut self,
-        markets: Option<Vec<String>>,
-        coins: Option<Vec<String>>,
-        channels: Option<Vec<String>>,
-        rest_timeout_sec: u64,
-        ws: bool,
-        ws_host: String,
-        ws_port: String,
-        ws_answer_timeout_sec: u64,
-    ) {
+    pub fn start(&mut self, config: ConfigLocal) {
+        let ConfigLocal { market, service } = config;
+        let MarketConfig {
+            markets,
+            coins,
+            channels,
+        } = market;
+        let ServiceConfig {
+            rest_timeout_sec,
+            ws,
+            ws_host,
+            ws_port,
+            ws_answer_timeout_ms,
+        } = service;
+
         let markets = markets
             .as_ref()
             .map(|v| v.iter().map(|v| v.as_str()).collect());
@@ -269,7 +262,7 @@ impl Worker {
             ws,
             ws_host,
             ws_port,
-            ws_answer_timeout_sec,
+            ws_answer_timeout_ms,
             self.graceful_shutdown.clone(),
         );
 
@@ -297,6 +290,7 @@ impl Worker {
 
 #[cfg(test)]
 pub mod test {
+    use crate::config_local::config_local::{ConfigLocal, MarketConfig, ServiceConfig};
     use crate::worker::defaults::MARKETS;
     use crate::worker::market_helpers::conversion_type::ConversionType;
     use crate::worker::market_helpers::exchange_pair::ExchangePair;
@@ -392,7 +386,7 @@ pub mod test {
     }
 
     #[test]
-    fn test_recalculate_pair_average_trade_price() {
+    fn test_recalculate_pair_average_price() {
         let (worker, _, _) = make_worker();
 
         let coins = ["BTC", "ETH"];
@@ -412,25 +406,15 @@ pub mod test {
                 worker
                     .lock()
                     .unwrap()
-                    .recalculate_pair_average_trade_price(pair.clone(), new_price);
+                    .recalculate_pair_average_price(pair.clone(), new_price);
 
-                let real_curr_price_field = *worker
+                let real_curr_price_field = worker
                     .lock()
                     .unwrap()
-                    .pair_average_trade_price
-                    .get(&pair)
+                    .pair_average_price
+                    .get_price(&pair)
                     .unwrap();
                 assert!(expected_curr_price.eq(&real_curr_price_field));
-
-                let real_curr_price_repo = worker
-                    .lock()
-                    .unwrap()
-                    .pair_average_trade_price_repository
-                    .lock()
-                    .unwrap()
-                    .read(pair)
-                    .unwrap();
-                assert!(expected_curr_price.eq(&real_curr_price_repo));
             }
         }
     }
@@ -528,16 +512,21 @@ pub mod test {
             thread_names.push(thread_name);
         }
 
-        worker.lock().unwrap().start(
+        let market = MarketConfig {
             markets,
             coins,
             channels,
-            1,
-            false,
-            "".to_string(),
-            "".to_string(),
-            1,
-        );
+        };
+        let service = ServiceConfig {
+            rest_timeout_sec: 1,
+            ws: false,
+            ws_host: "".to_string(),
+            ws_port: "".to_string(),
+            ws_answer_timeout_ms: 1,
+        };
+        let config = ConfigLocal { market, service };
+
+        worker.lock().unwrap().start(config);
         check_threads(thread_names, rx);
     }
 

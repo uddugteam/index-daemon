@@ -1,6 +1,5 @@
 use crate::repository::exchange_pair_info_cache::ExchangePairInfoCache;
 use chrono::{DateTime, Utc, MIN_DATETIME};
-use std::fmt::{Display, Formatter};
 use std::sync::{Arc, Mutex};
 
 pub trait ExchangePairInfoTrait: Send {
@@ -100,22 +99,5 @@ impl ExchangePairInfoTrait for ExchangePairInfo {
 
     fn set_timestamp(&mut self, timestamp: DateTime<Utc>) {
         self.timestamp = timestamp;
-    }
-}
-
-impl Display for ExchangePairInfo {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Timestamp:        {}", self.timestamp.to_string())?;
-        write!(f, "LastTradePrice:   {}", self.last_trade_price.to_string())?;
-        write!(
-            f,
-            "LastTradeVolume:  {}",
-            self.last_trade_volume.to_string()
-        )?;
-        write!(f, "TotalVolume:      {}", self.volume.to_string())?;
-        write!(f, "TotalAsk:         {}", self.total_ask.to_string())?;
-        write!(f, "TotalBid:         {}", self.total_bid.to_string())?;
-
-        Ok(())
     }
 }

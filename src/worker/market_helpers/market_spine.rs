@@ -182,11 +182,11 @@ impl MarketSpine {
         self.tx.send(thread).unwrap();
     }
 
-    fn recalculate_pair_average_trade_price(&self, pair: (String, String), new_price: f64) {
+    fn recalculate_pair_average_price(&self, pair: (String, String), new_price: f64) {
         let worker = Arc::clone(&self.worker);
 
         let thread_name = format!(
-            "fn: recalculate_pair_average_trade_price, market: {}, pair: {:?}",
+            "fn: recalculate_pair_average_price, market: {}, pair: {:?}",
             self.name, pair,
         );
         let thread = thread::Builder::new()
@@ -199,7 +199,7 @@ impl MarketSpine {
                 worker
                     .lock()
                     .unwrap()
-                    .recalculate_pair_average_trade_price(pair, new_price);
+                    .recalculate_pair_average_price(pair, new_price);
             })
             .unwrap();
         self.tx.send(thread).unwrap();
@@ -256,7 +256,7 @@ impl MarketSpine {
             .set_last_trade_price(value);
 
         let pair_tuple = self.pairs.get(pair).unwrap().clone();
-        self.recalculate_pair_average_trade_price(pair_tuple, value);
+        self.recalculate_pair_average_price(pair_tuple, value);
 
         self.update_market_pair(pair, "lastTrade", false);
     }
@@ -353,7 +353,7 @@ pub mod test {
 
     #[test]
     #[timeout(1000)]
-    fn test_recalculate_pair_average_trade_price() {
+    fn test_recalculate_pair_average_price() {
         let market_name = "binance";
         let pair = ("ABC".to_string(), "DEF".to_string());
         let new_price = 100.0;
@@ -361,11 +361,11 @@ pub mod test {
         let (spine, rx) = make_spine(Some(market_name));
 
         let thread_names = vec![format!(
-            "fn: recalculate_pair_average_trade_price, market: {}, pair: {:?}",
+            "fn: recalculate_pair_average_price, market: {}, pair: {:?}",
             market_name, pair,
         )];
 
-        spine.recalculate_pair_average_trade_price(pair, new_price);
+        spine.recalculate_pair_average_price(pair, new_price);
         check_threads(thread_names, rx);
     }
 }
