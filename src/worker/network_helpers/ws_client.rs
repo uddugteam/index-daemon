@@ -3,11 +3,14 @@ use async_tungstenite::async_std::connect_async;
 use async_tungstenite::tungstenite::protocol::Message;
 use flate2::read::DeflateDecoder;
 use flate2::read::GzDecoder;
+use futures::channel::mpsc::UnboundedSender;
 use futures::{future, pin_mut, StreamExt};
 use rustc_serialize::json::Json;
 use std::io::prelude::Read;
 use std::thread;
 use std::time;
+
+type Tx = UnboundedSender<Message>;
 
 pub struct WsClient<F>
 where
@@ -46,6 +49,17 @@ where
         }
     }
 
+    /// Checks whether message is "ping" and if it is, answers with "pong" (needed for Huobi market)
+    fn send_pong(stdin_tx: &Tx, message: &str) -> Option<()> {
+        let json = Json::from_str(message).ok()?;
+        let value = json.as_object()?.get("ping")?.as_u64()?;
+
+        let pong = format!("{{\"pong\":{}}}", value);
+        stdin_tx.unbounded_send(Message::text(pong)).unwrap();
+
+        Some(())
+    }
+
     async fn run(self) {
         match connect_async(&self.uri).await {
             Ok((ws_stream, _)) => {
@@ -68,11 +82,12 @@ where
                         } else {
                             // unzip gz (needed for Huobi market)
                             let message = message.into_data();
-                            if let Some(message) = Self::unzip(GzDecoder::new(message.as_slice())) {
+                            let message = message.as_slice();
+                            if let Some(message) = Self::unzip(GzDecoder::new(message)) {
                                 Some(message)
                             } else {
                                 // unzip deflate (needed for Okcoin market)
-                                let message = Self::unzip(DeflateDecoder::new(message.as_slice()));
+                                let message = Self::unzip(DeflateDecoder::new(message));
                                 if message.is_some() {
                                     market_is_okcoin = true;
                                 }
@@ -82,21 +97,7 @@ where
                         };
 
                         if let Some(message) = message {
-                            let mut message_is_ping = false;
-                            // Check whether message is ping (needed for Huobi market)
-                            if let Ok(json) = Json::from_str(&message) {
-                                if let Some(object) = json.as_object() {
-                                    if let Some(value) = object.get("ping") {
-                                        if let Some(value) = value.as_u64() {
-                                            // Message is ping, thus we need to answer with pong (needed for Huobi market)
-                                            message_is_ping = true;
-                                            let pong = format!("{{\"pong\":{}}}", value);
-                                            stdin_tx.unbounded_send(Message::text(pong)).unwrap();
-                                        }
-                                    }
-                                }
-                            }
-
+                            let message_is_ping = Self::send_pong(&stdin_tx, &message).is_some();
                             if !message_is_ping {
                                 (self.callback)(self.pair.clone(), message);
                             }
