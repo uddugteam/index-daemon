@@ -1,3 +1,4 @@
+pub mod json_rpc_messages;
 pub mod ser_date_into_timestamp;
 pub mod ws_channel_request;
 pub mod ws_channel_response;

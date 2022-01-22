@@ -47,6 +47,7 @@ impl PairAveragePrice {
 
             for (id, sender) in senders {
                 let response = WsChannelResponse::CoinAveragePrice {
+                    id: sender.get_id(),
                     coin: coin.clone(),
                     value: new_price,
                     timestamp: self.timestamp,

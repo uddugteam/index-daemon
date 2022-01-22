@@ -1,6 +1,8 @@
+use crate::worker::network_helpers::ws_server::json_rpc_messages::{
+    JsonRpcId, JsonRpcResponseSucc,
+};
 use crate::worker::network_helpers::ws_server::ws_channel_request::WsChannelRequest;
 use crate::worker::network_helpers::ws_server::ws_channel_response::WsChannelResponse;
-use crate::worker::network_helpers::ws_server::ws_server::{WsServer, JSONRPC_RESPONSE_SUCCESS};
 use async_tungstenite::tungstenite::protocol::Message;
 use chrono::{DateTime, Utc, MIN_DATETIME};
 use futures::channel::mpsc::{TrySendError, UnboundedSender};
@@ -31,22 +33,44 @@ impl WsChannelResponseSender {
         }
     }
 
+    pub fn get_id(&self) -> Option<JsonRpcId> {
+        self.request.get_id()
+    }
+
     pub fn get_coins(&self) -> &Vec<String> {
         self.request.get_coins()
     }
 
-    fn send_inner(&mut self, response_value: String) -> Result<(), TrySendError<Message>> {
-        let mut response = JSONRPC_RESPONSE_SUCCESS.to_string();
-        WsServer::fill_response_success(&mut response, response_value);
+    fn add_jsonrpc_version(response: &mut String) {
+        let mut value: serde_json::Value = serde_json::from_str(&response).unwrap();
+        let object = value.as_object_mut().unwrap();
+        object.insert(
+            "jsonrpc".to_string(),
+            serde_json::Value::from("2.0".to_string()),
+        );
+
+        *response = value.to_string();
+    }
+
+    fn send_inner(&mut self, response: WsChannelResponse) -> Result<(), TrySendError<Message>> {
+        let response_str = serde_json::to_string(&response).unwrap();
+
+        let response = JsonRpcResponseSucc {
+            id: response.get_id(),
+            result: serde_json::from_str(&response_str).unwrap(),
+        };
+        let mut response = serde_json::to_string(&response).unwrap();
+        Self::add_jsonrpc_version(&mut response);
+
         let response = Message::from(response);
 
         self.broadcast_recipient.unbounded_send(response)
     }
 
     pub fn send_succ_sub_notif(&mut self) -> Result<(), TrySendError<Message>> {
-        let response_value = "Successfully subscribed.".to_string();
+        let response = WsChannelResponse::Str("Successfully subscribed.".to_string());
 
-        self.send_inner(response_value)
+        self.send_inner(response)
     }
 
     pub fn send(
@@ -60,8 +84,7 @@ impl WsChannelResponseSender {
             // Enough time passed
             self.last_send_timestamp = Utc::now();
 
-            let response_value = serde_json::to_string(&response).unwrap();
-            let send_msg_result = self.send_inner(response_value);
+            let send_msg_result = self.send_inner(response);
 
             Some(send_msg_result)
         } else {

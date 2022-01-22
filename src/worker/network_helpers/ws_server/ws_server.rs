@@ -1,3 +1,6 @@
+use crate::worker::network_helpers::ws_server::json_rpc_messages::{
+    JsonRpcErr, JsonRpcRequest, JsonRpcResponseErr,
+};
 use crate::worker::network_helpers::ws_server::ws_channel_request::WsChannelRequest;
 use crate::worker::network_helpers::ws_server::ws_channel_response_sender::WsChannelResponseSender;
 use crate::worker::worker::Worker;
@@ -11,18 +14,12 @@ use futures::{
     future, pin_mut,
     prelude::*,
 };
-use jsonrpc_core::{IoHandler, Params, Value};
 use rustc_serialize::json::Json;
 use std::{collections::HashMap, io, net::SocketAddr, sync::Arc, sync::Mutex, thread};
 use uuid::Uuid;
 
 type Tx = UnboundedSender<Message>;
 type PeerMap = Arc<Mutex<HashMap<SocketAddr, Tx>>>;
-
-// pub const JSONRPC_REQUEST: &str = r#"{"id": null, "jsonrpc": "2.0", "method": "my_method", "params": {}}"#;
-pub const JSONRPC_RESPONSE_SUCCESS: &str = r#"{"id": null, "jsonrpc": "2.0", "result": "dummy"}"#;
-pub const JSONRPC_RESPONSE_ERROR: &str =
-    r#"{"id": null, "jsonrpc": "2.0", "error": {"code": -32700, "message": "Error message"}}"#;
 
 pub struct WsServer {
     pub worker: Arc<Mutex<Worker>>,
@@ -37,30 +34,6 @@ impl WsServer {
         let _ = task::block_on(Self::run(self));
     }
 
-    fn response_is_error(json_string: &str) -> bool {
-        if let Ok(json) = Json::from_str(json_string) {
-            if let Some(object) = json.as_object() {
-                return object.contains_key("error");
-            }
-        }
-
-        true
-    }
-
-    fn make_io_handler() -> IoHandler {
-        let mut io = IoHandler::new();
-
-        io.add_sync_method("coin_average_price", |_params: Params| {
-            Ok(Value::String("dummy".to_string()))
-        });
-
-        io.add_sync_method("unsubscribe", |_params: Params| {
-            Ok(Value::String("ok".to_string()))
-        });
-
-        io
-    }
-
     fn parse_json(json_string: String) -> Option<Json> {
         let value = if let Ok(value) = Json::from_str(&json_string) {
             Some(value)
@@ -72,44 +45,26 @@ impl WsServer {
         value
     }
 
-    pub fn fill_response_success(json_string: &mut String, value: String) -> Option<()> {
-        let value = Self::parse_json(value)?;
-
-        let mut json = Json::from_str(json_string).ok()?;
-        let object = json.as_object_mut()?;
-
-        object.insert("result".to_string(), value);
-        *json_string = json.to_string();
-
-        Some(())
-    }
-
-    fn fill_response_error(json_string: &mut String, value: String) -> Option<()> {
-        let value = Self::parse_json(value)?;
-
-        let mut json = Json::from_str(json_string).ok()?;
-        let object = json.as_object_mut()?.get_mut("error")?.as_object_mut()?;
-
-        object.insert("message".to_string(), value);
-        *json_string = json.to_string();
-
-        Some(())
-    }
-
     /// What function does:
     /// -- Validate JSON RPC
     /// -- Parse `channel` from json
     /// -- Make response skeleton
     fn preprocess_request(
         request: Message,
-    ) -> (serde_json::Result<WsChannelRequest>, Option<String>) {
+    ) -> (
+        Option<Result<WsChannelRequest, String>>,
+        serde_json::Result<JsonRpcRequest>,
+    ) {
         let request = request.to_string();
-        let channel = serde_json::from_str(&request);
 
-        let io = Self::make_io_handler();
-        let response = io.handle_request_sync(&request);
+        let request: serde_json::Result<JsonRpcRequest> = serde_json::from_str(&request);
+        let channel = if let Ok(request) = request.as_ref() {
+            Some(request.try_into())
+        } else {
+            None
+        };
 
-        (channel, response)
+        (channel, request)
     }
 
     /// Function adds new channel to worker or removes existing channel from worker (depends on `channel`)
@@ -120,7 +75,7 @@ impl WsServer {
         channel: WsChannelRequest,
         ws_answer_timeout_ms: u64,
     ) {
-        if !matches!(channel, WsChannelRequest::Unsubscribe) {
+        if !matches!(channel, WsChannelRequest::Unsubscribe { .. }) {
             let response_sender =
                 WsChannelResponseSender::new(broadcast_recipient, channel, ws_answer_timeout_ms);
 
@@ -146,21 +101,24 @@ impl WsServer {
         worker: Arc<Mutex<Worker>>,
         client_addr: &SocketAddr,
         broadcast_recipient: Tx,
-        response: Option<String>,
+        request: serde_json::Result<JsonRpcRequest>,
         id: String,
-        channel: serde_json::Result<WsChannelRequest>,
+        channel: Option<Result<WsChannelRequest, String>>,
         ws_answer_timeout_ms: u64,
     ) {
-        if let Some(response) = response {
-            match channel {
-                Ok(channel) => {
-                    info!(
-                        "Client with addr: {} subscribed to: {:?}",
-                        client_addr, channel
-                    );
+        match request {
+            Ok(request) => {
+                println!("parse request OK: {:?}", request);
+                // If `request` is `Ok`, then `channel` is `Some` anyway
+                let channel = channel.unwrap();
 
-                    let response_is_error = Self::response_is_error(&response);
-                    if !response_is_error {
+                match channel {
+                    Ok(channel) => {
+                        info!(
+                            "Client with addr: {} subscribed to: {:?}",
+                            client_addr, channel
+                        );
+
                         Self::add_new_channel(
                             worker,
                             broadcast_recipient,
@@ -168,23 +126,29 @@ impl WsServer {
                             channel,
                             ws_answer_timeout_ms,
                         );
-                    } else {
+                    }
+                    Err(_) => {
+                        let response = JsonRpcResponseErr {
+                            id: request.id,
+                            result: JsonRpcErr {
+                                code: -32700,
+                                message: "Channel parse error.".to_string(),
+                            },
+                        };
+                        let response = serde_json::to_string(&response).unwrap();
+
                         let response = Message::from(response);
                         let _ = broadcast_recipient.unbounded_send(response);
                     }
                 }
-                Err(_) => {
-                    let mut response = JSONRPC_RESPONSE_ERROR.to_string();
-                    Self::fill_response_error(&mut response, "Channel parse error.".to_string());
-                    let response = Message::from(response);
-                    let _ = broadcast_recipient.unbounded_send(response);
-                }
             }
-        } else {
-            error!(
-                "Handle request error. Client addr: {}, channel: {:?}",
-                client_addr, channel
-            );
+            Err(e) => {
+                println!("parse request ERROR: {:?}", e);
+                error!(
+                    "Handle request error. Client addr: {}, channel: {:?}, error: {:?}",
+                    client_addr, channel, e
+                );
+            }
         }
     }
 
@@ -198,7 +162,7 @@ impl WsServer {
         ws_answer_timeout_ms: u64,
         _graceful_shutdown: &Arc<Mutex<bool>>,
     ) {
-        let (channel, response) = Self::preprocess_request(request);
+        let (channel, request) = Self::preprocess_request(request);
 
         let peers = peer_map.lock().unwrap();
 
@@ -217,7 +181,7 @@ impl WsServer {
                         worker_2,
                         &client_addr,
                         broadcast_recipient,
-                        response,
+                        request,
                         id_2,
                         channel,
                         ws_answer_timeout_ms,
