@@ -1,5 +1,5 @@
-use crate::worker::network_helpers::ws_server::coin_average_price_channel_sender::CoinAveragePriceChannelSender;
 use crate::worker::network_helpers::ws_server::ws_channel_request::WsChannelRequest;
+use crate::worker::network_helpers::ws_server::ws_channel_response_sender::WsChannelResponseSender;
 use crate::worker::worker::Worker;
 use async_std::{
     net::{TcpListener, TcpStream},
@@ -13,7 +13,7 @@ use futures::{
 };
 use jsonrpc_core::{IoHandler, Params, Value};
 use rustc_serialize::json::Json;
-use std::{cmp, collections::HashMap, io, net::SocketAddr, sync::Arc, sync::Mutex, thread};
+use std::{collections::HashMap, io, net::SocketAddr, sync::Arc, sync::Mutex, thread};
 use uuid::Uuid;
 
 type Tx = UnboundedSender<Message>;
@@ -120,28 +120,21 @@ impl WsServer {
         channel: WsChannelRequest,
         ws_answer_timeout_ms: u64,
     ) {
-        match channel {
-            WsChannelRequest::CoinAveragePrice {
-                coins,
-                frequency_ms,
-            } => {
-                let frequency_ms = cmp::max(ws_answer_timeout_ms, frequency_ms);
-                let channel =
-                    CoinAveragePriceChannelSender::new(broadcast_recipient, coins, frequency_ms);
+        if !matches!(channel, WsChannelRequest::Unsubscribe) {
+            let response_sender =
+                WsChannelResponseSender::new(broadcast_recipient, channel, ws_answer_timeout_ms);
 
-                worker
-                    .lock()
-                    .unwrap()
-                    .pair_average_price
-                    .add_ws_channel(id, channel);
-            }
-            WsChannelRequest::Unsubscribe => {
-                worker
-                    .lock()
-                    .unwrap()
-                    .pair_average_price
-                    .remove_ws_channel(&id);
-            }
+            worker
+                .lock()
+                .unwrap()
+                .pair_average_price
+                .add_ws_channel(id, response_sender);
+        } else {
+            worker
+                .lock()
+                .unwrap()
+                .pair_average_price
+                .remove_ws_channel(&id);
         }
     }
 

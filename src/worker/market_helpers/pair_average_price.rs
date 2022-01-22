@@ -1,6 +1,7 @@
 use crate::repository::pair_average_price_cache::PairAveragePriceCache;
 use crate::repository::repository::Repository;
-use crate::worker::network_helpers::ws_server::coin_average_price_channel_sender::CoinAveragePriceChannelSender;
+use crate::worker::network_helpers::ws_server::ws_channel_response::WsChannelResponse;
+use crate::worker::network_helpers::ws_server::ws_channel_response_sender::WsChannelResponseSender;
 use chrono::{DateTime, Utc, MIN_DATETIME};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -9,7 +10,7 @@ pub struct PairAveragePrice {
     value: HashMap<(String, String), f64>,
     timestamp: DateTime<Utc>,
     repository: Arc<Mutex<dyn Repository<(String, String), f64> + Send>>,
-    ws_channels: HashMap<String, CoinAveragePriceChannelSender>,
+    ws_channels: HashMap<String, WsChannelResponseSender>,
 }
 
 impl PairAveragePrice {
@@ -36,16 +37,21 @@ impl PairAveragePrice {
         };
 
         if let Some(coin) = coin {
-            let senders: HashMap<&String, &mut CoinAveragePriceChannelSender> = self
+            let senders: HashMap<&String, &mut WsChannelResponseSender> = self
                 .ws_channels
                 .iter_mut()
-                .filter(|(_, v)| v.coins.contains(&coin))
+                .filter(|(_, v)| v.get_coins().contains(&coin))
                 .collect();
 
             let mut ids_to_remove = Vec::new();
 
             for (id, sender) in senders {
-                let send_msg_result = sender.send(coin.clone(), new_price, self.timestamp);
+                let response = WsChannelResponse::CoinAveragePrice {
+                    coin: coin.clone(),
+                    value: new_price,
+                    timestamp: self.timestamp,
+                };
+                let send_msg_result = sender.send(response);
 
                 if let Some(send_msg_result) = send_msg_result {
                     if send_msg_result.is_err() {
@@ -81,7 +87,7 @@ impl PairAveragePrice {
         self.ws_send(pair, new_price);
     }
 
-    pub fn add_ws_channel(&mut self, id: String, mut channel: CoinAveragePriceChannelSender) {
+    pub fn add_ws_channel(&mut self, id: String, mut channel: WsChannelResponseSender) {
         if channel.send_succ_sub_notif().is_ok() {
             self.ws_channels.insert(id, channel);
         } else {
