@@ -211,7 +211,7 @@ impl WsServer {
 
         if let Some(broadcast_recipient) = peers.get(&client_addr).cloned() {
             let id_2 = id.to_string();
-            let worker_2 = Arc::clone(&worker);
+            let worker_2 = Arc::clone(worker);
 
             let thread_name = format!(
                 "fn: process_request, addr: {}, channel: {:?}",
