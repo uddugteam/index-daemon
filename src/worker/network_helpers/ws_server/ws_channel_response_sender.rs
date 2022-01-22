@@ -42,7 +42,7 @@ impl WsChannelResponseSender {
     }
 
     fn add_jsonrpc_version(response: &mut String) {
-        let mut value: serde_json::Value = serde_json::from_str(&response).unwrap();
+        let mut value: serde_json::Value = serde_json::from_str(response).unwrap();
         let object = value.as_object_mut().unwrap();
         object.insert(
             "jsonrpc".to_string(),

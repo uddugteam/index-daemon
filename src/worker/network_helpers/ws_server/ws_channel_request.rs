@@ -15,12 +15,12 @@ pub enum WsChannelRequest {
 
 impl WsChannelRequest {
     pub fn get_id(&self) -> Option<JsonRpcId> {
-        let id = match self {
+        
+
+        match self {
             WsChannelRequest::CoinAveragePrice { id, .. } => id.clone(),
             WsChannelRequest::Unsubscribe { .. } => None,
-        };
-
-        id
+        }
     }
 
     pub fn get_frequency_ms(&self) -> u64 {

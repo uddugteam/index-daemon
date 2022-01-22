@@ -18,12 +18,12 @@ pub enum WsChannelResponse {
 
 impl WsChannelResponse {
     pub fn get_id(&self) -> Option<JsonRpcId> {
-        let id = match self {
+        
+
+        match self {
             WsChannelResponse::CoinAveragePrice { id, .. } => id.clone(),
             _ => None,
-        };
-
-        id
+        }
     }
 
     pub fn get_timestamp(&self) -> DateTime<Utc> {
