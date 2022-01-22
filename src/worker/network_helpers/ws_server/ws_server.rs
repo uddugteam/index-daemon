@@ -96,6 +96,10 @@ impl WsServer {
         Some(())
     }
 
+    /// What function does:
+    /// -- Validate JSON RPC
+    /// -- Parse `channel` from json
+    /// -- Make response skeleton
     fn preprocess_request(
         request: Message,
     ) -> (serde_json::Result<WsChannelRequest>, Option<String>) {
@@ -108,6 +112,7 @@ impl WsServer {
         (channel, response)
     }
 
+    /// Function adds new channel to worker or removes existing channel from worker (depends on `channel`)
     fn add_new_channel(
         worker: Arc<Mutex<Worker>>,
         broadcast_recipient: Tx,
@@ -140,6 +145,10 @@ impl WsServer {
         }
     }
 
+    /// What function does:
+    /// -- check whether response is ok
+    /// -- if response is ok - call `Self::add_new_channel`
+    /// -- else - send response
     fn do_response(
         worker: Arc<Mutex<Worker>>,
         client_addr: &SocketAddr,
@@ -186,6 +195,7 @@ impl WsServer {
         }
     }
 
+    /// Function calls `Self::preprocess_request`, then starts `Self::do_response` in a separate thread
     fn process_request(
         request: Message,
         worker: &Arc<Mutex<Worker>>,
@@ -226,6 +236,8 @@ impl WsServer {
         }
     }
 
+    /// Function handles one connection - function is executing until client is disconnected.
+    /// Function listens for requests and process them (calls `Self::process_request`)
     async fn handle_connection(
         worker: Arc<Mutex<Worker>>,
         peer_map: PeerMap,
@@ -279,6 +291,7 @@ impl WsServer {
         }
     }
 
+    /// Function listens and establishes connections. Function never ends.
     async fn run(self) -> Result<(), io::Error> {
         let server_addr = self.ws_host.clone() + ":" + &self.ws_port;
         let state = PeerMap::new(Mutex::new(HashMap::new()));
