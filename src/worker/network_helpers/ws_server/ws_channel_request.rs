@@ -1,10 +1,17 @@
 use crate::worker::network_helpers::ws_server::json_rpc_messages::{JsonRpcId, JsonRpcRequest};
+use serde_json::Map;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum WsChannelRequest {
     CoinAveragePrice {
         id: Option<JsonRpcId>,
         coins: Vec<String>,
+        frequency_ms: u64,
+    },
+    CoinExchangePrice {
+        id: Option<JsonRpcId>,
+        coins: Vec<String>,
+        exchanges: Vec<String>,
         frequency_ms: u64,
     },
     Unsubscribe {
@@ -16,50 +23,63 @@ pub enum WsChannelRequest {
 impl WsChannelRequest {
     pub fn get_id(&self) -> Option<JsonRpcId> {
         match self {
-            WsChannelRequest::CoinAveragePrice { id, .. } => id,
-            WsChannelRequest::Unsubscribe { id, .. } => id,
+            WsChannelRequest::CoinAveragePrice { id, .. }
+            | WsChannelRequest::CoinExchangePrice { id, .. }
+            | WsChannelRequest::Unsubscribe { id, .. } => id.clone(),
         }
-        .clone()
     }
 
     pub fn get_method(&self) -> String {
         match self {
             WsChannelRequest::CoinAveragePrice { .. } => "coin_average_price".to_string(),
+            WsChannelRequest::CoinExchangePrice { .. } => "coin_exchange_price".to_string(),
             WsChannelRequest::Unsubscribe { method, .. } => method.to_string(),
         }
     }
 
     pub fn get_frequency_ms(&self) -> u64 {
-        let frequency_ms = match self {
-            WsChannelRequest::CoinAveragePrice { frequency_ms, .. } => *frequency_ms,
+        match self {
+            WsChannelRequest::CoinAveragePrice { frequency_ms, .. }
+            | WsChannelRequest::CoinExchangePrice { frequency_ms, .. } => *frequency_ms,
             WsChannelRequest::Unsubscribe { .. } => {
-                panic!("Unexpected request.")
+                panic!("Unexpected request.");
             }
-        };
-
-        frequency_ms
+        }
     }
 
     pub fn set_frequency_ms(&mut self, new_frequency_ms: u64) {
         match self {
-            WsChannelRequest::CoinAveragePrice { frequency_ms, .. } => {
+            WsChannelRequest::CoinAveragePrice { frequency_ms, .. }
+            | WsChannelRequest::CoinExchangePrice { frequency_ms, .. } => {
                 *frequency_ms = new_frequency_ms;
             }
             WsChannelRequest::Unsubscribe { .. } => {
-                panic!("Unexpected request.")
+                panic!("Unexpected request.");
             }
         }
     }
 
     pub fn get_coins(&self) -> &Vec<String> {
-        let coins = match self {
-            WsChannelRequest::CoinAveragePrice { coins, .. } => coins,
+        match self {
+            WsChannelRequest::CoinAveragePrice { coins, .. }
+            | WsChannelRequest::CoinExchangePrice { coins, .. } => coins,
             WsChannelRequest::Unsubscribe { .. } => {
-                panic!("Unexpected request.")
+                panic!("Unexpected request.");
             }
-        };
+        }
+    }
 
-        coins
+    fn parse_vec_of_str(object: &Map<String, serde_json::Value>, key: &str) -> Option<Vec<String>> {
+        let mut items = Vec::new();
+        for item in object.get(key)?.as_array()? {
+            items.push(item.as_str()?.to_string());
+        }
+
+        Some(items)
+    }
+
+    fn parse_frequency_ms(object: &serde_json::Map<String, serde_json::Value>) -> Option<u64> {
+        object.get("frequency_ms")?.as_u64()
     }
 }
 
@@ -73,19 +93,24 @@ impl TryFrom<&JsonRpcRequest> for WsChannelRequest {
 
         match request.method.as_str() {
             "coin_average_price" => {
-                let coins_json = object.get("coins").ok_or(e)?;
-                let coins_json = coins_json.as_array().ok_or(e)?;
-                let mut coins = Vec::new();
-                for coin in coins_json {
-                    coins.push(coin.as_str().ok_or(e)?.to_string());
-                }
-
-                let frequency_ms = object.get("frequency_ms").ok_or(e)?;
-                let frequency_ms = frequency_ms.as_u64().ok_or(e)?;
+                let coins = Self::parse_vec_of_str(object, "coins").ok_or(e)?;
+                let frequency_ms = Self::parse_frequency_ms(object).ok_or(e)?;
 
                 Ok(Self::CoinAveragePrice {
                     id,
                     coins,
+                    frequency_ms,
+                })
+            }
+            "coin_exchange_price" => {
+                let coins = Self::parse_vec_of_str(object, "coins").ok_or(e)?;
+                let exchanges = Self::parse_vec_of_str(object, "exchanges").ok_or(e)?;
+                let frequency_ms = Self::parse_frequency_ms(object).ok_or(e)?;
+
+                Ok(Self::CoinExchangePrice {
+                    id,
+                    coins,
+                    exchanges,
                     frequency_ms,
                 })
             }

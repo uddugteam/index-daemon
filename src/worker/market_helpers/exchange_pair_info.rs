@@ -16,7 +16,7 @@ pub trait ExchangePairInfoTrait: Send {
     fn set_last_trade_volume(&mut self, value: f64);
 
     fn get_last_trade_price(&self) -> f64;
-    fn set_last_trade_price(&mut self, value: f64);
+    fn set_last_trade_price(&mut self, value: f64, timestamp: DateTime<Utc>);
 
     fn set_timestamp(&mut self, timestamp: DateTime<Utc>);
 }
@@ -92,9 +92,9 @@ impl ExchangePairInfoTrait for ExchangePairInfo {
     fn get_last_trade_price(&self) -> f64 {
         self.last_trade_price
     }
-    fn set_last_trade_price(&mut self, value: f64) {
+    fn set_last_trade_price(&mut self, value: f64, timestamp: DateTime<Utc>) {
         self.last_trade_price = value;
-        self.timestamp = Utc::now();
+        self.timestamp = timestamp;
     }
 
     fn set_timestamp(&mut self, timestamp: DateTime<Utc>) {

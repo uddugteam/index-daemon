@@ -1,10 +1,14 @@
+use crate::worker::helper_functions::strip_usd;
 use crate::worker::market_helpers::conversion_type::ConversionType;
 use crate::worker::market_helpers::exchange_pair::ExchangePair;
 use crate::worker::market_helpers::exchange_pair_info::ExchangePairInfo;
 use crate::worker::market_helpers::exchange_pair_info::ExchangePairInfoTrait;
 use crate::worker::market_helpers::market::Market;
 use crate::worker::market_helpers::market_channels::MarketChannels;
+use crate::worker::network_helpers::ws_server::ws_channel_response_payload::WsChannelResponsePayload;
+use crate::worker::network_helpers::ws_server::ws_channels::WsChannels;
 use crate::worker::worker::{self, Worker};
+use chrono::Utc;
 use std::collections::HashMap;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
@@ -24,6 +28,7 @@ pub struct MarketSpine {
     conversions: HashMap<String, ConversionType>,
     pairs: HashMap<String, (String, String)>,
     pub channels: Vec<MarketChannels>,
+    pub ws_channels: WsChannels,
     pub graceful_shutdown: Arc<Mutex<bool>>,
 }
 impl MarketSpine {
@@ -68,6 +73,7 @@ impl MarketSpine {
             conversions: HashMap::new(),
             pairs: HashMap::new(),
             channels,
+            ws_channels: WsChannels::new(),
             graceful_shutdown,
         }
     }
@@ -250,12 +256,25 @@ impl MarketSpine {
             }
         }
 
+        let timestamp = Utc::now();
         self.exchange_pairs
             .get_mut(pair)
             .unwrap()
-            .set_last_trade_price(value);
+            .set_last_trade_price(value, timestamp);
 
         let pair_tuple = self.pairs.get(pair).unwrap().clone();
+        let coin = strip_usd(&pair_tuple);
+        if let Some(coin) = coin {
+            let response_payload = WsChannelResponsePayload::CoinExchangePrice {
+                coin,
+                value,
+                exchange: self.name.clone(),
+                timestamp,
+            };
+
+            self.ws_channels.ws_send(response_payload);
+        }
+
         self.recalculate_pair_average_price(pair_tuple, value);
 
         self.update_market_pair(pair, "lastTrade", false);

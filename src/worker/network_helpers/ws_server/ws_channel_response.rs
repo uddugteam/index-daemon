@@ -1,39 +1,37 @@
 use crate::worker::network_helpers::ws_server::json_rpc_messages::JsonRpcId;
-use chrono::{DateTime, Utc};
+use crate::worker::network_helpers::ws_server::ws_channel_response_payload::WsChannelResponsePayload;
 
-use crate::worker::network_helpers::ws_server::ser_date_into_timestamp;
-
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 #[serde(untagged)]
 pub enum WsChannelResponse {
     SuccSub {
         id: Option<JsonRpcId>,
-        value: String,
+        payload: WsChannelResponsePayload,
     },
     CoinAveragePrice {
         id: Option<JsonRpcId>,
-        coin: String,
-        value: f64,
-        #[serde(with = "ser_date_into_timestamp")]
-        timestamp: DateTime<Utc>,
+        payload: WsChannelResponsePayload,
+    },
+    CoinExchangePrice {
+        id: Option<JsonRpcId>,
+        payload: WsChannelResponsePayload,
     },
 }
 
 impl WsChannelResponse {
-    pub fn get_id(&self) -> Option<JsonRpcId> {
+    pub fn get_payload(&self) -> WsChannelResponsePayload {
         match self {
-            WsChannelResponse::SuccSub { id, .. } => id,
-            WsChannelResponse::CoinAveragePrice { id, .. } => id,
+            WsChannelResponse::SuccSub { payload, .. }
+            | WsChannelResponse::CoinAveragePrice { payload, .. }
+            | WsChannelResponse::CoinExchangePrice { payload, .. } => payload.clone(),
         }
-        .clone()
     }
 
-    pub fn get_timestamp(&self) -> DateTime<Utc> {
-        let timestamp = match self {
-            WsChannelResponse::CoinAveragePrice { timestamp, .. } => *timestamp,
-            _ => panic!("Wrong response."),
-        };
-
-        timestamp
+    pub fn get_id(&self) -> Option<JsonRpcId> {
+        match self {
+            WsChannelResponse::SuccSub { id, .. }
+            | WsChannelResponse::CoinAveragePrice { id, .. }
+            | WsChannelResponse::CoinExchangePrice { id, .. } => id.clone(),
+        }
     }
 }

@@ -24,6 +24,7 @@ pub struct Worker {
     tx: Sender<JoinHandle<()>>,
     graceful_shutdown: Arc<Mutex<bool>>,
     markets: HashMap<String, Arc<Mutex<dyn Market + Send>>>,
+    market_names_by_ws_channel_key: HashMap<(String, String), Vec<String>>,
     pair_average_price: PairAveragePrice,
     capitalization: HashMap<String, f64>,
     last_capitalization_refresh: DateTime<Utc>,
@@ -43,6 +44,7 @@ impl Worker {
             tx,
             graceful_shutdown,
             markets: HashMap::new(),
+            market_names_by_ws_channel_key: HashMap::new(),
             pair_average_price: PairAveragePrice::new(),
             capitalization: HashMap::new(),
             last_capitalization_refresh: MIN_DATETIME,
@@ -58,28 +60,77 @@ impl Worker {
         self.arc = Some(arc);
     }
 
-    pub fn add_ws_channel(&mut self, conn_id: String, channel: WsChannelResponseSender) {
-        match channel.request {
+    pub fn add_ws_channel(
+        &mut self,
+        conn_id: String,
+        channel: WsChannelResponseSender,
+    ) -> Result<(), Vec<String>> {
+        match &channel.request {
             WsChannelRequest::CoinAveragePrice { .. } => {
                 // Worker's channel
 
                 self.pair_average_price
                     .ws_channels
                     .add_ws_channel(conn_id, channel);
+
+                Ok(())
             }
-            WsChannelRequest::CoinExchangePrice { exchanges, .. } => {
+            WsChannelRequest::CoinExchangePrice { id, exchanges, .. } => {
                 // Market's channel
 
-                todo!()
+                // Search for unsupported exchanges
+                let errors: Vec<String> = exchanges
+                    .iter()
+                    .filter(|&v| !self.markets.contains_key(v))
+                    .map(|v| format!("Unsupported exchange: {}", v))
+                    .collect();
+
+                if !errors.is_empty() {
+                    Err(errors)
+                } else {
+                    let key = (conn_id.clone(), channel.request.get_method());
+                    self.remove_ws_channel(&key);
+                    self.market_names_by_ws_channel_key
+                        .insert(key, exchanges.clone());
+
+                    // There we have only supported exchanges, thus we can call `unwrap`
+                    for exchange in exchanges {
+                        self.markets
+                            .get_mut(exchange)
+                            .unwrap()
+                            .lock()
+                            .unwrap()
+                            .get_spine_mut()
+                            .ws_channels
+                            .add_ws_channel(conn_id.clone(), channel.clone());
+                    }
+
+                    Ok(())
+                }
             }
-            _ => {
-                panic!("Unexpected request.");
-            }
+            _ => Err(vec!["Unexpected request.".to_string()]),
         }
     }
 
     pub fn remove_ws_channel(&mut self, key: &(String, String)) {
-        self.pair_average_price.ws_channels.remove_ws_channel(key);
+        if let Some(market_names) = self.market_names_by_ws_channel_key.get(key) {
+            // Market's channel
+
+            for market_name in market_names {
+                self.markets
+                    .get_mut(market_name)
+                    .unwrap()
+                    .lock()
+                    .unwrap()
+                    .get_spine_mut()
+                    .ws_channels
+                    .remove_ws_channel(key);
+            }
+        } else {
+            // Worker's channel
+
+            self.pair_average_price.ws_channels.remove_ws_channel(key);
+        }
     }
 
     // TODO: Implement
@@ -375,9 +426,10 @@ pub mod test {
         let markets = markets.unwrap_or(MARKETS.to_vec());
         assert_eq!(markets.len(), worker.lock().unwrap().markets.len());
 
-        for (i, market) in worker.lock().unwrap().markets.values().enumerate() {
+        for (market_name_key, market) in &worker.lock().unwrap().markets {
             let market_name = market.lock().unwrap().get_spine().name.clone();
-            assert_eq!(market_name, markets[i]);
+            assert_eq!(market_name_key, &market_name);
+            assert!(markets.contains(&market_name.as_str()));
         }
     }
 

@@ -1,3 +1,4 @@
+use crate::worker::helper_functions::get_pair_ref;
 use crate::worker::market_helpers::exchange_pair::ExchangePair;
 use crate::worker::market_helpers::exchange_pair_info::ExchangePairInfoTrait;
 use crate::worker::market_helpers::market_channels::MarketChannels;
@@ -315,7 +316,7 @@ pub trait Market {
     }
 
     fn add_exchange_pair(&mut self, exchange_pair: ExchangePair) {
-        let pair_string = self.make_pair(exchange_pair.get_pair_ref());
+        let pair_string = self.make_pair(get_pair_ref(&exchange_pair.pair));
         self.get_spine_mut()
             .add_exchange_pair(pair_string, exchange_pair);
     }
@@ -467,6 +468,7 @@ pub trait Market {
 
 #[cfg(test)]
 mod test {
+    use crate::worker::helper_functions::get_pair_ref;
     use crate::worker::market_helpers::conversion_type::ConversionType;
     use crate::worker::market_helpers::exchange_pair::ExchangePair;
     use crate::worker::market_helpers::market::{market_factory, update, Market};
@@ -504,7 +506,7 @@ mod test {
         let pair_string = market
             .lock()
             .unwrap()
-            .make_pair(exchange_pair.get_pair_ref());
+            .make_pair(get_pair_ref(&exchange_pair.pair));
 
         market.lock().unwrap().add_exchange_pair(exchange_pair);
 
@@ -562,7 +564,7 @@ mod test {
         assert_eq!(exchange_pair_keys.len(), exchange_pairs.len());
 
         for pair in &exchange_pairs {
-            let pair_string = market.lock().unwrap().make_pair(pair.get_pair_ref());
+            let pair_string = market.lock().unwrap().make_pair(get_pair_ref(&pair.pair));
             assert!(exchange_pair_keys.contains(&pair_string));
         }
     }

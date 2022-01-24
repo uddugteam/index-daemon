@@ -63,7 +63,7 @@ impl ExchangePairInfoTrait for ExchangePairInfoCache {
             .unwrap_or(0.0)
     }
 
-    fn set_last_trade_price(&mut self, value: f64) {
+    fn set_last_trade_price(&mut self, value: f64, _timestamp: DateTime<Utc>) {
         self.0
             .insert("total_last_trade_price".to_string(), value.to_string());
     }

@@ -1,5 +1,6 @@
+use crate::worker::helper_functions::add_jsonrpc_version;
 use crate::worker::network_helpers::ws_server::json_rpc_messages::{
-    JsonRpcErr, JsonRpcRequest, JsonRpcResponseErr,
+    JsonRpcErr, JsonRpcRequest, JsonRpcResponse,
 };
 use crate::worker::network_helpers::ws_server::ws_channel_request::WsChannelRequest;
 use crate::worker::network_helpers::ws_server::ws_channel_response_sender::WsChannelResponseSender;
@@ -67,10 +68,12 @@ impl WsServer {
             let response_sender =
                 WsChannelResponseSender::new(broadcast_recipient, channel, ws_answer_timeout_ms);
 
-            worker
+            let add_ws_channel_result = worker
                 .lock()
                 .unwrap()
                 .add_ws_channel(conn_id, response_sender);
+
+            // TODO: There we need to check if error and answer to recipient with error message
         } else {
             let method = channel.get_method();
 
@@ -112,14 +115,15 @@ impl WsServer {
                         );
                     }
                     Err(_) => {
-                        let response = JsonRpcResponseErr {
+                        let response = JsonRpcResponse::Err {
                             id: request.id,
                             result: JsonRpcErr {
                                 code: -32700,
                                 message: "Channel parse error.".to_string(),
                             },
                         };
-                        let response = serde_json::to_string(&response).unwrap();
+                        let mut response = serde_json::to_string(&response).unwrap();
+                        add_jsonrpc_version(&mut response);
 
                         let response = Message::from(response);
                         let _ = broadcast_recipient.unbounded_send(response);
