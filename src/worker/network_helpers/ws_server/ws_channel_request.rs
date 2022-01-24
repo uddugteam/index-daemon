@@ -7,19 +7,25 @@ pub enum WsChannelRequest {
         coins: Vec<String>,
         frequency_ms: u64,
     },
-
     Unsubscribe {
+        id: Option<JsonRpcId>,
         method: String,
     },
 }
 
 impl WsChannelRequest {
     pub fn get_id(&self) -> Option<JsonRpcId> {
-        
-
         match self {
-            WsChannelRequest::CoinAveragePrice { id, .. } => id.clone(),
-            WsChannelRequest::Unsubscribe { .. } => None,
+            WsChannelRequest::CoinAveragePrice { id, .. } => id,
+            WsChannelRequest::Unsubscribe { id, .. } => id,
+        }
+        .clone()
+    }
+
+    pub fn get_method(&self) -> String {
+        match self {
+            WsChannelRequest::CoinAveragePrice { .. } => "coin_average_price".to_string(),
+            WsChannelRequest::Unsubscribe { method, .. } => method.to_string(),
         }
     }
 
@@ -62,32 +68,32 @@ impl TryFrom<&JsonRpcRequest> for WsChannelRequest {
 
     fn try_from(request: &JsonRpcRequest) -> Result<Self, Self::Error> {
         let e = "Wrong params.";
-
+        let id = request.id.clone();
         let object = request.params.as_object().ok_or(e)?;
 
         match request.method.as_str() {
             "coin_average_price" => {
-                let coins = object.get("coins").ok_or(e)?;
-                let coins = coins.as_array().ok_or(e)?;
-                let mut coins_str = Vec::new();
-                for coin in coins {
-                    coins_str.push(coin.as_str().ok_or(e)?.to_string());
+                let coins_json = object.get("coins").ok_or(e)?;
+                let coins_json = coins_json.as_array().ok_or(e)?;
+                let mut coins = Vec::new();
+                for coin in coins_json {
+                    coins.push(coin.as_str().ok_or(e)?.to_string());
                 }
 
-                let freq = object.get("frequency_ms").ok_or(e)?;
-                let freq = freq.as_u64().ok_or(e)?;
+                let frequency_ms = object.get("frequency_ms").ok_or(e)?;
+                let frequency_ms = frequency_ms.as_u64().ok_or(e)?;
 
                 Ok(Self::CoinAveragePrice {
-                    id: request.id.clone(),
-                    coins: coins_str,
-                    frequency_ms: freq,
+                    id,
+                    coins,
+                    frequency_ms,
                 })
             }
             "unsubscribe" => {
                 let method = object.get("method").ok_or(e)?;
                 let method = method.as_str().ok_or(e)?.to_string();
 
-                Ok(Self::Unsubscribe { method })
+                Ok(Self::Unsubscribe { id, method })
             }
             _ => Err("Wrong method.".to_string()),
         }

@@ -12,7 +12,7 @@ type Tx = UnboundedSender<Message>;
 
 pub struct WsChannelResponseSender {
     broadcast_recipient: Tx,
-    request: WsChannelRequest,
+    pub request: WsChannelRequest,
     last_send_timestamp: DateTime<Utc>,
 }
 
@@ -31,14 +31,6 @@ impl WsChannelResponseSender {
             request,
             last_send_timestamp: MIN_DATETIME,
         }
-    }
-
-    pub fn get_id(&self) -> Option<JsonRpcId> {
-        self.request.get_id()
-    }
-
-    pub fn get_coins(&self) -> &Vec<String> {
-        self.request.get_coins()
     }
 
     fn add_jsonrpc_version(response: &mut String) {
@@ -67,8 +59,14 @@ impl WsChannelResponseSender {
         self.broadcast_recipient.unbounded_send(response)
     }
 
-    pub fn send_succ_sub_notif(&mut self) -> Result<(), TrySendError<Message>> {
-        let response = WsChannelResponse::Str("Successfully subscribed.".to_string());
+    pub fn send_succ_sub_notif(
+        &mut self,
+        id: Option<JsonRpcId>,
+    ) -> Result<(), TrySendError<Message>> {
+        let response = WsChannelResponse::SuccSub {
+            id,
+            value: "Successfully subscribed.".to_string(),
+        };
 
         self.send_inner(response)
     }

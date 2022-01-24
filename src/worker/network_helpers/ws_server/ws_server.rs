@@ -14,7 +14,6 @@ use futures::{
     future, pin_mut,
     prelude::*,
 };
-use rustc_serialize::json::Json;
 use std::{collections::HashMap, io, net::SocketAddr, sync::Arc, sync::Mutex, thread};
 use uuid::Uuid;
 
@@ -32,17 +31,6 @@ pub struct WsServer {
 impl WsServer {
     pub fn start(self) {
         let _ = task::block_on(Self::run(self));
-    }
-
-    fn parse_json(json_string: String) -> Option<Json> {
-        let value = if let Ok(value) = Json::from_str(&json_string) {
-            Some(value)
-        } else {
-            let value = format!("\"{}\"", json_string);
-            Json::from_str(&value).ok()
-        };
-
-        value
     }
 
     /// What function does:
@@ -71,7 +59,7 @@ impl WsServer {
     fn add_new_channel(
         worker: Arc<Mutex<Worker>>,
         broadcast_recipient: Tx,
-        id: String,
+        conn_id: String,
         channel: WsChannelRequest,
         ws_answer_timeout_ms: u64,
     ) {
@@ -83,13 +71,15 @@ impl WsServer {
                 .lock()
                 .unwrap()
                 .pair_average_price
-                .add_ws_channel(id, response_sender);
+                .add_ws_channel(conn_id, response_sender);
         } else {
+            let method = channel.get_method();
+
             worker
                 .lock()
                 .unwrap()
                 .pair_average_price
-                .remove_ws_channel(&id);
+                .remove_ws_channel(&(conn_id, method));
         }
     }
 
@@ -102,13 +92,12 @@ impl WsServer {
         client_addr: &SocketAddr,
         broadcast_recipient: Tx,
         request: serde_json::Result<JsonRpcRequest>,
-        id: String,
+        conn_id: String,
         channel: Option<Result<WsChannelRequest, String>>,
         ws_answer_timeout_ms: u64,
     ) {
         match request {
             Ok(request) => {
-                println!("parse request OK: {:?}", request);
                 // If `request` is `Ok`, then `channel` is `Some` anyway
                 let channel = channel.unwrap();
 
@@ -122,7 +111,7 @@ impl WsServer {
                         Self::add_new_channel(
                             worker,
                             broadcast_recipient,
-                            id,
+                            conn_id,
                             channel,
                             ws_answer_timeout_ms,
                         );
@@ -143,7 +132,6 @@ impl WsServer {
                 }
             }
             Err(e) => {
-                println!("parse request ERROR: {:?}", e);
                 error!(
                     "Handle request error. Client addr: {}, channel: {:?}, error: {:?}",
                     client_addr, channel, e
@@ -158,7 +146,7 @@ impl WsServer {
         worker: &Arc<Mutex<Worker>>,
         peer_map: &PeerMap,
         client_addr: SocketAddr,
-        id: &str,
+        conn_id: &str,
         ws_answer_timeout_ms: u64,
         _graceful_shutdown: &Arc<Mutex<bool>>,
     ) {
@@ -167,7 +155,7 @@ impl WsServer {
         let peers = peer_map.lock().unwrap();
 
         if let Some(broadcast_recipient) = peers.get(&client_addr).cloned() {
-            let id_2 = id.to_string();
+            let conn_id_2 = conn_id.to_string();
             let worker_2 = Arc::clone(worker);
 
             let thread_name = format!(
@@ -182,7 +170,7 @@ impl WsServer {
                         &client_addr,
                         broadcast_recipient,
                         request,
-                        id_2,
+                        conn_id_2,
                         channel,
                         ws_answer_timeout_ms,
                     )
@@ -200,7 +188,7 @@ impl WsServer {
         peer_map: PeerMap,
         raw_stream: TcpStream,
         client_addr: SocketAddr,
-        id: String,
+        conn_id: String,
         ws_answer_timeout_ms: u64,
         graceful_shutdown: Arc<Mutex<bool>>,
     ) {
@@ -224,7 +212,7 @@ impl WsServer {
                         &worker,
                         &peer_map,
                         client_addr,
-                        &id,
+                        &conn_id,
                         ws_answer_timeout_ms,
                         &graceful_shutdown,
                     );
@@ -264,14 +252,14 @@ impl WsServer {
                 break;
             }
 
-            let id = Uuid::new_v4().to_string();
+            let conn_id = Uuid::new_v4().to_string();
 
             let _ = task::spawn(Self::handle_connection(
                 Arc::clone(&self.worker),
                 state.clone(),
                 stream,
                 client_addr,
-                id,
+                conn_id,
                 self.ws_answer_timeout_ms,
                 Arc::clone(&self.graceful_shutdown),
             ));

@@ -12,7 +12,7 @@ pub struct JsonRpcErr {
     pub message: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize)]
 pub struct JsonRpcRequest {
     pub id: Option<JsonRpcId>,
     pub method: String,

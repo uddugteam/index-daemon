@@ -3,10 +3,13 @@ use chrono::{DateTime, Utc};
 
 use crate::worker::network_helpers::ws_server::ser_date_into_timestamp;
 
-#[derive(Debug, Serialize)]
+#[derive(Serialize)]
 #[serde(untagged)]
 pub enum WsChannelResponse {
-    Str(String),
+    SuccSub {
+        id: Option<JsonRpcId>,
+        value: String,
+    },
     CoinAveragePrice {
         id: Option<JsonRpcId>,
         coin: String,
@@ -18,12 +21,11 @@ pub enum WsChannelResponse {
 
 impl WsChannelResponse {
     pub fn get_id(&self) -> Option<JsonRpcId> {
-        
-
         match self {
-            WsChannelResponse::CoinAveragePrice { id, .. } => id.clone(),
-            _ => None,
+            WsChannelResponse::SuccSub { id, .. } => id,
+            WsChannelResponse::CoinAveragePrice { id, .. } => id,
         }
+        .clone()
     }
 
     pub fn get_timestamp(&self) -> DateTime<Utc> {

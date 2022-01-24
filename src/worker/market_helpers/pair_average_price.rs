@@ -10,7 +10,7 @@ pub struct PairAveragePrice {
     value: HashMap<(String, String), f64>,
     timestamp: DateTime<Utc>,
     repository: Arc<Mutex<dyn Repository<(String, String), f64> + Send>>,
-    ws_channels: HashMap<String, WsChannelResponseSender>,
+    ws_channels: HashMap<(String, String), WsChannelResponseSender>,
 }
 
 impl PairAveragePrice {
@@ -37,17 +37,17 @@ impl PairAveragePrice {
         };
 
         if let Some(coin) = coin {
-            let senders: HashMap<&String, &mut WsChannelResponseSender> = self
+            let senders: HashMap<&(String, String), &mut WsChannelResponseSender> = self
                 .ws_channels
                 .iter_mut()
-                .filter(|(_, v)| v.get_coins().contains(&coin))
+                .filter(|(_, v)| v.request.get_coins().contains(&coin))
                 .collect();
 
-            let mut ids_to_remove = Vec::new();
+            let mut keys_to_remove = Vec::new();
 
-            for (id, sender) in senders {
+            for (key, sender) in senders {
                 let response = WsChannelResponse::CoinAveragePrice {
-                    id: sender.get_id(),
+                    id: sender.request.get_id(),
                     coin: coin.clone(),
                     value: new_price,
                     timestamp: self.timestamp,
@@ -58,15 +58,15 @@ impl PairAveragePrice {
                     if send_msg_result.is_err() {
                         // Send msg error. The client is likely disconnected. We stop sending him messages.
 
-                        ids_to_remove.push(id.to_string());
+                        keys_to_remove.push(key.clone());
                     }
                 } else {
                     // Message wasn't sent because of frequency_ms (not enough time has passed since last dispatch)
                 }
             }
 
-            for id in ids_to_remove {
-                self.ws_channels.remove(&id);
+            for key in keys_to_remove {
+                self.ws_channels.remove(&key);
             }
         }
     }
@@ -88,15 +88,18 @@ impl PairAveragePrice {
         self.ws_send(pair, new_price);
     }
 
-    pub fn add_ws_channel(&mut self, id: String, mut channel: WsChannelResponseSender) {
-        if channel.send_succ_sub_notif().is_ok() {
-            self.ws_channels.insert(id, channel);
+    pub fn add_ws_channel(&mut self, conn_id: String, mut channel: WsChannelResponseSender) {
+        let sub_id = channel.request.get_id();
+        let method = channel.request.get_method();
+
+        if channel.send_succ_sub_notif(sub_id).is_ok() {
+            self.ws_channels.insert((conn_id, method), channel);
         } else {
             // Send msg error. The client is likely disconnected. We don't even establish subscription.
         }
     }
 
-    pub fn remove_ws_channel(&mut self, id: &str) {
-        self.ws_channels.remove(id);
+    pub fn remove_ws_channel(&mut self, key: &(String, String)) {
+        self.ws_channels.remove(key);
     }
 }
