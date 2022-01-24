@@ -1,18 +1,9 @@
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(untagged)]
 pub enum JsonRpcId {
     Int(i64),
     Float(f64),
     Str(String),
-}
-impl Clone for JsonRpcId {
-    fn clone(&self) -> Self {
-        match self {
-            Self::Int(x) => Self::Int(*x),
-            Self::Float(x) => Self::Float(*x),
-            Self::Str(s) => Self::Str(s.to_string()),
-        }
-    }
 }
 
 #[derive(Serialize, Deserialize)]
