@@ -1,4 +1,4 @@
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum ConversionType {
     /// Already in USD
     None,
@@ -9,5 +9,3 @@ pub enum ConversionType {
     /// Needed conversion from cryptocurrency to USD
     Crypto,
 }
-
-impl Copy for ConversionType {}

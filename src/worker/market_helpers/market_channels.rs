@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum MarketChannels {
     Ticker,
     Trades,
@@ -26,5 +26,3 @@ impl FromStr for MarketChannels {
         }
     }
 }
-
-impl Copy for MarketChannels {}
