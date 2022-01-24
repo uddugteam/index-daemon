@@ -75,7 +75,7 @@ impl Worker {
 
                 Ok(())
             }
-            WsChannelRequest::CoinExchangePrice { id, exchanges, .. } => {
+            WsChannelRequest::CoinExchangePrice { id: _, exchanges, .. } => {
                 // Market's channel
 
                 // Search for unsupported exchanges

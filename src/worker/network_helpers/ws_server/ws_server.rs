@@ -68,7 +68,7 @@ impl WsServer {
             let response_sender =
                 WsChannelResponseSender::new(broadcast_recipient, channel, ws_answer_timeout_ms);
 
-            let add_ws_channel_result = worker
+            let _add_ws_channel_result = worker
                 .lock()
                 .unwrap()
                 .add_ws_channel(conn_id, response_sender);

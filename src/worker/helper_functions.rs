@@ -3,7 +3,7 @@ pub fn get_pair_ref(pair: &(String, String)) -> (&str, &str) {
 }
 
 pub fn strip_usd(pair: &(String, String)) -> Option<String> {
-    match get_pair_ref(&pair) {
+    match get_pair_ref(pair) {
         ("USD", coin) | (coin, "USD") => {
             // good pair (coin-USD)
             Some(coin.to_string())
