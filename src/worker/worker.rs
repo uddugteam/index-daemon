@@ -15,14 +15,16 @@ use std::time;
 use crate::worker::market_helpers::market::{market_factory, Market};
 use crate::worker::market_helpers::market_spine::MarketSpine;
 use crate::worker::market_helpers::pair_average_price::PairAveragePrice;
+use crate::worker::network_helpers::ws_server::ws_channel_request::WsChannelRequest;
+use crate::worker::network_helpers::ws_server::ws_channel_response_sender::WsChannelResponseSender;
 use crate::worker::network_helpers::ws_server::ws_server::WsServer;
 
 pub struct Worker {
     arc: Option<Arc<Mutex<Self>>>,
     tx: Sender<JoinHandle<()>>,
     graceful_shutdown: Arc<Mutex<bool>>,
-    markets: Vec<Arc<Mutex<dyn Market + Send>>>,
-    pub pair_average_price: PairAveragePrice,
+    markets: HashMap<String, Arc<Mutex<dyn Market + Send>>>,
+    pair_average_price: PairAveragePrice,
     capitalization: HashMap<String, f64>,
     last_capitalization_refresh: DateTime<Utc>,
 }
@@ -40,7 +42,7 @@ impl Worker {
             arc: None,
             tx,
             graceful_shutdown,
-            markets: Vec::new(),
+            markets: HashMap::new(),
             pair_average_price: PairAveragePrice::new(),
             capitalization: HashMap::new(),
             last_capitalization_refresh: MIN_DATETIME,
@@ -54,6 +56,30 @@ impl Worker {
 
     fn set_arc(&mut self, arc: Arc<Mutex<Self>>) {
         self.arc = Some(arc);
+    }
+
+    pub fn add_ws_channel(&mut self, conn_id: String, channel: WsChannelResponseSender) {
+        match channel.request {
+            WsChannelRequest::CoinAveragePrice { .. } => {
+                // Worker's channel
+
+                self.pair_average_price
+                    .ws_channels
+                    .add_ws_channel(conn_id, channel);
+            }
+            WsChannelRequest::CoinExchangePrice { exchanges, .. } => {
+                // Market's channel
+
+                todo!()
+            }
+            _ => {
+                panic!("Unexpected request.");
+            }
+        }
+    }
+
+    pub fn remove_ws_channel(&mut self, key: &(String, String)) {
+        self.pair_average_price.ws_channels.remove_ws_channel(key);
     }
 
     // TODO: Implement
@@ -199,7 +225,7 @@ impl Worker {
             );
             let market = market_factory(market_spine, exchange_pairs.clone());
 
-            self.markets.push(market);
+            self.markets.insert(market_name.to_string(), market);
         }
     }
 
@@ -268,7 +294,7 @@ impl Worker {
 
         self.refresh_capitalization_thread();
 
-        for market in self.markets.iter().cloned() {
+        for market in self.markets.values().cloned() {
             if self.is_graceful_shutdown() {
                 return;
             }
@@ -349,7 +375,7 @@ pub mod test {
         let markets = markets.unwrap_or(MARKETS.to_vec());
         assert_eq!(markets.len(), worker.lock().unwrap().markets.len());
 
-        for (i, market) in worker.lock().unwrap().markets.iter().enumerate() {
+        for (i, market) in worker.lock().unwrap().markets.values().enumerate() {
             let market_name = market.lock().unwrap().get_spine().name.clone();
             assert_eq!(market_name, markets[i]);
         }

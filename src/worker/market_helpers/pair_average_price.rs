@@ -1,7 +1,6 @@
 use crate::repository::pair_average_price_cache::PairAveragePriceCache;
 use crate::repository::repository::Repository;
-use crate::worker::network_helpers::ws_server::ws_channel_response::WsChannelResponse;
-use crate::worker::network_helpers::ws_server::ws_channel_response_sender::WsChannelResponseSender;
+use crate::worker::network_helpers::ws_server::ws_channels::WsChannels;
 use chrono::{DateTime, Utc, MIN_DATETIME};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -10,7 +9,7 @@ pub struct PairAveragePrice {
     value: HashMap<(String, String), f64>,
     timestamp: DateTime<Utc>,
     repository: Arc<Mutex<dyn Repository<(String, String), f64> + Send>>,
-    ws_channels: HashMap<(String, String), WsChannelResponseSender>,
+    pub ws_channels: WsChannels,
 }
 
 impl PairAveragePrice {
@@ -19,55 +18,7 @@ impl PairAveragePrice {
             value: HashMap::new(),
             timestamp: MIN_DATETIME,
             repository: Arc::new(Mutex::new(PairAveragePriceCache::new())),
-            ws_channels: HashMap::new(),
-        }
-    }
-
-    fn ws_send(&mut self, pair: (String, String), new_price: f64) {
-        let pair = (pair.0.as_str(), pair.1.as_str());
-        let coin = match pair {
-            ("USD", coin) | (coin, "USD") => {
-                // good pair (coin-fiat)
-                Some(coin.to_string())
-            }
-            _ => {
-                // bad pair (coin-coin)
-                None
-            }
-        };
-
-        if let Some(coin) = coin {
-            let senders: HashMap<&(String, String), &mut WsChannelResponseSender> = self
-                .ws_channels
-                .iter_mut()
-                .filter(|(_, v)| v.request.get_coins().contains(&coin))
-                .collect();
-
-            let mut keys_to_remove = Vec::new();
-
-            for (key, sender) in senders {
-                let response = WsChannelResponse::CoinAveragePrice {
-                    id: sender.request.get_id(),
-                    coin: coin.clone(),
-                    value: new_price,
-                    timestamp: self.timestamp,
-                };
-                let send_msg_result = sender.send(response);
-
-                if let Some(send_msg_result) = send_msg_result {
-                    if send_msg_result.is_err() {
-                        // Send msg error. The client is likely disconnected. We stop sending him messages.
-
-                        keys_to_remove.push(key.clone());
-                    }
-                } else {
-                    // Message wasn't sent because of frequency_ms (not enough time has passed since last dispatch)
-                }
-            }
-
-            for key in keys_to_remove {
-                self.ws_channels.remove(&key);
-            }
+            ws_channels: WsChannels::new(HashMap::new()),
         }
     }
 
@@ -85,21 +36,6 @@ impl PairAveragePrice {
             .unwrap()
             .insert(pair.clone(), new_price);
 
-        self.ws_send(pair, new_price);
-    }
-
-    pub fn add_ws_channel(&mut self, conn_id: String, mut channel: WsChannelResponseSender) {
-        let sub_id = channel.request.get_id();
-        let method = channel.request.get_method();
-
-        if channel.send_succ_sub_notif(sub_id).is_ok() {
-            self.ws_channels.insert((conn_id, method), channel);
-        } else {
-            // Send msg error. The client is likely disconnected. We don't even establish subscription.
-        }
-    }
-
-    pub fn remove_ws_channel(&mut self, key: &(String, String)) {
-        self.ws_channels.remove(key);
+        self.ws_channels.ws_send(pair, new_price, self.timestamp);
     }
 }

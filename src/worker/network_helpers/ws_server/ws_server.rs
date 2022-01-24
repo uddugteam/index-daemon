@@ -70,16 +70,11 @@ impl WsServer {
             worker
                 .lock()
                 .unwrap()
-                .pair_average_price
                 .add_ws_channel(conn_id, response_sender);
         } else {
             let method = channel.get_method();
 
-            worker
-                .lock()
-                .unwrap()
-                .pair_average_price
-                .remove_ws_channel(&(conn_id, method));
+            worker.lock().unwrap().remove_ws_channel(&(conn_id, method));
         }
     }
 
