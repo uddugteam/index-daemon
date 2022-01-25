@@ -1,4 +1,4 @@
-use crate::worker::network_helpers::ws_server::json_rpc_messages::{JsonRpcId, JsonRpcRequest};
+use crate::worker::network_helpers::ws_server::jsonrpc_messages::{JsonRpcId, JsonRpcRequest};
 use serde_json::Map;
 
 #[derive(Debug, Clone)]

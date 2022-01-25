@@ -1,4 +1,4 @@
-use crate::worker::network_helpers::ws_server::json_rpc_messages::JsonRpcId;
+use crate::worker::network_helpers::ws_server::jsonrpc_messages::JsonRpcId;
 use crate::worker::network_helpers::ws_server::ser_date_into_timestamp;
 use crate::worker::network_helpers::ws_server::ws_channel_response::WsChannelResponse;
 

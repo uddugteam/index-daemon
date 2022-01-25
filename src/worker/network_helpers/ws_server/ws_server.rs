@@ -1,5 +1,5 @@
 use crate::worker::helper_functions::add_jsonrpc_version;
-use crate::worker::network_helpers::ws_server::json_rpc_messages::{
+use crate::worker::network_helpers::ws_server::jsonrpc_messages::{
     JsonRpcErr, JsonRpcId, JsonRpcRequest, JsonRpcResponse,
 };
 use crate::worker::network_helpers::ws_server::ws_channel_request::WsChannelRequest;
@@ -21,8 +21,8 @@ use uuid::Uuid;
 type Tx = UnboundedSender<Message>;
 type PeerMap = Arc<Mutex<HashMap<SocketAddr, Tx>>>;
 
-const JSON_RPC_ERROR_INVALID_REQUEST: i64 = -32600;
-const JSON_RPC_ERROR_INVALID_PARAMS: i64 = -32602;
+const JSONRPC_ERROR_INVALID_REQUEST: i64 = -32600;
+const JSONRPC_ERROR_INVALID_PARAMS: i64 = -32602;
 
 pub struct WsServer {
     pub worker: Arc<Mutex<Worker>>,
@@ -97,7 +97,7 @@ impl WsServer {
                     Self::send_error(
                         &broadcast_recipient,
                         sub_id.clone(),
-                        JSON_RPC_ERROR_INVALID_PARAMS,
+                        JSONRPC_ERROR_INVALID_PARAMS,
                         error,
                     );
 
@@ -149,7 +149,7 @@ impl WsServer {
                         Self::send_error(
                             &broadcast_recipient,
                             request.id,
-                            JSON_RPC_ERROR_INVALID_REQUEST,
+                            JSONRPC_ERROR_INVALID_REQUEST,
                             e,
                         );
                     }

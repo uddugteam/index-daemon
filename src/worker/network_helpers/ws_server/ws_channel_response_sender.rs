@@ -1,5 +1,5 @@
 use crate::worker::helper_functions::add_jsonrpc_version;
-use crate::worker::network_helpers::ws_server::json_rpc_messages::{JsonRpcId, JsonRpcResponse};
+use crate::worker::network_helpers::ws_server::jsonrpc_messages::{JsonRpcId, JsonRpcResponse};
 use crate::worker::network_helpers::ws_server::ws_channel_request::WsChannelRequest;
 use crate::worker::network_helpers::ws_server::ws_channel_response::WsChannelResponse;
 use crate::worker::network_helpers::ws_server::ws_channel_response_payload::WsChannelResponsePayload;
