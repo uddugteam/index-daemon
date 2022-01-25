@@ -172,7 +172,7 @@ impl MarketSpine {
                         timestamp,
                     };
 
-                    self.ws_channels.ws_send(response_payload);
+                    self.ws_channels.send(response_payload);
                 }
 
                 self.recalculate_total_volume(pair_tuple.0.clone());
@@ -283,7 +283,7 @@ impl MarketSpine {
                 timestamp,
             };
 
-            self.ws_channels.ws_send(response_payload);
+            self.ws_channels.send(response_payload);
         }
 
         self.recalculate_pair_average_price(pair_tuple, value);

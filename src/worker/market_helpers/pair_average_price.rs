@@ -46,7 +46,7 @@ impl PairAveragePrice {
                 timestamp: self.timestamp,
             };
 
-            self.ws_channels.ws_send(response_payload);
+            self.ws_channels.send(response_payload);
         }
     }
 }

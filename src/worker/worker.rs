@@ -71,7 +71,7 @@ impl Worker {
 
                 self.pair_average_price
                     .ws_channels
-                    .add_ws_channel(conn_id, channel);
+                    .add_channel(conn_id, channel);
 
                 Ok(())
             }
@@ -103,7 +103,7 @@ impl Worker {
                             .unwrap()
                             .get_spine_mut()
                             .ws_channels
-                            .add_ws_channel(conn_id.clone(), channel.clone());
+                            .add_channel(conn_id.clone(), channel.clone());
                     }
 
                     Ok(())
@@ -125,12 +125,12 @@ impl Worker {
                     .unwrap()
                     .get_spine_mut()
                     .ws_channels
-                    .remove_ws_channel(key);
+                    .remove_channel(key);
             }
         } else {
             // Worker's channel
 
-            self.pair_average_price.ws_channels.remove_ws_channel(key);
+            self.pair_average_price.ws_channels.remove_channel(key);
         }
     }
 

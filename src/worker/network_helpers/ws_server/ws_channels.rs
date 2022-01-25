@@ -9,7 +9,7 @@ impl WsChannels {
         Self(HashMap::new())
     }
 
-    pub fn ws_send(&mut self, response_payload: WsChannelResponsePayload) {
+    pub fn send(&mut self, response_payload: WsChannelResponsePayload) {
         let coin = response_payload.get_coin();
 
         let senders: HashMap<&(String, String), &mut WsChannelResponseSender> = self
@@ -43,7 +43,7 @@ impl WsChannels {
         }
     }
 
-    pub fn add_ws_channel(&mut self, conn_id: String, mut channel: WsChannelResponseSender) {
+    pub fn add_channel(&mut self, conn_id: String, mut channel: WsChannelResponseSender) {
         let sub_id = channel.request.get_id();
         let method = channel.request.get_method();
 
@@ -54,7 +54,7 @@ impl WsChannels {
         }
     }
 
-    pub fn remove_ws_channel(&mut self, key: &(String, String)) {
+    pub fn remove_channel(&mut self, key: &(String, String)) {
         self.0.remove(key);
     }
 }
