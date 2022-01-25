@@ -94,10 +94,10 @@ impl WsChannelRequest {
     }
 }
 
-impl TryFrom<&JsonRpcRequest> for WsChannelRequest {
+impl TryFrom<JsonRpcRequest> for WsChannelRequest {
     type Error = String;
 
-    fn try_from(request: &JsonRpcRequest) -> Result<Self, Self::Error> {
+    fn try_from(request: JsonRpcRequest) -> Result<Self, Self::Error> {
         let e = "Wrong params.";
         let id = request.id.clone();
         let object = request.params.as_object().ok_or(e)?;

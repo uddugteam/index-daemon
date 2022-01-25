@@ -37,26 +37,12 @@ impl WsServer {
         let _ = task::block_on(Self::run(self));
     }
 
-    /// What function does:
-    /// -- Validate JSON RPC
-    /// -- Parse `channel` from json
-    /// -- Make response skeleton
-    fn preprocess_request(
-        request: Message,
-    ) -> (
-        Option<Result<WsChannelRequest, String>>,
-        serde_json::Result<JsonRpcRequest>,
-    ) {
-        let request = request.to_string();
+    fn parse_jsonrpc_request(request: &str) -> serde_json::Result<JsonRpcRequest> {
+        serde_json::from_str(request)
+    }
 
-        let request: serde_json::Result<JsonRpcRequest> = serde_json::from_str(&request);
-        let channel = if let Ok(request) = request.as_ref() {
-            Some(request.try_into())
-        } else {
-            None
-        };
-
-        (channel, request)
+    fn parse_ws_channel_request(request: JsonRpcRequest) -> Result<WsChannelRequest, String> {
+        request.try_into()
     }
 
     fn send_error(broadcast_recipient: &Tx, id: Option<JsonRpcId>, code: i64, message: String) {
@@ -80,6 +66,8 @@ impl WsServer {
         ws_answer_timeout_ms: u64,
     ) {
         if !matches!(channel, WsChannelRequest::Unsubscribe { .. }) {
+            // Subscribe
+
             let sub_id = channel.get_id();
             let response_sender = WsChannelResponseSender::new(
                 broadcast_recipient.clone(),
@@ -106,6 +94,8 @@ impl WsServer {
                 }
             }
         } else {
+            // Unsubscribe
+
             let method = channel.get_method();
 
             worker.lock().unwrap().remove_ws_channel(&(conn_id, method));
@@ -113,60 +103,47 @@ impl WsServer {
     }
 
     /// What function does:
-    /// -- check whether response is ok
-    /// -- if response is ok - call `Self::add_new_channel`
-    /// -- else - send response
+    /// -- check whether request is `Ok`
+    /// -- if request is `Ok` - call `Self::add_new_channel`
+    /// -- else - send error response (call `Self::send_error`)
     fn do_response(
         worker: Arc<Mutex<Worker>>,
         client_addr: &SocketAddr,
         broadcast_recipient: Tx,
-        request: serde_json::Result<JsonRpcRequest>,
         conn_id: String,
-        channel: Option<Result<WsChannelRequest, String>>,
+        sub_id: Option<JsonRpcId>,
+        request: Result<WsChannelRequest, String>,
         ws_answer_timeout_ms: u64,
     ) {
         match request {
-            Ok(request) => {
-                // If `request` is `Ok`, then `channel` is `Some` anyway
-                let channel = channel.unwrap();
+            Ok(channel) => {
+                info!(
+                    "Client with addr: {} subscribed to: {:?}",
+                    client_addr, channel
+                );
 
-                match channel {
-                    Ok(channel) => {
-                        info!(
-                            "Client with addr: {} subscribed to: {:?}",
-                            client_addr, channel
-                        );
-
-                        Self::add_new_channel(
-                            worker,
-                            broadcast_recipient,
-                            conn_id,
-                            channel,
-                            ws_answer_timeout_ms,
-                        );
-                    }
-                    Err(e) => {
-                        Self::send_error(
-                            &broadcast_recipient,
-                            request.id,
-                            JSONRPC_ERROR_INVALID_REQUEST,
-                            e,
-                        );
-                    }
-                }
+                Self::add_new_channel(
+                    worker,
+                    broadcast_recipient,
+                    conn_id,
+                    channel,
+                    ws_answer_timeout_ms,
+                );
             }
             Err(e) => {
-                error!(
-                    "Handle request error. Client addr: {}, channel: {:?}, error: {:?}",
-                    client_addr, channel, e
+                Self::send_error(
+                    &broadcast_recipient,
+                    sub_id,
+                    JSONRPC_ERROR_INVALID_REQUEST,
+                    e,
                 );
             }
         }
     }
 
-    /// Function calls `Self::preprocess_request`, then starts `Self::do_response` in a separate thread
+    /// Function calls `Self::parse_request`, then starts `Self::do_response` in a separate thread
     fn process_request(
-        request: Message,
+        request: String,
         worker: &Arc<Mutex<Worker>>,
         peer_map: &PeerMap,
         client_addr: SocketAddr,
@@ -174,34 +151,48 @@ impl WsServer {
         ws_answer_timeout_ms: u64,
         _graceful_shutdown: &Arc<Mutex<bool>>,
     ) {
-        let (channel, request) = Self::preprocess_request(request);
+        let request_string = request.clone();
+        let request = Self::parse_jsonrpc_request(&request);
 
-        let peers = peer_map.lock().unwrap();
+        match request {
+            Ok(request) => {
+                let sub_id = request.id.clone();
+                let request = Self::parse_ws_channel_request(request);
 
-        if let Some(broadcast_recipient) = peers.get(&client_addr).cloned() {
-            let conn_id_2 = conn_id.to_string();
-            let worker_2 = Arc::clone(worker);
+                let peers = peer_map.lock().unwrap();
 
-            let thread_name = format!(
-                "fn: process_request, addr: {}, channel: {:?}",
-                client_addr, channel
-            );
-            thread::Builder::new()
-                .name(thread_name)
-                .spawn(move || {
-                    Self::do_response(
-                        worker_2,
-                        &client_addr,
-                        broadcast_recipient,
-                        request,
-                        conn_id_2,
-                        channel,
-                        ws_answer_timeout_ms,
-                    )
-                })
-                .unwrap();
-        } else {
-            // FSR broadcast recipient is not found
+                if let Some(broadcast_recipient) = peers.get(&client_addr).cloned() {
+                    let conn_id_2 = conn_id.to_string();
+                    let worker_2 = Arc::clone(worker);
+
+                    let thread_name = format!(
+                        "fn: process_request, addr: {}, request: {:?}",
+                        client_addr, request
+                    );
+                    thread::Builder::new()
+                        .name(thread_name)
+                        .spawn(move || {
+                            Self::do_response(
+                                worker_2,
+                                &client_addr,
+                                broadcast_recipient,
+                                conn_id_2,
+                                sub_id,
+                                request,
+                                ws_answer_timeout_ms,
+                            )
+                        })
+                        .unwrap();
+                } else {
+                    // FSR broadcast recipient is not found
+                }
+            }
+            Err(e) => {
+                error!(
+                    "Parse request error. Client addr: {}, request: {}, error: {:?}",
+                    client_addr, request_string, e
+                );
+            }
         }
     }
 
@@ -232,7 +223,7 @@ impl WsServer {
                 // TODO: Replace for_each with a simple loop (this is needed for graceful_shutdown)
                 let broadcast_incoming = incoming.try_for_each(|request| {
                     Self::process_request(
-                        request,
+                        request.to_string(),
                         &worker,
                         &peer_map,
                         client_addr,
