@@ -14,6 +14,12 @@ pub enum WsChannelRequest {
         exchanges: Vec<String>,
         frequency_ms: u64,
     },
+    CoinExchangeVolume {
+        id: Option<JsonRpcId>,
+        coins: Vec<String>,
+        exchanges: Vec<String>,
+        frequency_ms: u64,
+    },
     Unsubscribe {
         id: Option<JsonRpcId>,
         method: String,
@@ -25,6 +31,7 @@ impl WsChannelRequest {
         match self {
             WsChannelRequest::CoinAveragePrice { id, .. }
             | WsChannelRequest::CoinExchangePrice { id, .. }
+            | WsChannelRequest::CoinExchangeVolume { id, .. }
             | WsChannelRequest::Unsubscribe { id, .. } => id.clone(),
         }
     }
@@ -33,6 +40,7 @@ impl WsChannelRequest {
         match self {
             WsChannelRequest::CoinAveragePrice { .. } => "coin_average_price".to_string(),
             WsChannelRequest::CoinExchangePrice { .. } => "coin_exchange_price".to_string(),
+            WsChannelRequest::CoinExchangeVolume { .. } => "coin_exchange_volume".to_string(),
             WsChannelRequest::Unsubscribe { method, .. } => method.to_string(),
         }
     }
@@ -40,7 +48,8 @@ impl WsChannelRequest {
     pub fn get_frequency_ms(&self) -> u64 {
         match self {
             WsChannelRequest::CoinAveragePrice { frequency_ms, .. }
-            | WsChannelRequest::CoinExchangePrice { frequency_ms, .. } => *frequency_ms,
+            | WsChannelRequest::CoinExchangePrice { frequency_ms, .. }
+            | WsChannelRequest::CoinExchangeVolume { frequency_ms, .. } => *frequency_ms,
             WsChannelRequest::Unsubscribe { .. } => {
                 panic!("Unexpected request.");
             }
@@ -50,7 +59,8 @@ impl WsChannelRequest {
     pub fn set_frequency_ms(&mut self, new_frequency_ms: u64) {
         match self {
             WsChannelRequest::CoinAveragePrice { frequency_ms, .. }
-            | WsChannelRequest::CoinExchangePrice { frequency_ms, .. } => {
+            | WsChannelRequest::CoinExchangePrice { frequency_ms, .. }
+            | WsChannelRequest::CoinExchangeVolume { frequency_ms, .. } => {
                 *frequency_ms = new_frequency_ms;
             }
             WsChannelRequest::Unsubscribe { .. } => {
@@ -62,7 +72,8 @@ impl WsChannelRequest {
     pub fn get_coins(&self) -> &Vec<String> {
         match self {
             WsChannelRequest::CoinAveragePrice { coins, .. }
-            | WsChannelRequest::CoinExchangePrice { coins, .. } => coins,
+            | WsChannelRequest::CoinExchangePrice { coins, .. }
+            | WsChannelRequest::CoinExchangeVolume { coins, .. } => coins,
             WsChannelRequest::Unsubscribe { .. } => {
                 panic!("Unexpected request.");
             }
@@ -102,17 +113,26 @@ impl TryFrom<&JsonRpcRequest> for WsChannelRequest {
                     frequency_ms,
                 })
             }
-            "coin_exchange_price" => {
+            "coin_exchange_price" | "coin_exchange_volume" => {
                 let coins = Self::parse_vec_of_str(object, "coins").ok_or(e)?;
                 let exchanges = Self::parse_vec_of_str(object, "exchanges").ok_or(e)?;
                 let frequency_ms = Self::parse_frequency_ms(object).ok_or(e)?;
 
-                Ok(Self::CoinExchangePrice {
-                    id,
-                    coins,
-                    exchanges,
-                    frequency_ms,
-                })
+                match request.method.as_str() {
+                    "coin_exchange_price" => Ok(Self::CoinExchangePrice {
+                        id,
+                        coins,
+                        exchanges,
+                        frequency_ms,
+                    }),
+                    "coin_exchange_volume" => Ok(Self::CoinExchangeVolume {
+                        id,
+                        coins,
+                        exchanges,
+                        frequency_ms,
+                    }),
+                    _ => unreachable!(),
+                }
             }
             "unsubscribe" => {
                 let method = object.get("method").ok_or(e)?;

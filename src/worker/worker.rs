@@ -75,7 +75,8 @@ impl Worker {
 
                 Ok(())
             }
-            WsChannelRequest::CoinExchangePrice { id: _, exchanges, .. } => {
+            WsChannelRequest::CoinExchangePrice { exchanges, .. }
+            | WsChannelRequest::CoinExchangeVolume { exchanges, .. } => {
                 // Market's channel
 
                 // Search for unsupported exchanges
@@ -108,7 +109,7 @@ impl Worker {
                     Ok(())
                 }
             }
-            _ => Err(vec!["Unexpected request.".to_string()]),
+            _ => unreachable!(),
         }
     }
 

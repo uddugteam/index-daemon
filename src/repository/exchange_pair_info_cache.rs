@@ -18,7 +18,7 @@ impl ExchangePairInfoTrait for ExchangePairInfoCache {
             .unwrap_or(0.0)
     }
 
-    fn set_total_volume(&mut self, value: f64) {
+    fn set_total_volume(&mut self, value: f64, _timestamp: DateTime<Utc>) {
         self.0.insert("total_volume".to_string(), value.to_string());
     }
 

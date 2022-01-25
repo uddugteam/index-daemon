@@ -155,14 +155,26 @@ impl MarketSpine {
             let old_value: f64 = self.exchange_pairs.get(pair).unwrap().get_total_volume();
 
             if (old_value - value).abs() > EPS {
+                let timestamp = Utc::now();
                 self.exchange_pairs
                     .get_mut(pair)
                     .unwrap()
-                    .set_total_volume(value);
+                    .set_total_volume(value, timestamp);
 
                 self.update_market_pair(pair, "totalValues", false);
 
                 let pair_tuple = self.pairs.get(pair).unwrap();
+                if let Some(coin) = strip_usd(pair_tuple) {
+                    let response_payload = WsChannelResponsePayload::CoinExchangeVolume {
+                        coin,
+                        value,
+                        exchange: self.name.clone(),
+                        timestamp,
+                    };
+
+                    self.ws_channels.ws_send(response_payload);
+                }
+
                 self.recalculate_total_volume(pair_tuple.0.clone());
             }
         }
@@ -263,8 +275,7 @@ impl MarketSpine {
             .set_last_trade_price(value, timestamp);
 
         let pair_tuple = self.pairs.get(pair).unwrap().clone();
-        let coin = strip_usd(&pair_tuple);
-        if let Some(coin) = coin {
+        if let Some(coin) = strip_usd(&pair_tuple) {
             let response_payload = WsChannelResponsePayload::CoinExchangePrice {
                 coin,
                 value,

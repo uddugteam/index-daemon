@@ -16,6 +16,10 @@ pub enum WsChannelResponse {
         id: Option<JsonRpcId>,
         payload: WsChannelResponsePayload,
     },
+    CoinExchangeVolume {
+        id: Option<JsonRpcId>,
+        payload: WsChannelResponsePayload,
+    },
 }
 
 impl WsChannelResponse {
@@ -23,7 +27,8 @@ impl WsChannelResponse {
         match self {
             WsChannelResponse::SuccSub { payload, .. }
             | WsChannelResponse::CoinAveragePrice { payload, .. }
-            | WsChannelResponse::CoinExchangePrice { payload, .. } => payload.clone(),
+            | WsChannelResponse::CoinExchangePrice { payload, .. }
+            | WsChannelResponse::CoinExchangeVolume { payload, .. } => payload.clone(),
         }
     }
 
@@ -31,7 +36,8 @@ impl WsChannelResponse {
         match self {
             WsChannelResponse::SuccSub { id, .. }
             | WsChannelResponse::CoinAveragePrice { id, .. }
-            | WsChannelResponse::CoinExchangePrice { id, .. } => id.clone(),
+            | WsChannelResponse::CoinExchangePrice { id, .. }
+            | WsChannelResponse::CoinExchangeVolume { id, .. } => id.clone(),
         }
     }
 }

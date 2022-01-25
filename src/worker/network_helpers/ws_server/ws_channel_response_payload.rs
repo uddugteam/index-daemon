@@ -21,6 +21,13 @@ pub enum WsChannelResponsePayload {
         #[serde(with = "ser_date_into_timestamp")]
         timestamp: DateTime<Utc>,
     },
+    CoinExchangeVolume {
+        coin: String,
+        exchange: String,
+        value: f64,
+        #[serde(with = "ser_date_into_timestamp")]
+        timestamp: DateTime<Utc>,
+    },
 }
 
 impl WsChannelResponsePayload {
@@ -32,6 +39,9 @@ impl WsChannelResponsePayload {
             WsChannelResponsePayload::CoinExchangePrice { .. } => {
                 WsChannelResponse::CoinExchangePrice { id, payload: self }
             }
+            WsChannelResponsePayload::CoinExchangeVolume { .. } => {
+                WsChannelResponse::CoinExchangeVolume { id, payload: self }
+            }
             WsChannelResponsePayload::SuccSub(..) => {
                 WsChannelResponse::SuccSub { id, payload: self }
             }
@@ -41,7 +51,8 @@ impl WsChannelResponsePayload {
     pub fn get_coin(&self) -> String {
         match self {
             WsChannelResponsePayload::CoinAveragePrice { coin, .. }
-            | WsChannelResponsePayload::CoinExchangePrice { coin, .. } => coin.to_string(),
+            | WsChannelResponsePayload::CoinExchangePrice { coin, .. }
+            | WsChannelResponsePayload::CoinExchangeVolume { coin, .. } => coin.to_string(),
             WsChannelResponsePayload::SuccSub(..) => panic!("Wrong response."),
         }
     }
@@ -49,7 +60,8 @@ impl WsChannelResponsePayload {
     pub fn get_timestamp(&self) -> DateTime<Utc> {
         match self {
             WsChannelResponsePayload::CoinAveragePrice { timestamp, .. }
-            | WsChannelResponsePayload::CoinExchangePrice { timestamp, .. } => *timestamp,
+            | WsChannelResponsePayload::CoinExchangePrice { timestamp, .. }
+            | WsChannelResponsePayload::CoinExchangeVolume { timestamp, .. } => *timestamp,
             WsChannelResponsePayload::SuccSub(..) => panic!("Wrong response."),
         }
     }

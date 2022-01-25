@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 
 pub trait ExchangePairInfoTrait: Send {
     fn get_total_volume(&self) -> f64;
-    fn set_total_volume(&mut self, value: f64);
+    fn set_total_volume(&mut self, value: f64, timestamp: DateTime<Utc>);
 
     fn get_total_ask(&self) -> f64;
     fn set_total_ask(&mut self, value: f64);
@@ -51,14 +51,14 @@ impl ExchangePairInfoTrait for ExchangePairInfo {
     fn get_total_volume(&self) -> f64 {
         self.volume
     }
-    fn set_total_volume(&mut self, value: f64) {
+    fn set_total_volume(&mut self, value: f64, timestamp: DateTime<Utc>) {
         self.volume = value;
-        self.timestamp = Utc::now();
+        self.timestamp = timestamp;
 
         self.repository
             .lock()
             .unwrap()
-            .set_total_volume(self.volume);
+            .set_total_volume(self.volume, self.timestamp);
         self.repository
             .lock()
             .unwrap()
