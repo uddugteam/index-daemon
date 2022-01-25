@@ -1,6 +1,6 @@
 use crate::worker::helper_functions::add_jsonrpc_version;
 use crate::worker::network_helpers::ws_server::json_rpc_messages::{
-    JsonRpcErr, JsonRpcRequest, JsonRpcResponse,
+    JsonRpcErr, JsonRpcId, JsonRpcRequest, JsonRpcResponse,
 };
 use crate::worker::network_helpers::ws_server::ws_channel_request::WsChannelRequest;
 use crate::worker::network_helpers::ws_server::ws_channel_response_sender::WsChannelResponseSender;
@@ -15,11 +15,14 @@ use futures::{
     future, pin_mut,
     prelude::*,
 };
-use std::{collections::HashMap, io, net::SocketAddr, sync::Arc, sync::Mutex, thread};
+use std::{collections::HashMap, io, net::SocketAddr, sync::Arc, sync::Mutex, thread, time};
 use uuid::Uuid;
 
 type Tx = UnboundedSender<Message>;
 type PeerMap = Arc<Mutex<HashMap<SocketAddr, Tx>>>;
+
+const JSON_RPC_ERROR_INVALID_REQUEST: i64 = -32600;
+const JSON_RPC_ERROR_INVALID_PARAMS: i64 = -32602;
 
 pub struct WsServer {
     pub worker: Arc<Mutex<Worker>>,
@@ -56,6 +59,18 @@ impl WsServer {
         (channel, request)
     }
 
+    fn send_error(broadcast_recipient: &Tx, id: Option<JsonRpcId>, code: i64, message: String) {
+        let response = JsonRpcResponse::Err {
+            id,
+            result: JsonRpcErr { code, message },
+        };
+        let mut response = serde_json::to_string(&response).unwrap();
+        add_jsonrpc_version(&mut response);
+
+        let response = Message::from(response);
+        let _ = broadcast_recipient.unbounded_send(response);
+    }
+
     /// Function adds new channel to worker or removes existing channel from worker (depends on `channel`)
     fn add_new_channel(
         worker: Arc<Mutex<Worker>>,
@@ -65,15 +80,31 @@ impl WsServer {
         ws_answer_timeout_ms: u64,
     ) {
         if !matches!(channel, WsChannelRequest::Unsubscribe { .. }) {
-            let response_sender =
-                WsChannelResponseSender::new(broadcast_recipient, channel, ws_answer_timeout_ms);
+            let sub_id = channel.get_id();
+            let response_sender = WsChannelResponseSender::new(
+                broadcast_recipient.clone(),
+                channel,
+                ws_answer_timeout_ms,
+            );
 
-            let _add_ws_channel_result = worker
+            let add_ws_channel_result = worker
                 .lock()
                 .unwrap()
                 .add_ws_channel(conn_id, response_sender);
 
-            // TODO: There we need to check if error and answer to recipient with error message
+            if let Err(errors) = add_ws_channel_result {
+                for error in errors {
+                    Self::send_error(
+                        &broadcast_recipient,
+                        sub_id.clone(),
+                        JSON_RPC_ERROR_INVALID_PARAMS,
+                        error,
+                    );
+
+                    // To prevent DDoS attack on a client
+                    thread::sleep(time::Duration::from_millis(100));
+                }
+            }
         } else {
             let method = channel.get_method();
 
@@ -114,19 +145,13 @@ impl WsServer {
                             ws_answer_timeout_ms,
                         );
                     }
-                    Err(_) => {
-                        let response = JsonRpcResponse::Err {
-                            id: request.id,
-                            result: JsonRpcErr {
-                                code: -32700,
-                                message: "Channel parse error.".to_string(),
-                            },
-                        };
-                        let mut response = serde_json::to_string(&response).unwrap();
-                        add_jsonrpc_version(&mut response);
-
-                        let response = Message::from(response);
-                        let _ = broadcast_recipient.unbounded_send(response);
+                    Err(e) => {
+                        Self::send_error(
+                            &broadcast_recipient,
+                            request.id,
+                            JSON_RPC_ERROR_INVALID_REQUEST,
+                            e,
+                        );
                     }
                 }
             }
