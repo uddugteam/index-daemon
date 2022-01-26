@@ -410,7 +410,7 @@ pub mod test {
         worker
             .lock()
             .unwrap()
-            .configure(markets.clone(), coins.clone(), channels.clone(), 1);
+            .configure(markets.clone(), coins.clone(), channels, 1);
 
         assert_eq!(markets.len(), worker.lock().unwrap().markets.len());
 
