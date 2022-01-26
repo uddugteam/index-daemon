@@ -13,3 +13,11 @@ impl ConfigScheme {
         }
     }
 }
+impl Default for ConfigScheme {
+    fn default() -> Self {
+        Self {
+            market: MarketConfig::default(),
+            service: ServiceConfig::default(),
+        }
+    }
+}

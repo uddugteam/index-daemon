@@ -1,7 +1,7 @@
 use crate::config_scheme::config_scheme::ConfigScheme;
 use crate::config_scheme::market_config::MarketConfig;
 use crate::config_scheme::service_config::ServiceConfig;
-use crate::worker::defaults::{COINS, FIATS, MARKETS};
+use crate::worker::defaults::FIATS;
 use crate::worker::market_helpers::conversion_type::ConversionType;
 use crate::worker::market_helpers::exchange_pair::ExchangePair;
 use chrono::{DateTime, Utc, MIN_DATETIME};
@@ -15,6 +15,7 @@ use std::thread::{self, JoinHandle};
 use std::time;
 
 use crate::worker::market_helpers::market::{market_factory, Market};
+use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
 use crate::worker::market_helpers::pair_average_price::PairAveragePrice;
 use crate::worker::network_helpers::ws_server::ws_channel_request::WsChannelRequest;
@@ -231,13 +232,9 @@ impl Worker {
         self.last_capitalization_refresh
     }
 
-    pub fn make_exchange_pairs(
-        coins: Option<Vec<&str>>,
-        fiats: Option<Vec<&str>>,
-    ) -> Vec<ExchangePair> {
+    pub fn make_exchange_pairs(coins: Vec<&str>, fiats: Option<Vec<&str>>) -> Vec<ExchangePair> {
         let mut exchange_pairs = Vec::new();
 
-        let coins = coins.unwrap_or(COINS.to_vec());
         let fiats = fiats.unwrap_or(FIATS.to_vec());
 
         for coin in coins {
@@ -258,16 +255,14 @@ impl Worker {
 
     fn configure(
         &mut self,
-        markets: Option<Vec<&str>>,
-        coins: Option<Vec<&str>>,
-        channels: Option<Vec<&str>>,
+        markets: Vec<&str>,
+        coins: Vec<&str>,
+        channels: Vec<MarketChannels>,
         rest_timeout_sec: u64,
     ) {
-        let market_names = markets.unwrap_or(MARKETS.to_vec());
         let exchange_pairs = Self::make_exchange_pairs(coins, None);
-        let channels = channels.map(|v| v.into_iter().map(|v| v.parse().unwrap()).collect());
 
-        for market_name in market_names {
+        for market_name in markets {
             let worker_2 = Arc::clone(self.arc.as_ref().unwrap());
             let market_spine = MarketSpine::new(
                 worker_2,
@@ -327,15 +322,8 @@ impl Worker {
             ws_answer_timeout_ms,
         } = service;
 
-        let markets = markets
-            .as_ref()
-            .map(|v| v.iter().map(|v| v.as_str()).collect());
-        let coins = coins
-            .as_ref()
-            .map(|v| v.iter().map(|v| v.as_str()).collect());
-        let channels = channels
-            .as_ref()
-            .map(|v| v.iter().map(|v| v.as_str()).collect());
+        let markets = markets.iter().map(|v| v.as_ref()).collect();
+        let coins = coins.iter().map(|v| v.as_ref()).collect();
 
         self.configure(markets, coins, channels, rest_timeout_sec);
         self.start_ws(

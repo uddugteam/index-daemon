@@ -37,11 +37,9 @@ impl MarketSpine {
         tx: Sender<JoinHandle<()>>,
         rest_timeout_sec: u64,
         name: String,
-        channels: Option<Vec<MarketChannels>>,
+        channels: Vec<MarketChannels>,
         graceful_shutdown: Arc<Mutex<bool>>,
     ) -> Self {
-        let channels = channels.unwrap_or(MarketChannels::get_all().to_vec());
-
         let channels = match name.as_str() {
             "poloniex" | "kucoin" => {
                 // There is no distinct Trades channel in Poloniex. We get Trades inside of Book channel.

@@ -9,6 +9,7 @@ pub struct ServiceConfig {
 }
 impl ServiceConfig {
     pub fn new() -> Self {
+        let default = Self::default();
         let service_config = get_config("service_config");
 
         set_log_level(&service_config);
@@ -16,7 +17,7 @@ impl ServiceConfig {
         let rest_timeout_sec = service_config
             .get_str("rest_timeout_sec")
             .map(|v| v.parse().unwrap())
-            .unwrap_or(1);
+            .unwrap_or(default.rest_timeout_sec);
         if rest_timeout_sec < 1 {
             panic!(
                 "Got wrong config value. service_config: rest_timeout_sec={}",
@@ -31,7 +32,7 @@ impl ServiceConfig {
                 panic!("Got wrong config value. service_config: ws={}", ws);
             }
         } else {
-            false
+            default.ws
         };
         if !ws
             && (service_config.get_str("ws_host").is_ok()
@@ -43,16 +44,12 @@ impl ServiceConfig {
             );
         }
 
-        let ws_host = service_config
-            .get_str("ws_host")
-            .unwrap_or("127.0.0.1".to_string());
-        let ws_port = service_config
-            .get_str("ws_port")
-            .unwrap_or("8080".to_string());
+        let ws_host = service_config.get_str("ws_host").unwrap_or(default.ws_host);
+        let ws_port = service_config.get_str("ws_port").unwrap_or(default.ws_port);
         let ws_answer_timeout_ms = service_config
             .get_str("ws_answer_timeout_ms")
             .map(|v| v.parse().unwrap())
-            .unwrap_or(100);
+            .unwrap_or(default.ws_answer_timeout_ms);
         if ws_answer_timeout_ms < 100 {
             panic!(
                 "Got wrong config value. Value is less than allowed min. service_config: ws_answer_timeout_ms={}",
@@ -66,6 +63,17 @@ impl ServiceConfig {
             ws_host,
             ws_port,
             ws_answer_timeout_ms,
+        }
+    }
+}
+impl Default for ServiceConfig {
+    fn default() -> Self {
+        Self {
+            rest_timeout_sec: 1,
+            ws: false,
+            ws_host: "127.0.0.1".to_string(),
+            ws_port: "8080".to_string(),
+            ws_answer_timeout_ms: 100,
         }
     }
 }

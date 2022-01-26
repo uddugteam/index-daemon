@@ -1,3 +1,6 @@
+use crate::worker::defaults::{COINS, MARKETS};
+use crate::worker::market_helpers::market_channels::MarketChannels;
+
 use clap::{App, Arg};
 use env_logger::Builder;
 
@@ -58,4 +61,16 @@ pub fn set_log_level(service_config: &config::Config) {
     let mut builder = Builder::from_default_env();
     builder.filter(Some("index_daemon"), log_level.parse().unwrap());
     builder.init();
+}
+
+pub fn get_default_markets() -> Vec<String> {
+    MARKETS.into_iter().map(|v| v.to_string()).collect()
+}
+
+pub fn get_default_coins() -> Vec<String> {
+    COINS.into_iter().map(|v| v.to_string()).collect()
+}
+
+pub fn get_default_channels() -> Vec<MarketChannels> {
+    MarketChannels::get_all().to_vec()
 }
