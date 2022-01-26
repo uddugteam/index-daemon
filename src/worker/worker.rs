@@ -281,8 +281,7 @@ impl Worker {
     fn start_ws(
         &self,
         ws: bool,
-        ws_host: String,
-        ws_port: String,
+        ws_addr: String,
         ws_answer_timeout_ms: u64,
         graceful_shutdown: Arc<Mutex<bool>>,
     ) {
@@ -295,8 +294,7 @@ impl Worker {
                 .spawn(move || {
                     let ws_server = WsServer {
                         worker,
-                        ws_host,
-                        ws_port,
+                        ws_addr,
                         ws_answer_timeout_ms,
                         graceful_shutdown,
                     };
@@ -317,8 +315,7 @@ impl Worker {
         let ServiceConfig {
             rest_timeout_sec,
             ws,
-            ws_host,
-            ws_port,
+            ws_addr,
             ws_answer_timeout_ms,
         } = service;
 
@@ -328,8 +325,7 @@ impl Worker {
         self.configure(markets, coins, channels, rest_timeout_sec);
         self.start_ws(
             ws,
-            ws_host,
-            ws_port,
+            ws_addr,
             ws_answer_timeout_ms,
             self.graceful_shutdown.clone(),
         );
@@ -575,14 +571,10 @@ pub mod test {
             coins,
             channels,
         };
-        let service = ServiceConfig {
-            rest_timeout_sec: 1,
-            ws: false,
-            ws_host: "".to_string(),
-            ws_port: "".to_string(),
-            ws_answer_timeout_ms: 1,
+        let config = ConfigScheme {
+            market,
+            service: ServiceConfig::default(),
         };
-        let config = ConfigScheme { market, service };
 
         worker.lock().unwrap().start(config);
         check_threads(thread_names, rx);

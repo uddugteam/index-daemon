@@ -1,10 +1,11 @@
-use crate::config_scheme::helper_functions::{get_config, set_log_level};
+use crate::config_scheme::helper_functions::{
+    get_config, get_default_host, get_default_port, set_log_level,
+};
 
 pub struct ServiceConfig {
     pub rest_timeout_sec: u64,
     pub ws: bool,
-    pub ws_host: String,
-    pub ws_port: String,
+    pub ws_addr: String,
     pub ws_answer_timeout_ms: u64,
 }
 impl ServiceConfig {
@@ -44,8 +45,13 @@ impl ServiceConfig {
             );
         }
 
-        let ws_host = service_config.get_str("ws_host").unwrap_or(default.ws_host);
-        let ws_port = service_config.get_str("ws_port").unwrap_or(default.ws_port);
+        let ws_host = service_config
+            .get_str("ws_host")
+            .unwrap_or(get_default_host());
+        let ws_port = service_config
+            .get_str("ws_port")
+            .unwrap_or(get_default_port());
+        let ws_addr = ws_host.clone() + ":" + &ws_port;
         let ws_answer_timeout_ms = service_config
             .get_str("ws_answer_timeout_ms")
             .map(|v| v.parse().unwrap())
@@ -60,8 +66,7 @@ impl ServiceConfig {
         Self {
             rest_timeout_sec,
             ws,
-            ws_host,
-            ws_port,
+            ws_addr,
             ws_answer_timeout_ms,
         }
     }
@@ -71,8 +76,7 @@ impl Default for ServiceConfig {
         Self {
             rest_timeout_sec: 1,
             ws: false,
-            ws_host: "127.0.0.1".to_string(),
-            ws_port: "8080".to_string(),
+            ws_addr: get_default_host() + ":" + &get_default_port(),
             ws_answer_timeout_ms: 100,
         }
     }

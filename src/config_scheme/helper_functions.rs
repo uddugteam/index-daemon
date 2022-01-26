@@ -74,3 +74,11 @@ pub fn get_default_coins() -> Vec<String> {
 pub fn get_default_channels() -> Vec<MarketChannels> {
     MarketChannels::get_all().to_vec()
 }
+
+pub fn get_default_host() -> String {
+    "127.0.0.1".to_string()
+}
+
+pub fn get_default_port() -> String {
+    "8080".to_string()
+}

@@ -26,8 +26,7 @@ const JSONRPC_ERROR_INVALID_PARAMS: i64 = -32602;
 
 pub struct WsServer {
     pub worker: Arc<Mutex<Worker>>,
-    pub ws_host: String,
-    pub ws_port: String,
+    pub ws_addr: String,
     pub ws_answer_timeout_ms: u64,
     pub graceful_shutdown: Arc<Mutex<bool>>,
 }
@@ -253,13 +252,12 @@ impl WsServer {
 
     /// Function listens and establishes connections. Function never ends.
     async fn run(self) -> Result<(), io::Error> {
-        let server_addr = self.ws_host.clone() + ":" + &self.ws_port;
         let state = PeerMap::new(Mutex::new(HashMap::new()));
 
         // Create the event loop and TCP listener we'll accept connections on.
-        let try_socket = TcpListener::bind(&server_addr).await;
+        let try_socket = TcpListener::bind(&self.ws_addr).await;
         let listener = try_socket.expect("Failed to bind");
-        info!("Websocket server started on: {}", server_addr);
+        info!("Websocket server started on: {}", self.ws_addr);
 
         // Let's spawn the handling of each connection in a separate task.
         while let Ok((stream, client_addr)) = listener.accept().await {
