@@ -287,8 +287,8 @@ pub mod test {
     use crate::config_scheme::config_scheme::ConfigScheme;
     use crate::worker::market_helpers::market_channels::MarketChannels;
     use crate::worker::network_helpers::ws_client::WsClient;
-    use crate::worker::network_helpers::ws_server::jsonrpc_messages::{JsonRpcId, JsonRpcRequest};
-    use crate::worker::network_helpers::ws_server::ws_channel_request::WsChannelRequest;
+    
+    
     use crate::worker::worker::test::check_worker_subscription;
     use crate::worker::worker::Worker;
     use serde_json::json;

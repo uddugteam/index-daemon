@@ -51,7 +51,7 @@ impl ServiceConfig {
         let ws_port = service_config
             .get_str("ws_port")
             .unwrap_or(get_default_port());
-        let ws_addr = ws_host.clone() + ":" + &ws_port;
+        let ws_addr = ws_host + ":" + &ws_port;
         let ws_answer_timeout_ms = service_config
             .get_str("ws_answer_timeout_ms")
             .map(|v| v.parse().unwrap())
