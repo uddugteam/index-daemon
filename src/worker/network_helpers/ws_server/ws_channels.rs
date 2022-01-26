@@ -58,3 +58,34 @@ impl WsChannels {
         self.0.remove(key);
     }
 }
+
+#[cfg(test)]
+pub mod test {
+    use crate::worker::network_helpers::ws_server::jsonrpc_messages::JsonRpcId;
+    use crate::worker::network_helpers::ws_server::ws_channels::WsChannels;
+
+    pub fn check_subscription(
+        ws_channels: &WsChannels,
+        sub_id: String,
+        method: String,
+        coins: Vec<String>,
+    ) {
+        let keys: Vec<&(String, String)> = ws_channels
+            .0
+            .keys()
+            .filter(|(_conn_id, method_inner)| method_inner == &method)
+            .collect();
+        assert_eq!(keys.len(), 1);
+
+        let channel = ws_channels.0.get(keys[0]).unwrap();
+
+        if let Some(JsonRpcId::Str(real_sub_id)) = channel.request.get_id() {
+            assert_eq!(real_sub_id, sub_id);
+        } else {
+            panic!("Wrong request id.");
+        }
+
+        assert_eq!(channel.request.get_method(), method);
+        assert_eq!(channel.request.get_coins(), &coins);
+    }
+}

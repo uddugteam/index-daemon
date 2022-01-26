@@ -360,6 +360,7 @@ pub mod test {
     use crate::worker::market_helpers::conversion_type::ConversionType;
     use crate::worker::market_helpers::exchange_pair::ExchangePair;
     use crate::worker::market_helpers::market_channels::MarketChannels;
+    use crate::worker::network_helpers::ws_server::ws_channels::test::check_subscription;
     use crate::worker::worker::Worker;
     use chrono::{Duration, Utc};
     use ntest::timeout;
@@ -605,5 +606,19 @@ pub mod test {
         let markets = vec!["not_existing_market".to_string()];
 
         inner_test_start(markets, config.coins, config.channels);
+    }
+
+    pub fn check_worker_subscription(
+        worker: &Arc<Mutex<Worker>>,
+        sub_id: String,
+        method: String,
+        coins: Vec<String>,
+    ) {
+        check_subscription(
+            &worker.lock().unwrap().pair_average_price.ws_channels,
+            sub_id,
+            method,
+            coins,
+        );
     }
 }

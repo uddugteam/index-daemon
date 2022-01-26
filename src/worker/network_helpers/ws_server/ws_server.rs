@@ -281,3 +281,103 @@ impl WsServer {
         Ok(())
     }
 }
+
+#[cfg(test)]
+pub mod test {
+    use crate::config_scheme::config_scheme::ConfigScheme;
+    use crate::worker::market_helpers::market_channels::MarketChannels;
+    use crate::worker::network_helpers::ws_client::WsClient;
+    use crate::worker::network_helpers::ws_server::jsonrpc_messages::{JsonRpcId, JsonRpcRequest};
+    use crate::worker::network_helpers::ws_server::ws_channel_request::WsChannelRequest;
+    use crate::worker::worker::test::check_worker_subscription;
+    use crate::worker::worker::Worker;
+    use serde_json::json;
+    use std::sync::mpsc::Receiver;
+    use std::sync::{mpsc, Arc, Mutex};
+    use std::thread;
+    use std::thread::JoinHandle;
+    use std::time;
+    use uuid::Uuid;
+
+    fn start_application() -> (Receiver<JoinHandle<()>>, Arc<Mutex<Worker>>) {
+        let graceful_shutdown = Arc::new(Mutex::new(false));
+
+        let mut config = ConfigScheme::default();
+        config.service.ws = true;
+        config.market.channels = vec![MarketChannels::Trades];
+
+        let (tx, rx) = mpsc::channel();
+        let worker = Worker::new(tx, graceful_shutdown);
+        worker.lock().unwrap().start(config);
+
+        (rx, worker)
+    }
+
+    fn make_request(
+        sub_id: &str,
+        method: &str,
+        coins: &[String],
+        exchanges: Option<Vec<String>>,
+    ) -> String {
+        let request = match exchanges {
+            Some(exchanges) => json!({
+                "id": sub_id,
+                "jsonrpc": "2.0",
+                "method": method,
+                "params": {
+                  "coins": coins,
+                  "exchanges": exchanges,
+                  "frequency_ms": 100u64
+                }
+            }),
+            None => json!({
+                "id": sub_id,
+                "jsonrpc": "2.0",
+                "method": method,
+                "params": {
+                  "coins": coins,
+                  "frequency_ms": 100u64
+                }
+            }),
+        };
+
+        serde_json::to_string(&request).unwrap()
+    }
+
+    fn do_request(request: String) {
+        // Give Websocket server time to start
+        thread::sleep(time::Duration::from_millis(1000));
+
+        let config = ConfigScheme::default();
+        let uri = "ws://".to_string() + &config.service.ws_addr;
+
+        // Do not join
+        let _ = thread::spawn(|| {
+            let ws_client = WsClient::new(
+                uri,
+                Some(request),
+                "".to_string(),
+                |_pair: String, _info: String| {},
+            );
+            ws_client.start();
+        });
+
+        // Give Websocket server time to process request
+        thread::sleep(time::Duration::from_millis(1000));
+    }
+
+    #[test]
+    fn test_worker_add_ws_channel() {
+        let (_rx, worker) = start_application();
+
+        let method = "coin_average_price".to_string();
+        let sub_id = Uuid::new_v4().to_string();
+        let coins = ["BTC".to_string(), "ETH".to_string()].to_vec();
+
+        let request = make_request(&sub_id, &method, &coins, None);
+
+        do_request(request);
+
+        check_worker_subscription(&worker, sub_id, method, coins);
+    }
+}
