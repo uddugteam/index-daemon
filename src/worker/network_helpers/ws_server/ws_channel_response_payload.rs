@@ -53,7 +53,7 @@ impl WsChannelResponsePayload {
             WsChannelResponsePayload::CoinAveragePrice { coin, .. }
             | WsChannelResponsePayload::CoinExchangePrice { coin, .. }
             | WsChannelResponsePayload::CoinExchangeVolume { coin, .. } => coin.to_string(),
-            WsChannelResponsePayload::SuccSub(..) => panic!("Wrong response."),
+            WsChannelResponsePayload::SuccSub(..) => unreachable!(),
         }
     }
 
@@ -62,7 +62,7 @@ impl WsChannelResponsePayload {
             WsChannelResponsePayload::CoinAveragePrice { timestamp, .. }
             | WsChannelResponsePayload::CoinExchangePrice { timestamp, .. }
             | WsChannelResponsePayload::CoinExchangeVolume { timestamp, .. } => *timestamp,
-            WsChannelResponsePayload::SuccSub(..) => panic!("Wrong response."),
+            WsChannelResponsePayload::SuccSub(..) => unreachable!(),
         }
     }
 }

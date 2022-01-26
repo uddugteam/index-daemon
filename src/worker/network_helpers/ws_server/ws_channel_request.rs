@@ -51,7 +51,7 @@ impl WsChannelRequest {
             | WsChannelRequest::CoinExchangePrice { frequency_ms, .. }
             | WsChannelRequest::CoinExchangeVolume { frequency_ms, .. } => *frequency_ms,
             WsChannelRequest::Unsubscribe { .. } => {
-                panic!("Unexpected request.");
+                unreachable!();
             }
         }
     }
@@ -64,7 +64,7 @@ impl WsChannelRequest {
                 *frequency_ms = new_frequency_ms;
             }
             WsChannelRequest::Unsubscribe { .. } => {
-                panic!("Unexpected request.");
+                unreachable!();
             }
         }
     }
@@ -75,7 +75,7 @@ impl WsChannelRequest {
             | WsChannelRequest::CoinExchangePrice { coins, .. }
             | WsChannelRequest::CoinExchangeVolume { coins, .. } => coins,
             WsChannelRequest::Unsubscribe { .. } => {
-                panic!("Unexpected request.");
+                unreachable!();
             }
         }
     }
