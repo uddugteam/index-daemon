@@ -318,6 +318,7 @@ impl MarketSpine {
 
 #[cfg(test)]
 pub mod test {
+    use crate::config_scheme::market_config::MarketConfig;
     use crate::worker::market_helpers::conversion_type::ConversionType;
     use crate::worker::market_helpers::exchange_pair::ExchangePair;
     use crate::worker::market_helpers::market_spine::MarketSpine;
@@ -332,7 +333,15 @@ pub mod test {
         let (worker, tx, rx) = make_worker();
         let graceful_shutdown = Arc::new(Mutex::new(false));
 
-        let spine = MarketSpine::new(worker, tx, 1, market_name, None, graceful_shutdown);
+        let config = MarketConfig::default();
+        let spine = MarketSpine::new(
+            worker,
+            tx,
+            1,
+            market_name,
+            config.channels,
+            graceful_shutdown,
+        );
 
         (spine, rx)
     }

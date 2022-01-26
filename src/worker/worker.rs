@@ -361,9 +361,9 @@ pub mod test {
     use crate::config_scheme::config_scheme::ConfigScheme;
     use crate::config_scheme::market_config::MarketConfig;
     use crate::config_scheme::service_config::ServiceConfig;
-    use crate::worker::defaults::MARKETS;
     use crate::worker::market_helpers::conversion_type::ConversionType;
     use crate::worker::market_helpers::exchange_pair::ExchangePair;
+    use crate::worker::market_helpers::market_channels::MarketChannels;
     use crate::worker::worker::Worker;
     use chrono::{Duration, Utc};
     use ntest::timeout;
@@ -405,18 +405,13 @@ pub mod test {
         assert!(worker.lock().unwrap().arc.is_some());
     }
 
-    fn test_configure(
-        markets: Option<Vec<&str>>,
-        coins: Option<Vec<&str>>,
-        channels: Option<Vec<&str>>,
-    ) {
+    fn test_configure(markets: Vec<&str>, coins: Vec<&str>, channels: Vec<MarketChannels>) {
         let (worker, _, _) = make_worker();
         worker
             .lock()
             .unwrap()
             .configure(markets.clone(), coins.clone(), channels.clone(), 1);
 
-        let markets = markets.unwrap_or(MARKETS.to_vec());
         assert_eq!(markets.len(), worker.lock().unwrap().markets.len());
 
         for (market_name_key, market) in &worker.lock().unwrap().markets {
@@ -428,32 +423,30 @@ pub mod test {
 
     #[test]
     fn test_configure_with_default_params() {
-        test_configure(None, None, None);
+        let config = MarketConfig::default();
+        let markets = config.markets.iter().map(|v| v.as_ref()).collect();
+        let coins = config.coins.iter().map(|v| v.as_ref()).collect();
+
+        test_configure(markets, coins, config.channels);
     }
 
     #[test]
     fn test_configure_with_custom_params() {
         let markets = vec!["binance", "bitfinex"];
         let coins = vec!["ABC", "DEF", "GHI"];
-        let channels = vec!["ticker"];
+        let channels = vec![MarketChannels::Ticker];
 
-        test_configure(Some(markets), Some(coins), Some(channels));
+        test_configure(markets, coins, channels);
     }
 
     #[test]
     #[should_panic]
     fn test_configure_panic() {
+        let config = MarketConfig::default();
         let markets = vec!["not_existing_market"];
+        let coins = config.coins.iter().map(|v| v.as_ref()).collect();
 
-        test_configure(Some(markets), None, None);
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_configure_panic_2() {
-        let channels = vec!["not_existing_channel"];
-
-        test_configure(None, None, Some(channels));
+        test_configure(markets, coins, config.channels);
     }
 
     #[test]
@@ -508,7 +501,7 @@ pub mod test {
     }
 
     fn inner_test_make_exchange_pairs(
-        coins: Option<Vec<&str>>,
+        coins: Vec<&str>,
         fiats: Option<Vec<&str>>,
         expected_exchange_pairs: Vec<ExchangePair>,
     ) {
@@ -533,7 +526,10 @@ pub mod test {
             },
         ];
 
-        inner_test_make_exchange_pairs(None, None, expected_exchange_pairs);
+        let config = MarketConfig::default();
+        let coins = config.coins.iter().map(|v| v.as_ref()).collect();
+
+        inner_test_make_exchange_pairs(coins, None, expected_exchange_pairs);
     }
 
     #[test]
@@ -557,28 +553,19 @@ pub mod test {
             },
         ];
 
-        let coins = Some(vec!["ABC", "DEF"]);
+        let coins = vec!["ABC", "DEF"];
         let fiats = Some(vec!["GHI", "JKL"]);
 
         inner_test_make_exchange_pairs(coins, fiats, expected_exchange_pairs);
     }
 
     /// TODO: Add tests for WsServer
-    fn inner_test_start(
-        markets: Option<Vec<String>>,
-        coins: Option<Vec<String>>,
-        channels: Option<Vec<String>>,
-    ) {
+    fn inner_test_start(markets: Vec<String>, coins: Vec<String>, channels: Vec<MarketChannels>) {
         let (worker, _, rx) = make_worker();
-
-        let markets_2 = markets
-            .as_ref()
-            .map(|v| v.iter().map(|v| v.as_str()).collect())
-            .unwrap_or(MARKETS.to_vec());
 
         let mut thread_names = Vec::new();
         thread_names.push("fn: refresh_capitalization".to_string());
-        for market in markets_2 {
+        for market in &markets {
             let thread_name = format!("fn: perform, market: {}", market);
             thread_names.push(thread_name);
         }
@@ -604,15 +591,17 @@ pub mod test {
     #[test]
     #[timeout(2000)]
     fn test_start_with_default_params() {
-        inner_test_start(None, None, None);
+        let config = MarketConfig::default();
+
+        inner_test_start(config.markets, config.coins, config.channels);
     }
 
     #[test]
     #[timeout(2000)]
     fn test_start_with_custom_params() {
-        let markets = Some(vec!["binance".to_string(), "bitfinex".to_string()]);
-        let coins = Some(vec!["ABC".to_string(), "DEF".to_string()]);
-        let channels = Some(vec!["ticker".to_string()]);
+        let markets = vec!["binance".to_string(), "bitfinex".to_string()];
+        let coins = vec!["ABC".to_string(), "DEF".to_string()];
+        let channels = vec![MarketChannels::Ticker];
 
         inner_test_start(markets, coins, channels);
     }
@@ -620,16 +609,9 @@ pub mod test {
     #[test]
     #[should_panic]
     fn test_start_panic() {
-        let markets = Some(vec!["not_existing_market".to_string()]);
+        let config = MarketConfig::default();
+        let markets = vec!["not_existing_market".to_string()];
 
-        inner_test_start(markets, None, None);
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_start_panic_2() {
-        let channels = Some(vec!["not_existing_channel".to_string()]);
-
-        inner_test_start(None, None, channels);
+        inner_test_start(markets, config.coins, config.channels);
     }
 }

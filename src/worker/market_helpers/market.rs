@@ -468,6 +468,7 @@ pub trait Market {
 
 #[cfg(test)]
 mod test {
+    use crate::config_scheme::market_config::MarketConfig;
     use crate::worker::helper_functions::get_pair_ref;
     use crate::worker::market_helpers::conversion_type::ConversionType;
     use crate::worker::market_helpers::exchange_pair::ExchangePair;
@@ -484,7 +485,9 @@ mod test {
     fn make_market(
         market_name: Option<&str>,
     ) -> (Arc<Mutex<dyn Market + Send>>, Receiver<JoinHandle<()>>) {
-        let exchange_pairs = Worker::make_exchange_pairs(None, None);
+        let config = MarketConfig::default();
+        let coins = config.coins.iter().map(|v| v.as_ref()).collect();
+        let exchange_pairs = Worker::make_exchange_pairs(coins, None);
 
         let (market_spine, rx) = make_spine(market_name);
         let market = market_factory(market_spine, exchange_pairs);
@@ -552,7 +555,9 @@ mod test {
 
         assert!(market.lock().unwrap().get_spine().arc.is_some());
 
-        let exchange_pairs = Worker::make_exchange_pairs(None, None);
+        let config = MarketConfig::default();
+        let coins = config.coins.iter().map(|v| v.as_ref()).collect();
+        let exchange_pairs = Worker::make_exchange_pairs(coins, None);
         let exchange_pair_keys: Vec<String> = market
             .lock()
             .unwrap()
