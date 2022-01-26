@@ -141,7 +141,7 @@ impl WsServer {
         }
     }
 
-    /// Function calls `Self::parse_request`, then starts `Self::do_response` in a separate thread
+    /// Function parses request, then calls `Self::do_response` in a separate thread
     fn process_request(
         request: String,
         worker: &Arc<Mutex<Worker>>,
