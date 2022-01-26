@@ -1,4 +1,6 @@
-use crate::config_scheme::config_scheme::{ConfigScheme, MarketConfig, ServiceConfig};
+use crate::config_scheme::config_scheme::ConfigScheme;
+use crate::config_scheme::market_config::MarketConfig;
+use crate::config_scheme::service_config::ServiceConfig;
 use crate::worker::defaults::{COINS, FIATS, MARKETS};
 use crate::worker::market_helpers::conversion_type::ConversionType;
 use crate::worker::market_helpers::exchange_pair::ExchangePair;
@@ -368,7 +370,9 @@ impl Worker {
 
 #[cfg(test)]
 pub mod test {
-    use crate::config_scheme::config_scheme::{ConfigScheme, MarketConfig, ServiceConfig};
+    use crate::config_scheme::config_scheme::ConfigScheme;
+    use crate::config_scheme::market_config::MarketConfig;
+    use crate::config_scheme::service_config::ServiceConfig;
     use crate::worker::defaults::MARKETS;
     use crate::worker::market_helpers::conversion_type::ConversionType;
     use crate::worker::market_helpers::exchange_pair::ExchangePair;
