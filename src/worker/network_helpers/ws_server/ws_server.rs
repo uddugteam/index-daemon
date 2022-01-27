@@ -286,9 +286,7 @@ impl WsServer {
 pub mod test {
     use crate::config_scheme::config_scheme::ConfigScheme;
     use crate::worker::market_helpers::market_channels::MarketChannels;
-    use crate::worker::network_helpers::ws_client::WsClient;
-    
-    
+    use crate::worker::network_helpers::ws_server::ws_client_for_testing::WsClientForTesting;
     use crate::worker::worker::test::check_worker_subscription;
     use crate::worker::worker::Worker;
     use serde_json::json;
@@ -309,6 +307,9 @@ pub mod test {
         let (tx, rx) = mpsc::channel();
         let worker = Worker::new(tx, graceful_shutdown);
         worker.lock().unwrap().start(config);
+
+        // Give Websocket server time to start
+        thread::sleep(time::Duration::from_millis(1000));
 
         (rx, worker)
     }
@@ -344,21 +345,13 @@ pub mod test {
         serde_json::to_string(&request).unwrap()
     }
 
-    fn do_request(request: String) {
-        // Give Websocket server time to start
-        thread::sleep(time::Duration::from_millis(1000));
-
+    fn ws_connect_and_send_messages(messages: Vec<String>) {
         let config = ConfigScheme::default();
         let uri = "ws://".to_string() + &config.service.ws_addr;
 
         // Do not join
         let _ = thread::spawn(|| {
-            let ws_client = WsClient::new(
-                uri,
-                Some(request),
-                "".to_string(),
-                |_pair: String, _info: String| {},
-            );
+            let ws_client = WsClientForTesting::new(uri, messages, |_info: String| {});
             ws_client.start();
         });
 
@@ -376,7 +369,31 @@ pub mod test {
 
         let request = make_request(&sub_id, &method, &coins, None);
 
-        do_request(request);
+        ws_connect_and_send_messages(vec![request]);
+
+        check_worker_subscription(&worker, sub_id, method, coins);
+    }
+
+    #[test]
+    fn test_worker_resub_ws_channel() {
+        // Resubscribe
+
+        let (_rx, worker) = start_application();
+
+        let mut requests = Vec::new();
+        let method = "coin_average_price".to_string();
+
+        let sub_id = Uuid::new_v4().to_string();
+        let coins = ["BTC".to_string(), "ETH".to_string()].to_vec();
+        let request = make_request(&sub_id, &method, &coins, None);
+        requests.push(request);
+
+        let sub_id = Uuid::new_v4().to_string();
+        let coins = ["BTC".to_string()].to_vec();
+        let request = make_request(&sub_id, &method, &coins, None);
+        requests.push(request);
+
+        ws_connect_and_send_messages(requests);
 
         check_worker_subscription(&worker, sub_id, method, coins);
     }
