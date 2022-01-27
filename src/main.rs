@@ -14,6 +14,9 @@ mod graceful_shutdown;
 mod repository;
 mod worker;
 
+#[cfg(test)]
+mod test;
+
 fn main() {
     let graceful_shutdown = start_graceful_shutdown_listener();
 
