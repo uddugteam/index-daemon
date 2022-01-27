@@ -645,20 +645,15 @@ pub mod test {
             }
         }
 
-        for (exchange, subscriptions) in subscriptions_new {
-            check_subscriptions(
-                &worker
-                    .lock()
-                    .unwrap()
-                    .markets
-                    .get(&exchange)
-                    .unwrap()
-                    .lock()
-                    .unwrap()
-                    .get_spine()
-                    .ws_channels,
-                &subscriptions,
-            );
+        for (market_name, market) in worker.lock().unwrap().markets.clone() {
+            if let Some(subscriptions) = subscriptions_new.get(&market_name) {
+                check_subscriptions(
+                    &market.lock().unwrap().get_spine().ws_channels,
+                    subscriptions,
+                );
+            } else {
+                check_subscriptions(&market.lock().unwrap().get_spine().ws_channels, &Vec::new());
+            }
         }
     }
 }
