@@ -66,7 +66,7 @@ pub mod test {
 
     pub fn check_subscriptions(
         ws_channels: &WsChannels,
-        subscriptions: Vec<(String, String, Vec<String>)>,
+        subscriptions: &Vec<(String, String, Vec<String>)>,
     ) {
         assert_eq!(subscriptions.len(), ws_channels.0.len());
 
@@ -74,20 +74,20 @@ pub mod test {
             let keys: Vec<&(String, String)> = ws_channels
                 .0
                 .keys()
-                .filter(|(_conn_id, method_inner)| method_inner == &method)
+                .filter(|(_conn_id, method_inner)| method_inner == method)
                 .collect();
             assert_eq!(keys.len(), 1);
 
             let channel = ws_channels.0.get(keys[0]).unwrap();
 
             if let Some(JsonRpcId::Str(real_sub_id)) = channel.request.get_id() {
-                assert_eq!(real_sub_id, sub_id);
+                assert_eq!(&real_sub_id, sub_id);
             } else {
                 panic!("Wrong request id.");
             }
 
-            assert_eq!(channel.request.get_method(), method);
-            assert_eq!(channel.request.get_coins(), &coins);
+            assert_eq!(&channel.request.get_method(), method);
+            assert_eq!(channel.request.get_coins(), coins);
         }
     }
 }

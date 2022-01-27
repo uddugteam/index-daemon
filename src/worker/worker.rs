@@ -365,6 +365,7 @@ pub mod test {
     use chrono::{Duration, Utc};
     use ntest::timeout;
     use serial_test::serial;
+    use std::collections::HashMap;
     use std::sync::mpsc::{Receiver, Sender};
     use std::sync::{mpsc, Arc, Mutex};
     use std::thread;
@@ -625,7 +626,39 @@ pub mod test {
     ) {
         check_subscriptions(
             &worker.lock().unwrap().pair_average_price.ws_channels,
-            subscriptions,
+            &subscriptions,
         );
+    }
+
+    pub fn check_market_subscriptions(
+        worker: &Arc<Mutex<Worker>>,
+        subscriptions: Vec<(String, String, Vec<String>, Vec<String>)>,
+    ) {
+        let mut subscriptions_new = HashMap::new();
+        for (sub_id, method, coins, exchanges) in subscriptions {
+            for exchange in exchanges {
+                let new_sub = (sub_id.clone(), method.clone(), coins.clone());
+                subscriptions_new
+                    .entry(exchange)
+                    .or_insert(Vec::new())
+                    .push(new_sub);
+            }
+        }
+
+        for (exchange, subscriptions) in subscriptions_new {
+            check_subscriptions(
+                &worker
+                    .lock()
+                    .unwrap()
+                    .markets
+                    .get(&exchange)
+                    .unwrap()
+                    .lock()
+                    .unwrap()
+                    .get_spine()
+                    .ws_channels,
+                &subscriptions,
+            );
+        }
     }
 }
