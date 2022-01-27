@@ -284,9 +284,11 @@ impl WsServer {
 
 #[cfg(test)]
 pub mod test {
+    mod ws_client_for_testing;
+
     use crate::config_scheme::config_scheme::ConfigScheme;
     use crate::worker::market_helpers::market_channels::MarketChannels;
-    use crate::worker::network_helpers::ws_server::ws_client_for_testing::WsClientForTesting;
+    use crate::worker::network_helpers::ws_server::ws_server::test::ws_client_for_testing::WsClientForTesting;
     use crate::worker::worker::test::check_worker_subscriptions;
     use crate::worker::worker::Worker;
     use serde_json::json;
