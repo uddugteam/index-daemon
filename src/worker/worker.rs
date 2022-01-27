@@ -360,13 +360,16 @@ pub mod test {
     use crate::worker::market_helpers::conversion_type::ConversionType;
     use crate::worker::market_helpers::exchange_pair::ExchangePair;
     use crate::worker::market_helpers::market_channels::MarketChannels;
-    use crate::worker::network_helpers::ws_server::ws_channels::test::check_subscription;
+    use crate::worker::network_helpers::ws_server::ws_channels::test::check_subscriptions;
     use crate::worker::worker::Worker;
     use chrono::{Duration, Utc};
     use ntest::timeout;
+    use serial_test::serial;
     use std::sync::mpsc::{Receiver, Sender};
     use std::sync::{mpsc, Arc, Mutex};
+    use std::thread;
     use std::thread::JoinHandle;
+    use std::time;
 
     pub fn make_worker() -> (
         Arc<Mutex<Worker>>,
@@ -558,6 +561,9 @@ pub mod test {
 
     /// TODO: Add tests for WsServer
     fn inner_test_start(markets: Vec<String>, coins: Vec<String>, channels: Vec<MarketChannels>) {
+        // To prevent DDoS attack on exchanges
+        thread::sleep(time::Duration::from_millis(3000));
+
         let (worker, _, rx) = make_worker();
 
         let mut thread_names = Vec::new();
@@ -581,16 +587,20 @@ pub mod test {
         check_threads(thread_names, rx);
     }
 
+    /// `serial` and `timeout` are incompatible
     #[test]
-    #[timeout(2000)]
+    // #[serial]
+    #[timeout(5000)]
     fn test_start_with_default_params() {
         let config = MarketConfig::default();
 
         inner_test_start(config.markets, config.coins, config.channels);
     }
 
+    /// `serial` and `timeout` are incompatible
     #[test]
-    #[timeout(2000)]
+    // #[serial]
+    #[timeout(5000)]
     fn test_start_with_custom_params() {
         let markets = vec!["binance".to_string(), "bitfinex".to_string()];
         let coins = vec!["ABC".to_string(), "DEF".to_string()];
@@ -600,6 +610,7 @@ pub mod test {
     }
 
     #[test]
+    #[serial]
     #[should_panic]
     fn test_start_panic() {
         let config = MarketConfig::default();
@@ -608,17 +619,13 @@ pub mod test {
         inner_test_start(markets, config.coins, config.channels);
     }
 
-    pub fn check_worker_subscription(
+    pub fn check_worker_subscriptions(
         worker: &Arc<Mutex<Worker>>,
-        sub_id: String,
-        method: String,
-        coins: Vec<String>,
+        subscriptions: Vec<(String, String, Vec<String>)>,
     ) {
-        check_subscription(
+        check_subscriptions(
             &worker.lock().unwrap().pair_average_price.ws_channels,
-            sub_id,
-            method,
-            coins,
+            subscriptions,
         );
     }
 }
