@@ -43,11 +43,10 @@ impl WsChannels {
         }
     }
 
-    pub fn add_channel(&mut self, conn_id: String, mut channel: WsChannelResponseSender) {
-        let sub_id = channel.request.get_id();
+    pub fn add_channel(&mut self, conn_id: String, channel: WsChannelResponseSender) {
         let method = channel.request.get_method();
 
-        if channel.send_succ_sub_notif(sub_id).is_ok() {
+        if channel.send_succ_sub_notif().is_ok() {
             self.0.insert((conn_id, method), channel);
         } else {
             // Send msg error. The client is likely disconnected. Thus, we don't even establish subscription.
