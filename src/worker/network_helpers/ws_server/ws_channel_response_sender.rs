@@ -1,5 +1,4 @@
 use crate::worker::helper_functions::add_jsonrpc_version;
-use crate::worker::network_helpers::ws_server::jsonrpc_messages::JsonRpcResponse;
 use crate::worker::network_helpers::ws_server::ws_channel_request::WsChannelRequest;
 use crate::worker::network_helpers::ws_server::ws_channel_response::WsChannelResponse;
 use crate::worker::network_helpers::ws_server::ws_channel_response_payload::WsChannelResponsePayload;
@@ -35,13 +34,6 @@ impl WsChannelResponseSender {
     }
 
     fn send_inner(&self, response: WsChannelResponse) -> Result<(), TrySendError<Message>> {
-        let response_payload = response.get_payload();
-        let response_payload_str = serde_json::to_string(&response_payload).unwrap();
-
-        let response = JsonRpcResponse::Succ {
-            id: response.get_id(),
-            result: serde_json::from_str(&response_payload_str).unwrap(),
-        };
         let mut response = serde_json::to_string(&response).unwrap();
         add_jsonrpc_version(&mut response);
 
@@ -53,7 +45,10 @@ impl WsChannelResponseSender {
     pub fn send_succ_sub_notif(&self) -> Result<(), TrySendError<Message>> {
         let response_payload =
             WsChannelResponsePayload::SuccSub("Successfully subscribed.".to_string());
-        let response = response_payload.make_response(self.request.get_id());
+        let response = WsChannelResponse {
+            id: self.request.get_id(),
+            result: response_payload.clone(),
+        };
 
         self.send_inner(response)
     }
@@ -62,7 +57,7 @@ impl WsChannelResponseSender {
         &mut self,
         response: WsChannelResponse,
     ) -> Option<Result<(), TrySendError<Message>>> {
-        let timestamp = response.get_payload().get_timestamp();
+        let timestamp = response.result.get_timestamp();
         let frequency_ms = self.request.get_frequency_ms();
 
         if (timestamp - self.last_send_timestamp).num_milliseconds() as u64 > frequency_ms {
