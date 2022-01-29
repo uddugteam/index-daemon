@@ -47,7 +47,7 @@ impl WsChannelResponseSender {
             WsChannelResponsePayload::SuccSub("Successfully subscribed.".to_string());
         let response = WsChannelResponse {
             id: self.request.get_id(),
-            result: response_payload.clone(),
+            result: response_payload,
         };
 
         self.send_inner(response)
