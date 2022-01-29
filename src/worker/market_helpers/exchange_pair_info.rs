@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 
 pub trait ExchangePairInfoTrait: Send {
     fn get_total_volume(&self) -> f64;
-    fn set_total_volume(&mut self, value: f64);
+    fn set_total_volume(&mut self, value: f64, timestamp: DateTime<Utc>);
 
     fn get_total_ask(&self) -> f64;
     fn set_total_ask(&mut self, value: f64);
@@ -16,7 +16,7 @@ pub trait ExchangePairInfoTrait: Send {
     fn set_last_trade_volume(&mut self, value: f64);
 
     fn get_last_trade_price(&self) -> f64;
-    fn set_last_trade_price(&mut self, value: f64);
+    fn set_last_trade_price(&mut self, value: f64, timestamp: DateTime<Utc>);
 
     fn set_timestamp(&mut self, timestamp: DateTime<Utc>);
 }
@@ -51,14 +51,14 @@ impl ExchangePairInfoTrait for ExchangePairInfo {
     fn get_total_volume(&self) -> f64 {
         self.volume
     }
-    fn set_total_volume(&mut self, value: f64) {
+    fn set_total_volume(&mut self, value: f64, timestamp: DateTime<Utc>) {
         self.volume = value;
-        self.timestamp = Utc::now();
+        self.timestamp = timestamp;
 
         self.repository
             .lock()
             .unwrap()
-            .set_total_volume(self.volume);
+            .set_total_volume(self.volume, self.timestamp);
         self.repository
             .lock()
             .unwrap()
@@ -92,9 +92,9 @@ impl ExchangePairInfoTrait for ExchangePairInfo {
     fn get_last_trade_price(&self) -> f64 {
         self.last_trade_price
     }
-    fn set_last_trade_price(&mut self, value: f64) {
+    fn set_last_trade_price(&mut self, value: f64, timestamp: DateTime<Utc>) {
         self.last_trade_price = value;
-        self.timestamp = Utc::now();
+        self.timestamp = timestamp;
     }
 
     fn set_timestamp(&mut self, timestamp: DateTime<Utc>) {

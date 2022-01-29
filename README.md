@@ -17,7 +17,7 @@ All configs are optional.
 
 - **log_level** - string. Variants: off, error, warn, info, debug, trace.
 - **rest_timeout_sec** - u64. Timeout in seconds between requests to REST API.
-- **ws** - string ("1" - on, default - off). Turn on websocket sever.
+- **ws** - string ("1" - on, default - off). Turn on websocket server.
 - **ws_host** - string (default: 127.0.0.1). Websocket server host.
 - **ws_port** - string (default: 8080). Websocket server port.
 - **ws_answer_timeout_ms** - u64 (min - 100, default - 100). Timeout in ms between websocket answers.
@@ -60,6 +60,83 @@ All configs are optional.
 </tr>
 </table>
 
+## Websocket server
+
+Websocket server configs are described above (section _Configs -> service_config -> ws_)
+
+### Channels
+
+#### coin_average_price
+
+subscription request json example:
+
+```json
+{
+  "id": "some_id",
+  "jsonrpc": "2.0",
+  "method": "coin_average_price",
+  "params": {
+    "coins": ["BTC", "ETH"],
+    "frequency_ms": 100
+  }
+}
+```
+
+#### coin_exchange_price
+
+subscription request json example:
+
+```json
+{
+  "id": "some_id",
+  "jsonrpc": "2.0",
+  "method": "coin_exchange_price",
+  "params": {
+    "coins": ["BTC", "ETH"],
+    "exchanges": ["binance", "coinbase"],
+    "frequency_ms": 100
+  }
+}
+```
+
+#### coin_exchange_volume
+
+subscription request json example:
+
+```json
+{
+  "id": "some_id",
+  "jsonrpc": "2.0",
+  "method": "coin_exchange_volume",
+  "params": {
+    "coins": ["BTC", "ETH"],
+    "exchanges": ["binance", "coinbase"],
+    "frequency_ms": 100
+  }
+}
+```
+
+#### unsubscribe (_not a channel, but a request_)
+
+request json example:
+
+```json
+{
+  "id": null,
+  "jsonrpc": "2.0",
+  "method": "unsubscribe",
+  "params": {
+    "method": "coin_exchange_price"
+  }
+}
+```
+
+### Description
+
+- There can be only one subscription per channel. If you subscribe twice, then, previous subscription is declined and new subscription is activated.
+- `id` must be unique or `null`.
+- `id` of `unsubscribe` request is ignored.
+
 ## Note
 
-There's only one fiat currency supported - "USD", and it's hardcoded.
+There's only one fiat currency supported - `USD`, and it's hardcoded.

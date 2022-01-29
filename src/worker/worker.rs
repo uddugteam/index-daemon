@@ -1,5 +1,7 @@
-use crate::config_local::config_local::{ConfigLocal, MarketConfig, ServiceConfig};
-use crate::worker::defaults::{COINS, FIATS, MARKETS};
+use crate::config_scheme::config_scheme::ConfigScheme;
+use crate::config_scheme::market_config::MarketConfig;
+use crate::config_scheme::service_config::ServiceConfig;
+use crate::worker::defaults::FIATS;
 use crate::worker::market_helpers::conversion_type::ConversionType;
 use crate::worker::market_helpers::exchange_pair::ExchangePair;
 use chrono::{DateTime, Utc, MIN_DATETIME};
@@ -13,16 +15,20 @@ use std::thread::{self, JoinHandle};
 use std::time;
 
 use crate::worker::market_helpers::market::{market_factory, Market};
+use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
 use crate::worker::market_helpers::pair_average_price::PairAveragePrice;
+use crate::worker::network_helpers::ws_server::ws_channel_request::WsChannelRequest;
+use crate::worker::network_helpers::ws_server::ws_channel_response_sender::WsChannelResponseSender;
 use crate::worker::network_helpers::ws_server::ws_server::WsServer;
 
 pub struct Worker {
     arc: Option<Arc<Mutex<Self>>>,
     tx: Sender<JoinHandle<()>>,
     graceful_shutdown: Arc<Mutex<bool>>,
-    markets: Vec<Arc<Mutex<dyn Market + Send>>>,
-    pub pair_average_price: PairAveragePrice,
+    markets: HashMap<String, Arc<Mutex<dyn Market + Send>>>,
+    market_names_by_ws_channel_key: HashMap<(String, String), Vec<String>>,
+    pair_average_price: PairAveragePrice,
     capitalization: HashMap<String, f64>,
     last_capitalization_refresh: DateTime<Utc>,
 }
@@ -40,7 +46,8 @@ impl Worker {
             arc: None,
             tx,
             graceful_shutdown,
-            markets: Vec::new(),
+            markets: HashMap::new(),
+            market_names_by_ws_channel_key: HashMap::new(),
             pair_average_price: PairAveragePrice::new(),
             capitalization: HashMap::new(),
             last_capitalization_refresh: MIN_DATETIME,
@@ -54,6 +61,80 @@ impl Worker {
 
     fn set_arc(&mut self, arc: Arc<Mutex<Self>>) {
         self.arc = Some(arc);
+    }
+
+    pub fn add_ws_channel(
+        &mut self,
+        conn_id: String,
+        channel: WsChannelResponseSender,
+    ) -> Result<(), Vec<String>> {
+        match &channel.request {
+            WsChannelRequest::CoinAveragePrice { .. } => {
+                // Worker's channel
+
+                self.pair_average_price
+                    .ws_channels
+                    .add_channel(conn_id, channel);
+
+                Ok(())
+            }
+            WsChannelRequest::CoinExchangePrice { exchanges, .. }
+            | WsChannelRequest::CoinExchangeVolume { exchanges, .. } => {
+                // Market's channel
+
+                // Search for unsupported exchanges
+                let errors: Vec<String> = exchanges
+                    .iter()
+                    .filter(|&v| !self.markets.contains_key(v))
+                    .map(|v| format!("Unsupported exchange: {}", v))
+                    .collect();
+
+                if !errors.is_empty() {
+                    Err(errors)
+                } else {
+                    let key = (conn_id.clone(), channel.request.get_method());
+                    self.remove_ws_channel(&key);
+                    self.market_names_by_ws_channel_key
+                        .insert(key, exchanges.clone());
+
+                    // There we have only supported exchanges, thus we can call `unwrap`
+                    for exchange in exchanges {
+                        self.markets
+                            .get_mut(exchange)
+                            .unwrap()
+                            .lock()
+                            .unwrap()
+                            .get_spine_mut()
+                            .ws_channels
+                            .add_channel(conn_id.clone(), channel.clone());
+                    }
+
+                    Ok(())
+                }
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn remove_ws_channel(&mut self, key: &(String, String)) {
+        if let Some(market_names) = self.market_names_by_ws_channel_key.get(key) {
+            // Market's channel
+
+            for market_name in market_names {
+                self.markets
+                    .get_mut(market_name)
+                    .unwrap()
+                    .lock()
+                    .unwrap()
+                    .get_spine_mut()
+                    .ws_channels
+                    .remove_channel(key);
+            }
+        } else {
+            // Worker's channel
+
+            self.pair_average_price.ws_channels.remove_channel(key);
+        }
     }
 
     // TODO: Implement
@@ -151,13 +232,9 @@ impl Worker {
         self.last_capitalization_refresh
     }
 
-    pub fn make_exchange_pairs(
-        coins: Option<Vec<&str>>,
-        fiats: Option<Vec<&str>>,
-    ) -> Vec<ExchangePair> {
+    pub fn make_exchange_pairs(coins: Vec<&str>, fiats: Option<Vec<&str>>) -> Vec<ExchangePair> {
         let mut exchange_pairs = Vec::new();
 
-        let coins = coins.unwrap_or(COINS.to_vec());
         let fiats = fiats.unwrap_or(FIATS.to_vec());
 
         for coin in coins {
@@ -178,16 +255,14 @@ impl Worker {
 
     fn configure(
         &mut self,
-        markets: Option<Vec<&str>>,
-        coins: Option<Vec<&str>>,
-        channels: Option<Vec<&str>>,
+        markets: Vec<&str>,
+        coins: Vec<&str>,
+        channels: Vec<MarketChannels>,
         rest_timeout_sec: u64,
     ) {
-        let market_names = markets.unwrap_or(MARKETS.to_vec());
         let exchange_pairs = Self::make_exchange_pairs(coins, None);
-        let channels = channels.map(|v| v.into_iter().map(|v| v.parse().unwrap()).collect());
 
-        for market_name in market_names {
+        for market_name in markets {
             let worker_2 = Arc::clone(self.arc.as_ref().unwrap());
             let market_spine = MarketSpine::new(
                 worker_2,
@@ -199,15 +274,14 @@ impl Worker {
             );
             let market = market_factory(market_spine, exchange_pairs.clone());
 
-            self.markets.push(market);
+            self.markets.insert(market_name.to_string(), market);
         }
     }
 
     fn start_ws(
         &self,
         ws: bool,
-        ws_host: String,
-        ws_port: String,
+        ws_addr: String,
         ws_answer_timeout_ms: u64,
         graceful_shutdown: Arc<Mutex<bool>>,
     ) {
@@ -220,8 +294,7 @@ impl Worker {
                 .spawn(move || {
                     let ws_server = WsServer {
                         worker,
-                        ws_host,
-                        ws_port,
+                        ws_addr,
                         ws_answer_timeout_ms,
                         graceful_shutdown,
                     };
@@ -232,8 +305,8 @@ impl Worker {
         }
     }
 
-    pub fn start(&mut self, config: ConfigLocal) {
-        let ConfigLocal { market, service } = config;
+    pub fn start(&mut self, config: ConfigScheme) {
+        let ConfigScheme { market, service } = config;
         let MarketConfig {
             markets,
             coins,
@@ -242,33 +315,24 @@ impl Worker {
         let ServiceConfig {
             rest_timeout_sec,
             ws,
-            ws_host,
-            ws_port,
+            ws_addr,
             ws_answer_timeout_ms,
         } = service;
 
-        let markets = markets
-            .as_ref()
-            .map(|v| v.iter().map(|v| v.as_str()).collect());
-        let coins = coins
-            .as_ref()
-            .map(|v| v.iter().map(|v| v.as_str()).collect());
-        let channels = channels
-            .as_ref()
-            .map(|v| v.iter().map(|v| v.as_str()).collect());
+        let markets = markets.iter().map(|v| v.as_ref()).collect();
+        let coins = coins.iter().map(|v| v.as_ref()).collect();
 
         self.configure(markets, coins, channels, rest_timeout_sec);
         self.start_ws(
             ws,
-            ws_host,
-            ws_port,
+            ws_addr,
             ws_answer_timeout_ms,
             self.graceful_shutdown.clone(),
         );
 
         self.refresh_capitalization_thread();
 
-        for market in self.markets.iter().cloned() {
+        for market in self.markets.values().cloned() {
             if self.is_graceful_shutdown() {
                 return;
             }
@@ -290,16 +354,23 @@ impl Worker {
 
 #[cfg(test)]
 pub mod test {
-    use crate::config_local::config_local::{ConfigLocal, MarketConfig, ServiceConfig};
-    use crate::worker::defaults::MARKETS;
+    use crate::config_scheme::config_scheme::ConfigScheme;
+    use crate::config_scheme::market_config::MarketConfig;
+    use crate::config_scheme::service_config::ServiceConfig;
     use crate::worker::market_helpers::conversion_type::ConversionType;
     use crate::worker::market_helpers::exchange_pair::ExchangePair;
+    use crate::worker::market_helpers::market_channels::MarketChannels;
+    use crate::worker::network_helpers::ws_server::ws_channels::test::check_subscriptions;
     use crate::worker::worker::Worker;
     use chrono::{Duration, Utc};
     use ntest::timeout;
+    use serial_test::serial;
+    use std::collections::HashMap;
     use std::sync::mpsc::{Receiver, Sender};
     use std::sync::{mpsc, Arc, Mutex};
+    use std::thread;
     use std::thread::JoinHandle;
+    use std::time;
 
     pub fn make_worker() -> (
         Arc<Mutex<Worker>>,
@@ -335,54 +406,48 @@ pub mod test {
         assert!(worker.lock().unwrap().arc.is_some());
     }
 
-    fn test_configure(
-        markets: Option<Vec<&str>>,
-        coins: Option<Vec<&str>>,
-        channels: Option<Vec<&str>>,
-    ) {
+    fn test_configure(markets: Vec<&str>, coins: Vec<&str>, channels: Vec<MarketChannels>) {
         let (worker, _, _) = make_worker();
         worker
             .lock()
             .unwrap()
-            .configure(markets.clone(), coins.clone(), channels.clone(), 1);
+            .configure(markets.clone(), coins.clone(), channels, 1);
 
-        let markets = markets.unwrap_or(MARKETS.to_vec());
         assert_eq!(markets.len(), worker.lock().unwrap().markets.len());
 
-        for (i, market) in worker.lock().unwrap().markets.iter().enumerate() {
+        for (market_name_key, market) in &worker.lock().unwrap().markets {
             let market_name = market.lock().unwrap().get_spine().name.clone();
-            assert_eq!(market_name, markets[i]);
+            assert_eq!(market_name_key, &market_name);
+            assert!(markets.contains(&market_name.as_str()));
         }
     }
 
     #[test]
     fn test_configure_with_default_params() {
-        test_configure(None, None, None);
+        let config = MarketConfig::default();
+        let markets = config.markets.iter().map(|v| v.as_ref()).collect();
+        let coins = config.coins.iter().map(|v| v.as_ref()).collect();
+
+        test_configure(markets, coins, config.channels);
     }
 
     #[test]
     fn test_configure_with_custom_params() {
         let markets = vec!["binance", "bitfinex"];
         let coins = vec!["ABC", "DEF", "GHI"];
-        let channels = vec!["ticker"];
+        let channels = vec![MarketChannels::Ticker];
 
-        test_configure(Some(markets), Some(coins), Some(channels));
+        test_configure(markets, coins, channels);
     }
 
     #[test]
     #[should_panic]
     fn test_configure_panic() {
+        let config = MarketConfig::default();
         let markets = vec!["not_existing_market"];
+        let coins = config.coins.iter().map(|v| v.as_ref()).collect();
 
-        test_configure(Some(markets), None, None);
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_configure_panic_2() {
-        let channels = vec!["not_existing_channel"];
-
-        test_configure(None, None, Some(channels));
+        test_configure(markets, coins, config.channels);
     }
 
     #[test]
@@ -437,7 +502,7 @@ pub mod test {
     }
 
     fn inner_test_make_exchange_pairs(
-        coins: Option<Vec<&str>>,
+        coins: Vec<&str>,
         fiats: Option<Vec<&str>>,
         expected_exchange_pairs: Vec<ExchangePair>,
     ) {
@@ -462,7 +527,10 @@ pub mod test {
             },
         ];
 
-        inner_test_make_exchange_pairs(None, None, expected_exchange_pairs);
+        let config = MarketConfig::default();
+        let coins = config.coins.iter().map(|v| v.as_ref()).collect();
+
+        inner_test_make_exchange_pairs(coins, None, expected_exchange_pairs);
     }
 
     #[test]
@@ -486,28 +554,22 @@ pub mod test {
             },
         ];
 
-        let coins = Some(vec!["ABC", "DEF"]);
+        let coins = vec!["ABC", "DEF"];
         let fiats = Some(vec!["GHI", "JKL"]);
 
         inner_test_make_exchange_pairs(coins, fiats, expected_exchange_pairs);
     }
 
     /// TODO: Add tests for WsServer
-    fn inner_test_start(
-        markets: Option<Vec<String>>,
-        coins: Option<Vec<String>>,
-        channels: Option<Vec<String>>,
-    ) {
-        let (worker, _, rx) = make_worker();
+    fn inner_test_start(markets: Vec<String>, coins: Vec<String>, channels: Vec<MarketChannels>) {
+        // To prevent DDoS attack on exchanges
+        thread::sleep(time::Duration::from_millis(3000));
 
-        let markets_2 = markets
-            .as_ref()
-            .map(|v| v.iter().map(|v| v.as_str()).collect())
-            .unwrap_or(MARKETS.to_vec());
+        let (worker, _, rx) = make_worker();
 
         let mut thread_names = Vec::new();
         thread_names.push("fn: refresh_capitalization".to_string());
-        for market in markets_2 {
+        for market in &markets {
             let thread_name = format!("fn: perform, market: {}", market);
             thread_names.push(thread_name);
         }
@@ -517,48 +579,81 @@ pub mod test {
             coins,
             channels,
         };
-        let service = ServiceConfig {
-            rest_timeout_sec: 1,
-            ws: false,
-            ws_host: "".to_string(),
-            ws_port: "".to_string(),
-            ws_answer_timeout_ms: 1,
+        let config = ConfigScheme {
+            market,
+            service: ServiceConfig::default(),
         };
-        let config = ConfigLocal { market, service };
 
         worker.lock().unwrap().start(config);
         check_threads(thread_names, rx);
     }
 
+    /// `serial` and `timeout` are incompatible
     #[test]
-    #[timeout(2000)]
+    // #[serial]
+    #[timeout(5000)]
     fn test_start_with_default_params() {
-        inner_test_start(None, None, None);
+        let config = MarketConfig::default();
+
+        inner_test_start(config.markets, config.coins, config.channels);
     }
 
+    /// `serial` and `timeout` are incompatible
     #[test]
-    #[timeout(2000)]
+    // #[serial]
+    #[timeout(5000)]
     fn test_start_with_custom_params() {
-        let markets = Some(vec!["binance".to_string(), "bitfinex".to_string()]);
-        let coins = Some(vec!["ABC".to_string(), "DEF".to_string()]);
-        let channels = Some(vec!["ticker".to_string()]);
+        let markets = vec!["binance".to_string(), "bitfinex".to_string()];
+        let coins = vec!["ABC".to_string(), "DEF".to_string()];
+        let channels = vec![MarketChannels::Ticker];
 
         inner_test_start(markets, coins, channels);
     }
 
     #[test]
+    #[serial]
     #[should_panic]
     fn test_start_panic() {
-        let markets = Some(vec!["not_existing_market".to_string()]);
+        let config = MarketConfig::default();
+        let markets = vec!["not_existing_market".to_string()];
 
-        inner_test_start(markets, None, None);
+        inner_test_start(markets, config.coins, config.channels);
     }
 
-    #[test]
-    #[should_panic]
-    fn test_start_panic_2() {
-        let channels = Some(vec!["not_existing_channel".to_string()]);
+    pub fn check_worker_subscriptions(
+        worker: &Arc<Mutex<Worker>>,
+        subscriptions: Vec<(String, String, Vec<String>)>,
+    ) {
+        check_subscriptions(
+            &worker.lock().unwrap().pair_average_price.ws_channels,
+            &subscriptions,
+        );
+    }
 
-        inner_test_start(None, None, channels);
+    pub fn check_market_subscriptions(
+        worker: &Arc<Mutex<Worker>>,
+        subscriptions: Vec<(String, String, Vec<String>, Vec<String>)>,
+    ) {
+        let mut subscriptions_new = HashMap::new();
+        for (sub_id, method, coins, exchanges) in subscriptions {
+            for exchange in exchanges {
+                let new_sub = (sub_id.clone(), method.clone(), coins.clone());
+                subscriptions_new
+                    .entry(exchange)
+                    .or_insert(Vec::new())
+                    .push(new_sub);
+            }
+        }
+
+        for (market_name, market) in worker.lock().unwrap().markets.clone() {
+            if let Some(subscriptions) = subscriptions_new.get(&market_name) {
+                check_subscriptions(
+                    &market.lock().unwrap().get_spine().ws_channels,
+                    subscriptions,
+                );
+            } else {
+                check_subscriptions(&market.lock().unwrap().get_spine().ws_channels, &Vec::new());
+            }
+        }
     }
 }
