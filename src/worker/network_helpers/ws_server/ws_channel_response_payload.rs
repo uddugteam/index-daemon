@@ -5,8 +5,12 @@ use chrono::{DateTime, Utc};
 #[derive(Serialize, Clone)]
 #[serde(untagged)]
 pub enum WsChannelResponsePayload {
-    SuccSub(String),
+    SuccSub {
+        method: String,
+        message: String,
+    },
     Err {
+        method: String,
         code: i64,
         message: String,
     },
@@ -38,7 +42,7 @@ impl WsChannelResponsePayload {
             WsChannelResponsePayload::CoinAveragePrice { coin, .. }
             | WsChannelResponsePayload::CoinExchangePrice { coin, .. }
             | WsChannelResponsePayload::CoinExchangeVolume { coin, .. } => coin.to_string(),
-            WsChannelResponsePayload::SuccSub(..) | WsChannelResponsePayload::Err { .. } => {
+            WsChannelResponsePayload::SuccSub { .. } | WsChannelResponsePayload::Err { .. } => {
                 unreachable!()
             }
         }
@@ -49,7 +53,7 @@ impl WsChannelResponsePayload {
             WsChannelResponsePayload::CoinAveragePrice { timestamp, .. }
             | WsChannelResponsePayload::CoinExchangePrice { timestamp, .. }
             | WsChannelResponsePayload::CoinExchangeVolume { timestamp, .. } => *timestamp,
-            WsChannelResponsePayload::SuccSub(..) | WsChannelResponsePayload::Err { .. } => {
+            WsChannelResponsePayload::SuccSub { .. } | WsChannelResponsePayload::Err { .. } => {
                 unreachable!()
             }
         }
