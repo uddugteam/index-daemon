@@ -1,4 +1,4 @@
-use crate::worker::helper_functions::add_jsonrpc_version;
+use crate::worker::helper_functions::add_jsonrpc_version_and_method;
 use crate::worker::network_helpers::ws_server::ws_channel_request::WsChannelRequest;
 use crate::worker::network_helpers::ws_server::ws_channel_response::WsChannelResponse;
 use crate::worker::network_helpers::ws_server::ws_channel_response_payload::WsChannelResponsePayload;
@@ -35,7 +35,7 @@ impl WsChannelResponseSender {
 
     fn send_inner(&self, response: WsChannelResponse) -> Result<(), TrySendError<Message>> {
         let mut response = serde_json::to_string(&response).unwrap();
-        add_jsonrpc_version(&mut response);
+        add_jsonrpc_version_and_method(&mut response, Some(self.request.get_method()));
 
         let response = Message::from(response);
 
@@ -43,8 +43,10 @@ impl WsChannelResponseSender {
     }
 
     pub fn send_succ_sub_notif(&self) -> Result<(), TrySendError<Message>> {
-        let response_payload =
-            WsChannelResponsePayload::SuccSub("Successfully subscribed.".to_string());
+        let response_payload = WsChannelResponsePayload::SuccSub {
+            method: self.request.get_method(),
+            message: "Successfully subscribed.".to_string(),
+        };
         let response = WsChannelResponse {
             id: self.request.get_id(),
             result: response_payload,

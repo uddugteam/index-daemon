@@ -1,4 +1,4 @@
-use crate::worker::helper_functions::add_jsonrpc_version;
+use crate::worker::helper_functions::add_jsonrpc_version_and_method;
 use crate::worker::network_helpers::ws_server::jsonrpc_messages::{JsonRpcId, JsonRpcRequest};
 use crate::worker::network_helpers::ws_server::ws_channel_request::WsChannelRequest;
 use crate::worker::network_helpers::ws_server::ws_channel_response::WsChannelResponse;
@@ -44,13 +44,23 @@ impl WsServer {
         request.try_into()
     }
 
-    fn send_error(broadcast_recipient: &Tx, id: Option<JsonRpcId>, code: i64, message: String) {
+    fn send_error(
+        broadcast_recipient: &Tx,
+        id: Option<JsonRpcId>,
+        method: String,
+        code: i64,
+        message: String,
+    ) {
         let response = WsChannelResponse {
             id,
-            result: WsChannelResponsePayload::Err { code, message },
+            result: WsChannelResponsePayload::Err {
+                method,
+                code,
+                message,
+            },
         };
         let mut response = serde_json::to_string(&response).unwrap();
-        add_jsonrpc_version(&mut response);
+        add_jsonrpc_version_and_method(&mut response, None);
 
         let response = Message::from(response);
         let _ = broadcast_recipient.unbounded_send(response);
@@ -68,6 +78,7 @@ impl WsServer {
             // Subscribe
 
             let sub_id = channel.get_id();
+            let method = channel.get_method();
             let response_sender = WsChannelResponseSender::new(
                 broadcast_recipient.clone(),
                 channel,
@@ -84,6 +95,7 @@ impl WsServer {
                     Self::send_error(
                         &broadcast_recipient,
                         sub_id.clone(),
+                        method.clone(),
                         JSONRPC_ERROR_INVALID_PARAMS,
                         error,
                     );
@@ -111,6 +123,7 @@ impl WsServer {
         broadcast_recipient: Tx,
         conn_id: String,
         sub_id: Option<JsonRpcId>,
+        method: String,
         request: Result<WsChannelRequest, String>,
         ws_answer_timeout_ms: u64,
     ) {
@@ -133,6 +146,7 @@ impl WsServer {
                 Self::send_error(
                     &broadcast_recipient,
                     sub_id,
+                    method,
                     JSONRPC_ERROR_INVALID_REQUEST,
                     e,
                 );
@@ -156,6 +170,7 @@ impl WsServer {
         match request {
             Ok(request) => {
                 let sub_id = request.id.clone();
+                let method = request.method.clone();
                 let request = Self::parse_ws_channel_request(request);
 
                 let peers = peer_map.lock().unwrap();
@@ -177,6 +192,7 @@ impl WsServer {
                                 broadcast_recipient,
                                 conn_id_2,
                                 sub_id,
+                                method,
                                 request,
                                 ws_answer_timeout_ms,
                             )
