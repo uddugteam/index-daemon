@@ -1,3 +1,4 @@
+use crate::worker::network_helpers::ws_server::ws_channel_response::WsChannelResponse;
 use crate::worker::network_helpers::ws_server::ws_channel_response_payload::WsChannelResponsePayload;
 use crate::worker::network_helpers::ws_server::ws_channel_response_sender::WsChannelResponseSender;
 use std::collections::HashMap;
@@ -21,9 +22,10 @@ impl WsChannels {
         let mut keys_to_remove = Vec::new();
 
         for (key, sender) in senders {
-            let response = response_payload
-                .clone()
-                .make_response(sender.request.get_id());
+            let response = WsChannelResponse {
+                id: sender.request.get_id(),
+                result: response_payload.clone(),
+            };
 
             let send_msg_result = sender.send(response);
 

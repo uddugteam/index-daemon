@@ -1,8 +1,8 @@
 use crate::worker::helper_functions::add_jsonrpc_version;
-use crate::worker::network_helpers::ws_server::jsonrpc_messages::{
-    JsonRpcErr, JsonRpcId, JsonRpcRequest, JsonRpcResponse,
-};
+use crate::worker::network_helpers::ws_server::jsonrpc_messages::{JsonRpcId, JsonRpcRequest};
 use crate::worker::network_helpers::ws_server::ws_channel_request::WsChannelRequest;
+use crate::worker::network_helpers::ws_server::ws_channel_response::WsChannelResponse;
+use crate::worker::network_helpers::ws_server::ws_channel_response_payload::WsChannelResponsePayload;
 use crate::worker::network_helpers::ws_server::ws_channel_response_sender::WsChannelResponseSender;
 use crate::worker::worker::Worker;
 use async_std::{
@@ -45,9 +45,9 @@ impl WsServer {
     }
 
     fn send_error(broadcast_recipient: &Tx, id: Option<JsonRpcId>, code: i64, message: String) {
-        let response = JsonRpcResponse::Err {
+        let response = WsChannelResponse {
             id,
-            result: JsonRpcErr { code, message },
+            result: WsChannelResponsePayload::Err { code, message },
         };
         let mut response = serde_json::to_string(&response).unwrap();
         add_jsonrpc_version(&mut response);
