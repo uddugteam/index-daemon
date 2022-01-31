@@ -66,8 +66,7 @@ impl Market for Bybit {
     fn parse_ticker_json(&mut self, pair: String, json: Json) -> Option<()> {
         let object = json.as_object()?.get("data")?.as_object()?;
 
-        // TODO: Check whether key `total_volume` is right
-        let volume = object.get("total_volume")?.as_f64()?;
+        let volume = object.get("volume_24h")?.as_f64()?;
         self.parse_ticker_json_inner(pair, volume);
 
         Some(())

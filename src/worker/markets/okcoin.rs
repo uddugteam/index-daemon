@@ -44,9 +44,7 @@ impl Market for Okcoin {
 
         for object in array.as_array()? {
             let object = object.as_object()?;
-
-            // TODO: Check whether key `base_volume_24h` is right
-            let volume: f64 = parse_str_from_json_object(object, "base_volume_24h")?;
+            let volume: f64 = parse_str_from_json_object(object, "quote_volume_24h")?;
 
             self.parse_ticker_json_inner(pair.clone(), volume);
         }

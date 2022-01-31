@@ -42,8 +42,11 @@ impl Market for Coinbase {
     fn parse_ticker_json(&mut self, pair: String, json: Json) -> Option<()> {
         let object = json.as_object()?;
 
-        let volume: f64 = parse_str_from_json_object(object, "volume_24h")?;
-        self.parse_ticker_json_inner(pair, volume);
+        let base_price: f64 = parse_str_from_json_object(object, "price")?;
+        let base_volume: f64 = parse_str_from_json_object(object, "volume_24h")?;
+        let quote_volume: f64 = base_volume * base_price;
+
+        self.parse_ticker_json_inner(pair, quote_volume);
 
         Some(())
     }

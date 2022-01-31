@@ -74,9 +74,8 @@ impl Market for Gemini {
         let object = json.as_object()?;
         let object = object.get("volume")?.as_object()?;
 
-        // TODO: Check whether chosen key (pair_tuple.0) is right
         let pair_tuple = self.get_spine().get_pairs().get(&pair).unwrap();
-        let volume = parse_str_from_json_object(object, &pair_tuple.0)?;
+        let volume = parse_str_from_json_object(object, &pair_tuple.1)?;
         self.parse_ticker_json_inner(pair, volume);
 
         Some(())

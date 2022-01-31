@@ -43,7 +43,7 @@ impl Market for Hitbtc {
         let object = object.get("data")?;
         let object = object.as_object()?.get(&pair)?.as_object()?;
 
-        let volume: f64 = parse_str_from_json_object(object, "v")?;
+        let volume: f64 = parse_str_from_json_object(object, "q")?;
         self.parse_ticker_json_inner(pair, volume);
 
         Some(())

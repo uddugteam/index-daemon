@@ -46,10 +46,17 @@ impl Market for Kraken {
 
     fn parse_ticker_json(&mut self, pair: String, json: Json) -> Option<()> {
         let array = json.as_array()?;
-        let array = array[1].as_object()?.get("v")?.as_array()?;
+        let array = array[1].as_object()?;
 
-        let volume: f64 = parse_str_from_json_array(array, 1)?;
-        self.parse_ticker_json_inner(pair, volume);
+        let base_price = array.get("c")?.as_array()?;
+        let base_price: f64 = parse_str_from_json_array(base_price, 0)?;
+
+        let base_volume = array.get("v")?.as_array()?;
+        let base_volume: f64 = parse_str_from_json_array(base_volume, 1)?;
+
+        let quote_volume: f64 = base_volume * base_price;
+
+        self.parse_ticker_json_inner(pair, quote_volume);
 
         Some(())
     }

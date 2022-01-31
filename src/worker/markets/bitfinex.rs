@@ -74,8 +74,11 @@ impl Market for Bitfinex {
         let array = json.as_array()?;
         let array = array[1].as_array()?;
 
-        let volume: f64 = array[7].as_f64()?;
-        self.parse_ticker_json_inner(pair, volume);
+        let base_price: f64 = array[6].as_f64()?;
+        let base_volume: f64 = array[7].as_f64()?;
+        let quote_volume: f64 = base_volume * base_price;
+
+        self.parse_ticker_json_inner(pair, quote_volume);
 
         Some(())
     }

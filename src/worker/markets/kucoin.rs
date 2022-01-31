@@ -3,7 +3,7 @@ use rustc_serialize::json::Json;
 use std::thread;
 use std::time;
 
-use crate::worker::market_helpers::market::{depth_helper_v1, parse_str_from_json_object, Market};
+use crate::worker::market_helpers::market::{depth_helper_v1, Market};
 use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
 
@@ -54,7 +54,7 @@ impl Market for Kucoin {
 
     fn get_channel_text_view(&self, channel: MarketChannels) -> String {
         match channel {
-            MarketChannels::Ticker => "market/ticker",
+            MarketChannels::Ticker => "market/snapshot",
             MarketChannels::Trades => {
                 // TODO: Implement
                 // Implementation is too hard and requires Private API key
@@ -82,8 +82,9 @@ impl Market for Kucoin {
     fn parse_ticker_json(&mut self, pair: String, json: Json) -> Option<()> {
         let object = json.as_object()?;
         let object = object.get("data")?.as_object()?;
+        let object = object.get("data")?.as_object()?;
 
-        let volume: f64 = parse_str_from_json_object(object, "size")?;
+        let volume: f64 = object.get("volValue")?.as_f64()?;
         self.parse_ticker_json_inner(pair, volume);
 
         Some(())

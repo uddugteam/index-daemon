@@ -59,7 +59,7 @@ impl Market for Gateio {
         let object = json.as_object()?;
         let object = object.get("params")?.as_array()?.get(1)?.as_object()?;
 
-        let volume: f64 = parse_str_from_json_object(object, "quoteVolume")?;
+        let volume: f64 = parse_str_from_json_object(object, "baseVolume")?;
         self.parse_ticker_json_inner(pair, volume);
 
         Some(())
