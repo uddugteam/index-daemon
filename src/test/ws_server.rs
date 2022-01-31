@@ -140,30 +140,26 @@ fn check_incoming_messages(
             let jsonrpc = incoming_msg.get("jsonrpc").unwrap().as_str().unwrap();
             assert_eq!(jsonrpc, "2.0");
 
-            match incoming_msg.get("result").unwrap() {
-                serde_json::Value::Object(result) => {
-                    // Message with payload (`result` is `object`)
+            let result = incoming_msg.get("result").unwrap().as_object().unwrap();
+            if let Some(message) = result.get("message") {
+                // SuccSub message (`result` has `message` field)
 
-                    let coin = result.get("coin").unwrap().as_str().unwrap().to_string();
-                    let exchange = result
-                        .get("exchange")
-                        .map(|v| v.as_str().unwrap().to_string());
-                    let _value = result.get("value").unwrap().as_f64().unwrap();
-                    let timestamp = result.get("timestamp").unwrap().as_i64().unwrap();
-                    // 1640984400 = 2022-01-01 00:00:00
-                    assert!(timestamp > 1640984400);
-                    let method = methods.get(sub_id).unwrap().to_string();
+                let message = message.as_str().unwrap();
+                assert_eq!(message, "Successfully subscribed.");
+            } else {
+                // Message with payload (no `message` field in `result`)
 
-                    expected_new.remove(&(sub_id.to_string(), method, coin, exchange));
-                }
-                serde_json::Value::String(s) => {
-                    // SuccSub message (`result` is `string`)
+                let coin = result.get("coin").unwrap().as_str().unwrap().to_string();
+                let exchange = result
+                    .get("exchange")
+                    .map(|v| v.as_str().unwrap().to_string());
+                let _value = result.get("value").unwrap().as_f64().unwrap();
+                let timestamp = result.get("timestamp").unwrap().as_i64().unwrap();
+                // 1640984400 = 2022-01-01 00:00:00
+                assert!(timestamp > 1640984400);
+                let method = methods.get(sub_id).unwrap().to_string();
 
-                    assert_eq!(s, "Successfully subscribed.");
-                }
-                _ => {
-                    panic!("Wrong message received.");
-                }
+                expected_new.remove(&(sub_id.to_string(), method, coin, exchange));
             }
         }
 
