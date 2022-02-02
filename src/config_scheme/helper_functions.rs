@@ -8,14 +8,14 @@ pub fn get_config_file_path(key: &str) -> Option<String> {
     let matches = App::new("ICEX")
         .version("1.0")
         .arg(
-            Arg::with_name("service_config")
+            Arg::new("service_config")
                 .long("service_config")
                 .value_name("PATH")
                 .help("Service config file path")
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("market_config")
+            Arg::new("market_config")
                 .long("market_config")
                 .value_name("PATH")
                 .help("Market config file path")

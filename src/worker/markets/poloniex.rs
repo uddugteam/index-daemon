@@ -1,29 +1,19 @@
-use rustc_serialize::json::{Json, ToJson};
+use chrono::{DateTime, Utc, MIN_DATETIME};
+use reqwest::blocking::Client;
 use std::collections::HashMap;
 
 use crate::worker::defaults::POLONIEX_EXCHANGE_PAIRS;
-use crate::worker::market_helpers::market::{parse_str_from_json_array, Market};
+use crate::worker::market_helpers::market::{
+    parse_str_from_json_array, parse_str_from_json_object, Market,
+};
 use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
 
 pub struct Poloniex {
     pub spine: MarketSpine,
     pair_codes: HashMap<(String, String), String>,
-}
-
-impl Poloniex {
-    fn depth_helper(json: &Json) -> Vec<(f64, f64)> {
-        json.as_object()
-            .unwrap()
-            .iter()
-            .map(|(price, size)| {
-                (
-                    price.parse().unwrap(),
-                    size.as_string().unwrap().parse().unwrap(),
-                )
-            })
-            .collect()
-    }
+    exchange_pairs_last_price: HashMap<String, f64>,
+    last_http_request_timestamp: DateTime<Utc>,
 }
 
 impl Poloniex {
@@ -34,18 +24,83 @@ impl Poloniex {
                 spine.get_unmasked_value(pair_tuple.0).to_string(),
                 spine.get_unmasked_value(pair_tuple.1).to_string(),
             );
-            let pair2 = (pair.1.clone(), pair.0.clone());
+            let pair_reversed = (pair.1.to_string(), pair.0.to_string());
 
             pair_codes.insert(pair, pair_code.to_string());
-            pair_codes.insert(pair2, pair_code.to_string());
+            pair_codes.insert(pair_reversed, pair_code.to_string());
         }
 
-        Self { spine, pair_codes }
+        Self {
+            spine,
+            pair_codes,
+            exchange_pairs_last_price: HashMap::new(),
+            last_http_request_timestamp: MIN_DATETIME,
+        }
+    }
+
+    fn depth_helper(json: &serde_json::Value) -> Vec<(f64, f64)> {
+        json.as_object()
+            .unwrap()
+            .iter()
+            .map(|(price, size)| {
+                (
+                    price.parse().unwrap(),
+                    size.as_str().unwrap().parse().unwrap(),
+                )
+            })
+            .collect()
+    }
+
+    fn parse_pair_code_from_pair_string(&self, pair_string: &str) -> Option<String> {
+        let pair_tuple: Vec<&str> = pair_string.split('_').collect();
+
+        let pair_tuple = (pair_tuple.get(0)?, pair_tuple.get(1)?);
+
+        let pair_tuple = (
+            self.spine.get_unmasked_value(pair_tuple.0).to_string(),
+            self.spine.get_unmasked_value(pair_tuple.1).to_string(),
+        );
+
+        self.pair_codes.get(&pair_tuple).cloned()
     }
 
     fn coin_exists(&self, coin: &str) -> bool {
         let pair = (coin.to_string(), "USD".to_string());
         self.pair_codes.contains_key(&pair)
+    }
+
+    fn refresh_pair_prices(&mut self) -> Option<()> {
+        // Hold 10 seconds between HTTP requests to Poloniex
+        if (Utc::now() - self.last_http_request_timestamp).num_milliseconds() > 10000 {
+            self.last_http_request_timestamp = Utc::now();
+
+            let response = Client::new()
+                .post("https://poloniex.com/public?command=returnTicker")
+                .send();
+
+            let response = response.ok()?;
+            let response = response.text().ok()?;
+            let json: serde_json::Value = serde_json::from_str(&response).ok()?;
+
+            let object = json.as_object()?;
+            for (pair_string, object) in object {
+                let object = object.as_object()?;
+
+                if let Some(pair_code) = self.parse_pair_code_from_pair_string(pair_string) {
+                    let price: f64 = parse_str_from_json_object(object, "last")?;
+
+                    self.exchange_pairs_last_price.insert(pair_code, price);
+                }
+            }
+        }
+
+        Some(())
+    }
+
+    fn get_pair_price(&mut self, pair_code: &str) -> Option<f64> {
+        self.refresh_pair_prices();
+
+        self.exchange_pairs_last_price.get(pair_code).cloned()
     }
 }
 
@@ -98,7 +153,7 @@ impl Market for Poloniex {
 
     /// Poloniex sends us coin instead of pair, then we create pair coin-USD
     /// TODO: Check whether function takes right values from json (in the meaning of coin/pair misunderstanding)
-    fn parse_ticker_json(&mut self, _pair: String, json: Json) -> Option<()> {
+    fn parse_ticker_json(&mut self, _pair: String, json: serde_json::Value) -> Option<()> {
         let array = json.as_array()?.get(2)?;
         let object = array.as_array()?.get(2)?.as_object()?;
 
@@ -113,7 +168,7 @@ impl Market for Poloniex {
                 // and convert value to f64
                 (
                     self.make_pair((k, "USD")),
-                    v.as_string().unwrap().parse().unwrap(),
+                    v.as_str().unwrap().parse().unwrap(),
                 )
             })
             .filter(|(k, _)| {
@@ -122,14 +177,18 @@ impl Market for Poloniex {
             })
             .collect();
 
-        for (pair_code, volume) in volumes {
-            self.parse_ticker_json_inner(pair_code, volume);
+        for (pair_code, base_volume) in volumes {
+            if let Some(base_price) = self.get_pair_price(&pair_code) {
+                let quote_volume: f64 = base_volume * base_price;
+
+                self.parse_ticker_json_inner(pair_code, quote_volume);
+            }
         }
 
         Some(())
     }
 
-    fn parse_last_trade_json(&mut self, pair: String, json: Json) -> Option<()> {
+    fn parse_last_trade_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
         let array = json.as_array()?;
 
         let last_trade_price: f64 = parse_str_from_json_array(array, 3)?;
@@ -149,13 +208,13 @@ impl Market for Poloniex {
         Some(())
     }
 
-    fn parse_depth_json(&mut self, pair: String, json: Json) -> Option<()> {
+    fn parse_depth_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
         let json = json.as_array()?.get(2)?;
 
         for array in json.as_array()? {
             let array = array.as_array()?;
 
-            if array[0].as_string()? == "i" {
+            if array[0].as_str()? == "i" {
                 // book
                 if let Some(object) = array.get(1)?.as_object() {
                     if let Some(object) = object.get("orderBook") {
@@ -170,10 +229,10 @@ impl Market for Poloniex {
                         }
                     }
                 }
-            } else if array[0].as_string()? == "t" {
+            } else if array[0].as_str()? == "t" {
                 // trades
 
-                self.parse_last_trade_json(pair.clone(), array.to_json());
+                self.parse_last_trade_json(pair.clone(), serde_json::Value::from(array.as_slice()));
             }
         }
 

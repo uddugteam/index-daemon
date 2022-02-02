@@ -1,9 +1,8 @@
 use reqwest::blocking::Client;
-use rustc_serialize::json::Json;
 use std::thread;
 use std::time;
 
-use crate::worker::market_helpers::market::{depth_helper_v1, parse_str_from_json_object, Market};
+use crate::worker::market_helpers::market::{depth_helper_v1, Market};
 use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
 
@@ -20,14 +19,14 @@ impl Kucoin {
 
             let response = response.ok()?;
             let response = response.text().ok()?;
-            let json = Json::from_str(&response).ok()?;
+            let json: serde_json::Value = serde_json::from_str(&response).ok()?;
 
             let object = json.as_object()?;
             let object = object.get("data")?;
             let object = object.as_object()?;
 
             let token = object.get("token")?;
-            let token = token.as_string()?;
+            let token = token.as_str()?;
 
             Some(token.to_string())
         };
@@ -54,7 +53,7 @@ impl Market for Kucoin {
 
     fn get_channel_text_view(&self, channel: MarketChannels) -> String {
         match channel {
-            MarketChannels::Ticker => "market/ticker",
+            MarketChannels::Ticker => "market/snapshot",
             MarketChannels::Trades => {
                 // TODO: Implement
                 // Implementation is too hard and requires Private API key
@@ -79,22 +78,23 @@ impl Market for Kucoin {
         ))
     }
 
-    fn parse_ticker_json(&mut self, pair: String, json: Json) -> Option<()> {
+    fn parse_ticker_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
         let object = json.as_object()?;
         let object = object.get("data")?.as_object()?;
+        let object = object.get("data")?.as_object()?;
 
-        let volume: f64 = parse_str_from_json_object(object, "size")?;
+        let volume: f64 = object.get("volValue")?.as_f64()?;
         self.parse_ticker_json_inner(pair, volume);
 
         Some(())
     }
 
     /// TODO: Implement
-    fn parse_last_trade_json(&mut self, _pair: String, _json: Json) -> Option<()> {
+    fn parse_last_trade_json(&mut self, _pair: String, _json: serde_json::Value) -> Option<()> {
         panic!("Trades channel for Kucoin is not implemented.");
     }
 
-    fn parse_depth_json(&mut self, pair: String, json: Json) -> Option<()> {
+    fn parse_depth_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
         let object = json.as_object()?;
         let object = object.get("data")?.as_object()?;
         let asks = object.get("asks")?;
