@@ -5,7 +5,6 @@ use flate2::read::DeflateDecoder;
 use flate2::read::GzDecoder;
 use futures::channel::mpsc::UnboundedSender;
 use futures::{future, pin_mut, StreamExt};
-use rustc_serialize::json::Json;
 use std::io::prelude::Read;
 use std::thread;
 use std::time;
@@ -51,7 +50,7 @@ where
 
     /// Checks whether message is "ping" and if it is, answers with "pong" (needed for Huobi market)
     fn send_pong(stdin_tx: &Tx, message: &str) -> Option<()> {
-        let json = Json::from_str(message).ok()?;
+        let json: serde_json::Value = serde_json::from_str(&message).ok()?;
         let value = json.as_object()?.get("ping")?.as_u64()?;
 
         let pong = format!("{{\"pong\":{}}}", value);

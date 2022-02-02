@@ -7,7 +7,6 @@ use crate::worker::market_helpers::exchange_pair::ExchangePair;
 use chrono::{DateTime, Utc, MIN_DATETIME};
 use reqwest::blocking::multipart::{Form, Part};
 use reqwest::blocking::Client;
-use rustc_serialize::json::Json;
 use std::collections::HashMap;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
@@ -190,18 +189,21 @@ impl Worker {
 
         match response {
             Ok(response) => match response.text() {
-                Ok(response) => match Json::from_str(&response) {
+                Ok(response) => match serde_json::from_str(&response) {
                     Ok(json) => {
-                        let json_object = json.as_object().unwrap();
-                        let coins = json_object.get("data").unwrap().as_array().unwrap();
+                        // This line is needed for type annotation
+                        let json: serde_json::Value = json;
+
+                        let json_object = json.as_object()?;
+                        let coins = json_object.get("data")?.as_array()?;
 
                         for coin in coins.iter().map(|j| j.as_object().unwrap()) {
-                            let mut curr = coin.get("symbol").unwrap().as_string().unwrap();
+                            let mut curr = coin.get("symbol")?.as_str()?;
                             if curr == "MIOTA" {
                                 curr = "IOT";
                             }
 
-                            let total_supply = coin.get("total_supply").unwrap().as_f64().unwrap();
+                            let total_supply = coin.get("total_supply")?.as_f64()?;
 
                             worker
                                 .lock()

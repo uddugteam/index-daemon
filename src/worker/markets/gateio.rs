@@ -1,5 +1,4 @@
 use rand::Rng;
-use rustc_serialize::json::Json;
 
 use crate::worker::market_helpers::market::{depth_helper_v1, parse_str_from_json_object, Market};
 use crate::worker::market_helpers::market_channels::MarketChannels;
@@ -55,7 +54,7 @@ impl Market for Gateio {
         ))
     }
 
-    fn parse_ticker_json(&mut self, pair: String, json: Json) -> Option<()> {
+    fn parse_ticker_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
         let object = json.as_object()?;
         let object = object.get("params")?.as_array()?.get(1)?.as_object()?;
 
@@ -65,7 +64,7 @@ impl Market for Gateio {
         Some(())
     }
 
-    fn parse_last_trade_json(&mut self, pair: String, json: Json) -> Option<()> {
+    fn parse_last_trade_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
         let object = json.as_object()?;
         let array = object.get("params")?.as_array()?.get(1)?.as_array()?;
 
@@ -75,7 +74,7 @@ impl Market for Gateio {
             let mut last_trade_volume: f64 = parse_str_from_json_object(object, "amount")?;
             let last_trade_price: f64 = parse_str_from_json_object(object, "price")?;
 
-            let trade_type = object.get("type")?.as_string()?;
+            let trade_type = object.get("type")?.as_str()?;
             // TODO: Check whether inversion is right
             if trade_type == "sell" {
                 // sell
@@ -90,7 +89,7 @@ impl Market for Gateio {
         Some(())
     }
 
-    fn parse_depth_json(&mut self, pair: String, json: Json) -> Option<()> {
+    fn parse_depth_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
         let object = json.as_object()?;
         let object = object.get("params")?.as_array()?.get(1)?.as_object()?;
         let asks = object.get("asks")?;

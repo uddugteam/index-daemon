@@ -1,5 +1,3 @@
-use rustc_serialize::json::{Array, Json};
-
 use crate::worker::market_helpers::market::Market;
 use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
@@ -9,7 +7,7 @@ pub struct Bitfinex {
 }
 
 impl Bitfinex {
-    fn depth_helper(array: &Array) -> (Vec<(f64, f64)>, Vec<(f64, f64)>) {
+    fn depth_helper(array: &Vec<serde_json::Value>) -> (Vec<(f64, f64)>, Vec<(f64, f64)>) {
         let mut asks = Vec::new();
         let mut bids = Vec::new();
 
@@ -70,7 +68,7 @@ impl Market for Bitfinex {
     }
 
     /// Response description: https://docs.bitfinex.com/reference?ref=https://coder.social#rest-public-ticker
-    fn parse_ticker_json(&mut self, pair: String, json: Json) -> Option<()> {
+    fn parse_ticker_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
         let array = json.as_array()?;
         let array = array[1].as_array()?;
 
@@ -84,7 +82,7 @@ impl Market for Bitfinex {
     }
 
     /// Response description: https://docs.bitfinex.com/reference?ref=https://coder.social#rest-public-trades
-    fn parse_last_trade_json(&mut self, pair: String, json: Json) -> Option<()> {
+    fn parse_last_trade_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
         let array = json.as_array()?;
         let array = array.get(2)?;
         let array = array.as_array()?;
@@ -97,7 +95,7 @@ impl Market for Bitfinex {
     }
 
     /// Response description: https://docs.bitfinex.com/reference?ref=https://coder.social#rest-public-book
-    fn parse_depth_json(&mut self, pair: String, json: Json) -> Option<()> {
+    fn parse_depth_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
         let array = json.as_array()?;
         let array = array.get(1)?.as_array()?;
 

@@ -1,6 +1,5 @@
 use chrono::{DateTime, Utc, MIN_DATETIME};
 use reqwest::blocking::Client;
-use rustc_serialize::json::{Json, ToJson};
 use std::collections::HashMap;
 
 use crate::worker::defaults::POLONIEX_EXCHANGE_PAIRS;
@@ -39,14 +38,14 @@ impl Poloniex {
         }
     }
 
-    fn depth_helper(json: &Json) -> Vec<(f64, f64)> {
+    fn depth_helper(json: &serde_json::Value) -> Vec<(f64, f64)> {
         json.as_object()
             .unwrap()
             .iter()
             .map(|(price, size)| {
                 (
                     price.parse().unwrap(),
-                    size.as_string().unwrap().parse().unwrap(),
+                    size.as_str().unwrap().parse().unwrap(),
                 )
             })
             .collect()
@@ -81,7 +80,7 @@ impl Poloniex {
 
             let response = response.ok()?;
             let response = response.text().ok()?;
-            let json = Json::from_str(&response).ok()?;
+            let json: serde_json::Value = serde_json::from_str(&response).ok()?;
 
             let object = json.as_object()?;
             for (pair_string, object) in object {
@@ -154,7 +153,7 @@ impl Market for Poloniex {
 
     /// Poloniex sends us coin instead of pair, then we create pair coin-USD
     /// TODO: Check whether function takes right values from json (in the meaning of coin/pair misunderstanding)
-    fn parse_ticker_json(&mut self, _pair: String, json: Json) -> Option<()> {
+    fn parse_ticker_json(&mut self, _pair: String, json: serde_json::Value) -> Option<()> {
         let array = json.as_array()?.get(2)?;
         let object = array.as_array()?.get(2)?.as_object()?;
 
@@ -169,7 +168,7 @@ impl Market for Poloniex {
                 // and convert value to f64
                 (
                     self.make_pair((k, "USD")),
-                    v.as_string().unwrap().parse().unwrap(),
+                    v.as_str().unwrap().parse().unwrap(),
                 )
             })
             .filter(|(k, _)| {
@@ -189,7 +188,7 @@ impl Market for Poloniex {
         Some(())
     }
 
-    fn parse_last_trade_json(&mut self, pair: String, json: Json) -> Option<()> {
+    fn parse_last_trade_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
         let array = json.as_array()?;
 
         let last_trade_price: f64 = parse_str_from_json_array(array, 3)?;
@@ -209,13 +208,13 @@ impl Market for Poloniex {
         Some(())
     }
 
-    fn parse_depth_json(&mut self, pair: String, json: Json) -> Option<()> {
+    fn parse_depth_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
         let json = json.as_array()?.get(2)?;
 
         for array in json.as_array()? {
             let array = array.as_array()?;
 
-            if array[0].as_string()? == "i" {
+            if array[0].as_str()? == "i" {
                 // book
                 if let Some(object) = array.get(1)?.as_object() {
                     if let Some(object) = object.get("orderBook") {
@@ -230,10 +229,10 @@ impl Market for Poloniex {
                         }
                     }
                 }
-            } else if array[0].as_string()? == "t" {
+            } else if array[0].as_str()? == "t" {
                 // trades
 
-                self.parse_last_trade_json(pair.clone(), array.to_json());
+                self.parse_last_trade_json(pair.clone(), serde_json::Value::from(array.as_slice()));
             }
         }
 

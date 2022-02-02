@@ -1,6 +1,5 @@
 use crate::worker::market_helpers::exchange_pair_info::ExchangePairInfoTrait;
 use reqwest::blocking::Client;
-use rustc_serialize::json::{Array, Json};
 
 use crate::worker::market_helpers::market::{
     parse_str_from_json_array, parse_str_from_json_object, Market,
@@ -16,7 +15,7 @@ impl Gemini {
     fn depth_helper(
         ask_sum: f64,
         bid_sum: f64,
-        array: &Array,
+        array: &Vec<serde_json::Value>,
     ) -> (Vec<(f64, f64)>, Vec<(f64, f64)>) {
         let mut asks = vec![(1.0, ask_sum)];
         let mut bids = vec![(1.0, bid_sum)];
@@ -26,7 +25,7 @@ impl Gemini {
                 let price: f64 = parse_str_from_json_array(item, 1).unwrap();
                 let size: f64 = parse_str_from_json_array(item, 2).unwrap();
 
-                let order_type = item[0].as_string().unwrap();
+                let order_type = item[0].as_str().unwrap();
                 // TODO: Check whether inversion is right
                 if order_type == "sell" {
                     // bid
@@ -70,7 +69,7 @@ impl Market for Gemini {
         let response = response.ok()?;
         let response = response.text().ok()?;
 
-        let json = Json::from_str(&response).ok()?;
+        let json: serde_json::Value = serde_json::from_str(&response).ok()?;
         let object = json.as_object()?;
         let object = object.get("volume")?.as_object()?;
 
@@ -82,9 +81,9 @@ impl Market for Gemini {
     }
 
     /// Market Gemini has no channels (i.e. has single general channel), so we parse channel data from its single channel
-    fn parse_ticker_json(&mut self, pair: String, json: Json) -> Option<()> {
+    fn parse_ticker_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
         let object = json.as_object()?;
-        let message_type = object.get("type")?.as_string()?;
+        let message_type = object.get("type")?.as_str()?;
 
         if message_type == "trade" {
             // trades
@@ -99,15 +98,15 @@ impl Market for Gemini {
         Some(())
     }
 
-    fn parse_last_trade_json(&mut self, pair: String, json: Json) -> Option<()> {
+    fn parse_last_trade_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
         let object = json.as_object()?;
-        let message_type = object.get("type")?.as_string()?;
+        let message_type = object.get("type")?.as_str()?;
 
         if message_type == "trade" {
             let last_trade_price: f64 = parse_str_from_json_object(object, "price")?;
             let mut last_trade_volume: f64 = parse_str_from_json_object(object, "quantity")?;
 
-            let trade_type = object.get("side")?.as_string()?;
+            let trade_type = object.get("side")?.as_str()?;
             // TODO: Check whether inversion is right
             if trade_type == "sell" {
                 // sell
@@ -122,9 +121,9 @@ impl Market for Gemini {
         Some(())
     }
 
-    fn parse_depth_json(&mut self, pair: String, json: Json) -> Option<()> {
+    fn parse_depth_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
         let object = json.as_object()?;
-        let message_type = object.get("type")?.as_string()?;
+        let message_type = object.get("type")?.as_str()?;
 
         if message_type == "l2_updates" {
             let ask_sum: f64 = self.spine.get_exchange_pairs().get(&pair)?.get_total_ask();

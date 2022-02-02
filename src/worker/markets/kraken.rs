@@ -1,5 +1,3 @@
-use rustc_serialize::json::Json;
-
 use crate::worker::market_helpers::market::{depth_helper_v1, parse_str_from_json_array, Market};
 use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
@@ -44,7 +42,7 @@ impl Market for Kraken {
         ))
     }
 
-    fn parse_ticker_json(&mut self, pair: String, json: Json) -> Option<()> {
+    fn parse_ticker_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
         let array = json.as_array()?;
         let array = array[1].as_object()?;
 
@@ -61,7 +59,7 @@ impl Market for Kraken {
         Some(())
     }
 
-    fn parse_last_trade_json(&mut self, pair: String, json: Json) -> Option<()> {
+    fn parse_last_trade_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
         let array = json.as_array()?;
 
         for array in array[1].as_array()? {
@@ -70,7 +68,7 @@ impl Market for Kraken {
             let last_trade_price: f64 = parse_str_from_json_array(array, 0)?;
             let mut last_trade_volume: f64 = parse_str_from_json_array(array, 1)?;
 
-            let trade_type = array[3].as_string()?;
+            let trade_type = array[3].as_str()?;
             // TODO: Check whether inversion is right
             if trade_type == "s" {
                 // sell
@@ -85,7 +83,7 @@ impl Market for Kraken {
         Some(())
     }
 
-    fn parse_depth_json(&mut self, pair: String, json: Json) -> Option<()> {
+    fn parse_depth_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
         let array = json.as_array()?;
         let object = array[1].as_object()?;
         let asks = object.get("as")?;

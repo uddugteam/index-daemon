@@ -1,5 +1,3 @@
-use rustc_serialize::json::Json;
-
 use crate::worker::market_helpers::market::{depth_helper_v1, parse_str_from_json_object, Market};
 use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
@@ -39,7 +37,7 @@ impl Market for Okcoin {
         ))
     }
 
-    fn parse_ticker_json(&mut self, pair: String, json: Json) -> Option<()> {
+    fn parse_ticker_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
         let array = json.as_object()?.get("data")?;
 
         for object in array.as_array()? {
@@ -52,7 +50,7 @@ impl Market for Okcoin {
         Some(())
     }
 
-    fn parse_last_trade_json(&mut self, pair: String, json: Json) -> Option<()> {
+    fn parse_last_trade_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
         let array = json.as_object()?.get("data")?;
 
         for object in array.as_array()? {
@@ -61,7 +59,7 @@ impl Market for Okcoin {
             let mut last_trade_volume: f64 = parse_str_from_json_object(object, "size")?;
             let last_trade_price: f64 = parse_str_from_json_object(object, "price")?;
 
-            let trade_type = object.get("side")?.as_string()?;
+            let trade_type = object.get("side")?.as_str()?;
             // TODO: Check whether inversion is right
             if trade_type == "sell" {
                 // sell
@@ -76,11 +74,11 @@ impl Market for Okcoin {
         Some(())
     }
 
-    fn parse_depth_json(&mut self, pair: String, json: Json) -> Option<()> {
+    fn parse_depth_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
         let object = json.as_object()?;
         let array = object.get("data")?;
 
-        if object.get("action")?.as_string()? == "partial" {
+        if object.get("action")?.as_str()? == "partial" {
             for object in array.as_array()? {
                 let object = object.as_object()?;
 

@@ -1,5 +1,4 @@
 use reqwest::blocking::Client;
-use rustc_serialize::json::Json;
 
 use crate::worker::market_helpers::market::{depth_helper_v2, Market};
 use crate::worker::market_helpers::market_channels::MarketChannels;
@@ -49,7 +48,7 @@ impl Market for Ftx {
 
         let response = response.ok()?;
         let response = response.text().ok()?;
-        let json = Json::from_str(&response).ok()?;
+        let json: serde_json::Value = serde_json::from_str(&response).ok()?;
 
         let object = json.as_object()?;
         let array = object.get("result")?.as_array()?;
@@ -57,7 +56,7 @@ impl Market for Ftx {
         for object in array {
             let object = object.as_object()?;
 
-            let pair = object.get("name")?.as_string()?.to_string();
+            let pair = object.get("name")?.as_str()?.to_string();
             // Process only needed pairs
             if self.spine.get_exchange_pairs().contains_key(&pair) {
                 let volume = object.get("quoteVolume24h")?.as_f64()?;
@@ -68,13 +67,13 @@ impl Market for Ftx {
         Some(())
     }
 
-    fn parse_ticker_json(&mut self, _pair: String, _json: Json) -> Option<()> {
+    fn parse_ticker_json(&mut self, _pair: String, _json: serde_json::Value) -> Option<()> {
         // Ticker channel of market FTX is not implemented, because it has no useful info.
         // Instead of websocket, we get needed info by REST API.
         panic!("Ticker channel of market FTX is not implemented, because it has no useful info.");
     }
 
-    fn parse_last_trade_json(&mut self, pair: String, json: Json) -> Option<()> {
+    fn parse_last_trade_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
         let object = json.as_object()?;
         let array = object.get("data")?.as_array()?;
 
@@ -84,7 +83,7 @@ impl Market for Ftx {
             let mut last_trade_volume: f64 = object.get("size")?.as_f64()?;
             let last_trade_price: f64 = object.get("price")?.as_f64()?;
 
-            let trade_type = object.get("side")?.as_string()?;
+            let trade_type = object.get("side")?.as_str()?;
             // TODO: Check whether inversion is right
             if trade_type == "sell" {
                 // sell
@@ -99,11 +98,11 @@ impl Market for Ftx {
         Some(())
     }
 
-    fn parse_depth_json(&mut self, pair: String, json: Json) -> Option<()> {
+    fn parse_depth_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
         let object = json.as_object()?;
         let object = object.get("data")?.as_object()?;
 
-        if object.get("action")?.as_string()? == "partial" {
+        if object.get("action")?.as_str()? == "partial" {
             let asks = object.get("asks")?;
             let bids = object.get("bids")?;
 

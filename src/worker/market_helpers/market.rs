@@ -18,8 +18,6 @@ use crate::worker::markets::okcoin::Okcoin;
 use crate::worker::markets::poloniex::Poloniex;
 use crate::worker::network_helpers::ws_client::WsClient;
 use chrono::Utc;
-use regex::Regex;
-use rustc_serialize::json::{Array, Json, Object};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -71,23 +69,6 @@ pub fn market_factory(
     market
 }
 
-/// This fn is needed for Huobi::parse_last_trade_json()
-/// Function replaces too big integer with a dummy.
-fn repair_json(info: String) -> Option<Json> {
-    if let Ok(json) = Json::from_str(&info) {
-        Some(json)
-    } else {
-        // Error: invalid number (integer is too long).
-        // Since we don't need its real value, we can to replace it with fake, but valid number.
-        let regex_too_big_integer = Regex::new("^(.*)(\\D)(?P<n>\\d{18,})(\\D)(.*)$").unwrap();
-        let too_big_integer = regex_too_big_integer.replace_all(&info, "$n").to_string();
-
-        let info = info.replace(&too_big_integer, "123456");
-
-        Json::from_str(&info).ok()
-    }
-}
-
 // Establishes websocket connection with market (subscribes to the channel with pair)
 // and calls lambda (param "callback" of SocketHelper constructor) when gets message from market
 pub fn subscribe_channel(
@@ -114,45 +95,35 @@ pub fn subscribe_channel(
             return;
         }
 
-        // This is needed for Huobi::parse_last_trade_json()
-        let json = repair_json(info);
-        if let Some(json) = json {
+        if let Ok(json) = serde_json::from_str(&info) {
             // This "match" returns value, but we shouldn't use it
             match channel {
                 MarketChannels::Ticker => market.lock().unwrap().parse_ticker_json(pair, json),
                 MarketChannels::Trades => market.lock().unwrap().parse_last_trade_json(pair, json),
                 MarketChannels::Book => market.lock().unwrap().parse_depth_json(pair, json),
             };
+        } else {
+            // Either parse json error or received string is not json
         }
     });
     ws_client.start();
 }
 
-pub fn parse_str_from_json_object<T: FromStr>(object: &Object, key: &str) -> Option<T> {
-    if let Some(value) = object.get(key) {
-        if let Some(value) = value.as_string() {
-            if let Ok(value) = value.parse() {
-                return Some(value);
-            }
-        }
-    }
-
-    None
+pub fn parse_str_from_json_object<T: FromStr>(
+    object: &serde_json::Map<String, serde_json::Value>,
+    key: &str,
+) -> Option<T> {
+    object.get(key)?.as_str()?.parse().ok()
 }
 
-pub fn parse_str_from_json_array<T: FromStr>(array: &Array, key: usize) -> Option<T> {
-    if let Some(value) = array.get(key) {
-        if let Some(value) = value.as_string() {
-            if let Ok(value) = value.parse() {
-                return Some(value);
-            }
-        }
-    }
-
-    None
+pub fn parse_str_from_json_array<T: FromStr>(
+    array: &Vec<serde_json::Value>,
+    key: usize,
+) -> Option<T> {
+    array.get(key)?.as_str()?.parse().ok()
 }
 
-pub fn depth_helper_v1(json: &Json) -> Vec<(f64, f64)> {
+pub fn depth_helper_v1(json: &serde_json::Value) -> Vec<(f64, f64)> {
     json.as_array()
         .unwrap()
         .iter()
@@ -166,7 +137,7 @@ pub fn depth_helper_v1(json: &Json) -> Vec<(f64, f64)> {
         .collect()
 }
 
-pub fn depth_helper_v2(json: &Json) -> Vec<(f64, f64)> {
+pub fn depth_helper_v2(json: &serde_json::Value) -> Vec<(f64, f64)> {
     json.as_array()
         .unwrap()
         .iter()
@@ -387,7 +358,7 @@ pub trait Market {
         panic!("fn update_ticker is not implemented.");
     }
 
-    fn parse_ticker_json(&mut self, pair: String, json: Json) -> Option<()>;
+    fn parse_ticker_json(&mut self, pair: String, json: serde_json::Value) -> Option<()>;
     fn parse_ticker_json_inner(&mut self, pair: String, volume: f64) {
         let pair_text_view = self.get_pair_text_view(pair.clone());
 
@@ -403,7 +374,7 @@ pub trait Market {
             .set_total_volume(&pair, volume * conversion_coef);
     }
 
-    fn parse_last_trade_json(&mut self, pair: String, json: Json) -> Option<()>;
+    fn parse_last_trade_json(&mut self, pair: String, json: serde_json::Value) -> Option<()>;
     fn parse_last_trade_json_inner(
         &mut self,
         pair: String,
@@ -427,7 +398,7 @@ pub trait Market {
             .set_last_trade_price(&pair, last_trade_price * conversion_coef);
     }
 
-    fn parse_depth_json(&mut self, pair: String, json: Json) -> Option<()>;
+    fn parse_depth_json(&mut self, pair: String, json: serde_json::Value) -> Option<()>;
     fn parse_depth_json_inner(
         &mut self,
         pair: String,
