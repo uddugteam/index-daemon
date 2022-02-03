@@ -6,7 +6,7 @@ use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::worker::test::{check_market_subscriptions, check_worker_subscriptions};
 use crate::worker::worker::Worker;
 use serde_json::json;
-use serial_test::serial;
+
 use std::collections::HashMap;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{mpsc, Arc, Mutex};
