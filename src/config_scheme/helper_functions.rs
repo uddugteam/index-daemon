@@ -1,6 +1,8 @@
-use crate::worker::defaults::{COINS, MARKETS};
+use crate::worker::defaults::{COINS, FIATS, MARKETS};
 use crate::worker::market_helpers::market_channels::MarketChannels;
 
+use crate::worker::market_helpers::conversion_type::ConversionType;
+use crate::worker::market_helpers::exchange_pair::ExchangePair;
 use clap::{App, Arg};
 use env_logger::Builder;
 
@@ -71,6 +73,10 @@ pub fn get_default_coins() -> Vec<String> {
     COINS.into_iter().map(|v| v.to_string()).collect()
 }
 
+pub fn get_default_exchange_pairs() -> Vec<ExchangePair> {
+    make_exchange_pairs(get_default_coins(), None)
+}
+
 pub fn get_default_channels() -> Vec<MarketChannels> {
     MarketChannels::get_all().to_vec()
 }
@@ -81,4 +87,21 @@ pub fn get_default_host() -> String {
 
 pub fn get_default_port() -> String {
     "8080".to_string()
+}
+
+pub fn make_exchange_pairs(coins: Vec<String>, fiats: Option<Vec<&str>>) -> Vec<ExchangePair> {
+    let mut exchange_pairs = Vec::new();
+
+    let fiats = fiats.unwrap_or(FIATS.to_vec());
+
+    for coin in coins {
+        for fiat in &fiats {
+            exchange_pairs.push(ExchangePair {
+                pair: (coin.to_string(), fiat.to_string()),
+                conversion: ConversionType::None,
+            });
+        }
+    }
+
+    exchange_pairs
 }
