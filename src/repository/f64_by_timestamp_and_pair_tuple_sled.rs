@@ -1,15 +1,15 @@
 use crate::repository::repository::Repository;
-use crate::worker::market_helpers::pair_average_price::PairAveragePricePrimaryT;
+use crate::worker::market_helpers::pair_average_price::TimestampAndPairTuple;
 use std::sync::{Arc, Mutex};
 
-pub struct PairAveragePriceSled(Arc<Mutex<vsdbsled::Db>>);
+pub struct F64ByTimestampAndPairTupleSled(Arc<Mutex<vsdbsled::Db>>);
 
-impl PairAveragePriceSled {
+impl F64ByTimestampAndPairTupleSled {
     pub fn new(db: Arc<Mutex<vsdbsled::Db>>) -> Self {
         Self(db)
     }
 
-    fn make_key(primary: PairAveragePricePrimaryT) -> String {
+    fn make_key(primary: TimestampAndPairTuple) -> String {
         let timestamp = primary.0;
         let pair = primary.1;
 
@@ -22,8 +22,8 @@ impl PairAveragePriceSled {
     }
 }
 
-impl Repository<PairAveragePricePrimaryT, f64> for PairAveragePriceSled {
-    fn read(&self, primary: PairAveragePricePrimaryT) -> Result<Option<f64>, String> {
+impl Repository<TimestampAndPairTuple, f64> for F64ByTimestampAndPairTupleSled {
+    fn read(&self, primary: TimestampAndPairTuple) -> Result<Option<f64>, String> {
         let key = Self::make_key(primary);
 
         self.0
@@ -34,7 +34,7 @@ impl Repository<PairAveragePricePrimaryT, f64> for PairAveragePriceSled {
             .map_err(|e| e.to_string())
     }
 
-    fn insert(&self, primary: PairAveragePricePrimaryT, new_value: f64) -> Result<(), String> {
+    fn insert(&self, primary: TimestampAndPairTuple, new_value: f64) -> Result<(), String> {
         let key = Self::make_key(primary);
 
         let res = self
@@ -49,7 +49,7 @@ impl Repository<PairAveragePricePrimaryT, f64> for PairAveragePriceSled {
         res
     }
 
-    fn delete(&self, primary: PairAveragePricePrimaryT) {
+    fn delete(&self, primary: TimestampAndPairTuple) {
         let key = Self::make_key(primary);
 
         let _ = self.0.lock().unwrap().remove(key);

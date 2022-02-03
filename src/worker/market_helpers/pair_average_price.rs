@@ -5,17 +5,17 @@ use crate::worker::network_helpers::ws_server::ws_channels::WsChannels;
 use chrono::{DateTime, Utc, MIN_DATETIME};
 use std::collections::HashMap;
 
-pub type PairAveragePricePrimaryT = (DateTime<Utc>, (String, String));
+pub type TimestampAndPairTuple = (DateTime<Utc>, (String, String));
 
 pub struct PairAveragePrice {
     value: HashMap<(String, String), f64>,
     timestamp: DateTime<Utc>,
-    repository: Box<dyn Repository<PairAveragePricePrimaryT, f64> + Send>,
+    repository: Box<dyn Repository<TimestampAndPairTuple, f64> + Send>,
     pub ws_channels: WsChannels,
 }
 
 impl PairAveragePrice {
-    pub fn new(repository: Box<dyn Repository<PairAveragePricePrimaryT, f64> + Send>) -> Self {
+    pub fn new(repository: Box<dyn Repository<TimestampAndPairTuple, f64> + Send>) -> Self {
         Self {
             value: HashMap::new(),
             timestamp: MIN_DATETIME,
