@@ -27,9 +27,7 @@ impl WsChannels {
                 result: response_payload.clone(),
             };
 
-            let send_msg_result = sender.send(response);
-
-            if let Some(send_msg_result) = send_msg_result {
+            if let Some(send_msg_result) = sender.send(response) {
                 if send_msg_result.is_err() {
                     // Send msg error. The client is likely disconnected. We stop sending him messages.
 

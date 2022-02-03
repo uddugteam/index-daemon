@@ -39,10 +39,10 @@ pub enum WsChannelResponsePayload {
 impl WsChannelResponsePayload {
     pub fn get_coin(&self) -> String {
         match self {
-            WsChannelResponsePayload::CoinAveragePrice { coin, .. }
-            | WsChannelResponsePayload::CoinExchangePrice { coin, .. }
-            | WsChannelResponsePayload::CoinExchangeVolume { coin, .. } => coin.to_string(),
-            WsChannelResponsePayload::SuccSub { .. } | WsChannelResponsePayload::Err { .. } => {
+            Self::CoinAveragePrice { coin, .. }
+            | Self::CoinExchangePrice { coin, .. }
+            | Self::CoinExchangeVolume { coin, .. } => coin.to_string(),
+            Self::SuccSub { .. } | Self::Err { .. } => {
                 unreachable!()
             }
         }
@@ -50,10 +50,10 @@ impl WsChannelResponsePayload {
 
     pub fn get_timestamp(&self) -> DateTime<Utc> {
         match self {
-            WsChannelResponsePayload::CoinAveragePrice { timestamp, .. }
-            | WsChannelResponsePayload::CoinExchangePrice { timestamp, .. }
-            | WsChannelResponsePayload::CoinExchangeVolume { timestamp, .. } => *timestamp,
-            WsChannelResponsePayload::SuccSub { .. } | WsChannelResponsePayload::Err { .. } => {
+            Self::CoinAveragePrice { timestamp, .. }
+            | Self::CoinExchangePrice { timestamp, .. }
+            | Self::CoinExchangeVolume { timestamp, .. } => *timestamp,
+            Self::SuccSub { .. } | Self::Err { .. } => {
                 unreachable!()
             }
         }
