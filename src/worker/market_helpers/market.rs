@@ -1,6 +1,5 @@
 use crate::worker::helper_functions::get_pair_ref;
 use crate::worker::market_helpers::exchange_pair::ExchangePair;
-use crate::worker::market_helpers::exchange_pair_info::ExchangePairInfoTrait;
 use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
 use crate::worker::markets::binance::Binance;
