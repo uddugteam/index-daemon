@@ -11,7 +11,10 @@ pub struct Repositories {
 impl Repositories {
     pub fn new() -> Self {
         let tree = Arc::new(Mutex::new(vsdbsled::open("db").expect("Open db error.")));
-        let pair_average_price = Box::new(F64ByTimestampAndPairTupleSled::new(Arc::clone(&tree)));
+        let pair_average_price = Box::new(F64ByTimestampAndPairTupleSled::new(
+            "worker__pair_average_price".to_string(),
+            Arc::clone(&tree),
+        ));
 
         Self { pair_average_price }
     }
