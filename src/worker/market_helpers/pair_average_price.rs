@@ -1,11 +1,10 @@
+use crate::repository::f64_by_timestamp_and_pair_tuple_sled::TimestampAndPairTuple;
 use crate::repository::repository::Repository;
 use crate::worker::helper_functions::strip_usd;
 use crate::worker::network_helpers::ws_server::ws_channel_response_payload::WsChannelResponsePayload;
 use crate::worker::network_helpers::ws_server::ws_channels::WsChannels;
 use chrono::{DateTime, Utc, MIN_DATETIME};
 use std::collections::HashMap;
-
-pub type TimestampAndPairTuple = (DateTime<Utc>, (String, String));
 
 pub struct PairAveragePrice {
     value: HashMap<(String, String), f64>,

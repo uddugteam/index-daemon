@@ -1,6 +1,8 @@
 use crate::repository::repository::Repository;
-use crate::worker::market_helpers::pair_average_price::TimestampAndPairTuple;
+use chrono::{DateTime, Utc};
 use std::sync::{Arc, Mutex};
+
+pub type TimestampAndPairTuple = (DateTime<Utc>, (String, String));
 
 pub struct F64ByTimestampAndPairTupleSled(Arc<Mutex<vsdbsled::Db>>);
 

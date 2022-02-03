@@ -1,5 +1,5 @@
+use crate::repository::f64_by_timestamp_and_pair_tuple_sled::TimestampAndPairTuple;
 use crate::repository::repository::Repository;
-use crate::worker::market_helpers::pair_average_price::TimestampAndPairTuple;
 use std::cell::RefCell;
 use std::collections::HashMap;
 
