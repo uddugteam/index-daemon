@@ -1,5 +1,3 @@
-use rustc_serialize::json::{Array, Json};
-
 use crate::worker::market_helpers::market::{parse_str_from_json_object, Market};
 use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
@@ -9,7 +7,7 @@ pub struct Bybit {
 }
 
 impl Bybit {
-    fn depth_helper(array: &Array) -> (Vec<(f64, f64)>, Vec<(f64, f64)>) {
+    fn depth_helper(array: &Vec<serde_json::Value>) -> (Vec<(f64, f64)>, Vec<(f64, f64)>) {
         let mut asks = Vec::new();
         let mut bids = Vec::new();
 
@@ -18,7 +16,7 @@ impl Bybit {
             let price: f64 = parse_str_from_json_object(item, "price").unwrap();
             let size = item.get("size").unwrap().as_f64().unwrap();
 
-            let order_type = item.get("side").unwrap().as_string().unwrap();
+            let order_type = item.get("side").unwrap().as_str().unwrap();
             // TODO: Check whether inversion is right
             if order_type == "Sell" {
                 // bid
@@ -63,17 +61,16 @@ impl Market for Bybit {
         ))
     }
 
-    fn parse_ticker_json(&mut self, pair: String, json: Json) -> Option<()> {
+    fn parse_ticker_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
         let object = json.as_object()?.get("data")?.as_object()?;
 
-        // TODO: Check whether key `total_volume` is right
-        let volume = object.get("total_volume")?.as_f64()?;
+        let volume = object.get("volume_24h")?.as_f64()?;
         self.parse_ticker_json_inner(pair, volume);
 
         Some(())
     }
 
-    fn parse_last_trade_json(&mut self, pair: String, json: Json) -> Option<()> {
+    fn parse_last_trade_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
         let array = json.as_object()?.get("data")?.as_array()?;
 
         for item in array {
@@ -82,7 +79,7 @@ impl Market for Bybit {
             let last_trade_price = item.get("price")?.as_f64()?;
             let mut last_trade_volume = item.get("size")?.as_f64()?;
 
-            let trade_type = item.get("side")?.as_string()?;
+            let trade_type = item.get("side")?.as_str()?;
             // TODO: Check whether inversion is right
             if trade_type == "Sell" {
                 // sell
@@ -97,7 +94,7 @@ impl Market for Bybit {
         Some(())
     }
 
-    fn parse_depth_json(&mut self, pair: String, json: Json) -> Option<()> {
+    fn parse_depth_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
         let array = json.as_object()?.get("data")?.as_array()?;
 
         let (asks, bids) = Self::depth_helper(array);

@@ -1,5 +1,3 @@
-use rustc_serialize::json::Json;
-
 use crate::worker::market_helpers::market::{depth_helper_v1, parse_str_from_json_object, Market};
 use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
@@ -38,16 +36,16 @@ impl Market for Binance {
         None
     }
 
-    fn parse_ticker_json(&mut self, pair: String, json: Json) -> Option<()> {
+    fn parse_ticker_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
         let object = json.as_object()?;
 
-        let volume: f64 = parse_str_from_json_object(object, "v")?;
+        let volume: f64 = parse_str_from_json_object(object, "q")?;
         self.parse_ticker_json_inner(pair, volume);
 
         Some(())
     }
 
-    fn parse_last_trade_json(&mut self, pair: String, json: Json) -> Option<()> {
+    fn parse_last_trade_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
         let object = json.as_object()?;
 
         let last_trade_volume: f64 = parse_str_from_json_object(object, "q")?;
@@ -57,7 +55,7 @@ impl Market for Binance {
         Some(())
     }
 
-    fn parse_depth_json(&mut self, pair: String, json: Json) -> Option<()> {
+    fn parse_depth_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
         let object = json.as_object()?;
         let asks = object.get("asks")?;
         let bids = object.get("bids")?;

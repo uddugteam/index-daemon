@@ -1,3 +1,4 @@
+use crate::worker::helper_functions::get_pair_ref;
 use crate::worker::market_helpers::exchange_pair::ExchangePair;
 use crate::worker::market_helpers::exchange_pair_info::ExchangePairInfoTrait;
 use crate::worker::market_helpers::market_channels::MarketChannels;
@@ -15,10 +16,8 @@ use crate::worker::markets::kraken::Kraken;
 use crate::worker::markets::kucoin::Kucoin;
 use crate::worker::markets::okcoin::Okcoin;
 use crate::worker::markets::poloniex::Poloniex;
-use crate::worker::network_helpers::socket_helper::SocketHelper;
+use crate::worker::network_helpers::ws_client::WsClient;
 use chrono::Utc;
-use regex::Regex;
-use rustc_serialize::json::{Array, Json, Object};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -70,23 +69,6 @@ pub fn market_factory(
     market
 }
 
-/// This fn is needed for Huobi::parse_last_trade_json()
-/// Function replaces too big integer with a dummy.
-fn repair_json(info: String) -> Option<Json> {
-    if let Ok(json) = Json::from_str(&info) {
-        Some(json)
-    } else {
-        // Error: invalid number (integer is too long).
-        // Since we don't need its real value, we can to replace it with fake, but valid number.
-        let regex_too_big_integer = Regex::new("^(.*)(\\D)(?P<n>\\d{18,})(\\D)(.*)$").unwrap();
-        let too_big_integer = regex_too_big_integer.replace_all(&info, "$n").to_string();
-
-        let info = info.replace(&too_big_integer, "123456");
-
-        Json::from_str(&info).ok()
-    }
-}
-
 // Establishes websocket connection with market (subscribes to the channel with pair)
 // and calls lambda (param "callback" of SocketHelper constructor) when gets message from market
 pub fn subscribe_channel(
@@ -108,46 +90,40 @@ pub fn subscribe_channel(
         .unwrap()
         .get_websocket_on_open_msg(&pair, channel);
 
-    let socker_helper = SocketHelper::new(url, on_open_msg, pair, |pair: String, info: String| {
-        // This is needed for Huobi::parse_last_trade_json()
-        let json = repair_json(info);
-        if let Some(json) = json {
+    let ws_client = WsClient::new(url, on_open_msg, pair, |pair: String, info: String| {
+        if is_graceful_shutdown(&market) {
+            return;
+        }
+
+        if let Ok(json) = serde_json::from_str(&info) {
             // This "match" returns value, but we shouldn't use it
             match channel {
                 MarketChannels::Ticker => market.lock().unwrap().parse_ticker_json(pair, json),
                 MarketChannels::Trades => market.lock().unwrap().parse_last_trade_json(pair, json),
                 MarketChannels::Book => market.lock().unwrap().parse_depth_json(pair, json),
             };
+        } else {
+            // Either parse json error or received string is not json
         }
     });
-    socker_helper.start();
+    ws_client.start();
 }
 
-pub fn parse_str_from_json_object<T: FromStr>(object: &Object, key: &str) -> Option<T> {
-    if let Some(value) = object.get(key) {
-        if let Some(value) = value.as_string() {
-            if let Ok(value) = value.parse() {
-                return Some(value);
-            }
-        }
-    }
-
-    None
+pub fn parse_str_from_json_object<T: FromStr>(
+    object: &serde_json::Map<String, serde_json::Value>,
+    key: &str,
+) -> Option<T> {
+    object.get(key)?.as_str()?.parse().ok()
 }
 
-pub fn parse_str_from_json_array<T: FromStr>(array: &Array, key: usize) -> Option<T> {
-    if let Some(value) = array.get(key) {
-        if let Some(value) = value.as_string() {
-            if let Ok(value) = value.parse() {
-                return Some(value);
-            }
-        }
-    }
-
-    None
+pub fn parse_str_from_json_array<T: FromStr>(
+    array: &Vec<serde_json::Value>,
+    key: usize,
+) -> Option<T> {
+    array.get(key)?.as_str()?.parse().ok()
 }
 
-pub fn depth_helper_v1(json: &Json) -> Vec<(f64, f64)> {
+pub fn depth_helper_v1(json: &serde_json::Value) -> Vec<(f64, f64)> {
     json.as_array()
         .unwrap()
         .iter()
@@ -161,7 +137,7 @@ pub fn depth_helper_v1(json: &Json) -> Vec<(f64, f64)> {
         .collect()
 }
 
-pub fn depth_helper_v2(json: &Json) -> Vec<(f64, f64)> {
+pub fn depth_helper_v2(json: &serde_json::Value) -> Vec<(f64, f64)> {
     json.as_array()
         .unwrap()
         .iter()
@@ -170,6 +146,16 @@ pub fn depth_helper_v2(json: &Json) -> Vec<(f64, f64)> {
             (v[0].as_f64().unwrap(), v[1].as_f64().unwrap())
         })
         .collect()
+}
+
+fn is_graceful_shutdown(market: &Arc<Mutex<dyn Market + Send>>) -> bool {
+    *market
+        .lock()
+        .unwrap()
+        .get_spine()
+        .graceful_shutdown
+        .lock()
+        .unwrap()
 }
 
 fn update(market: Arc<Mutex<dyn Market + Send>>) {
@@ -209,6 +195,10 @@ fn update(market: Arc<Mutex<dyn Market + Send>>) {
         let do_websocket = !(market_is_ftx && channel_is_ticker) || market_is_gemini;
 
         for exchange_pair in exchange_pairs {
+            if is_graceful_shutdown(&market) {
+                return;
+            }
+
             if do_rest_api {
                 let market_2 = Arc::clone(&market);
                 let pair = exchange_pair.to_string();
@@ -223,6 +213,10 @@ fn update(market: Arc<Mutex<dyn Market + Send>>) {
                 let thread = thread::Builder::new()
                     .name(thread_name)
                     .spawn(move || loop {
+                        if is_graceful_shutdown(&market_2) {
+                            return;
+                        }
+
                         let update_ticker_result =
                             market_2.lock().unwrap().update_ticker(pair.clone());
                         if update_ticker_result.is_some() {
@@ -254,6 +248,10 @@ fn update(market: Arc<Mutex<dyn Market + Send>>) {
                 let thread = thread::Builder::new()
                     .name(thread_name)
                     .spawn(move || loop {
+                        if is_graceful_shutdown(&market_2) {
+                            return;
+                        }
+
                         subscribe_channel(Arc::clone(&market_2), pair.clone(), channel);
                         thread::sleep(time::Duration::from_millis(10000));
                     })
@@ -289,7 +287,7 @@ pub trait Market {
     }
 
     fn add_exchange_pair(&mut self, exchange_pair: ExchangePair) {
-        let pair_string = self.make_pair(exchange_pair.get_pair_ref());
+        let pair_string = self.make_pair(get_pair_ref(&exchange_pair.pair));
         self.get_spine_mut()
             .add_exchange_pair(pair_string, exchange_pair);
     }
@@ -360,7 +358,7 @@ pub trait Market {
         panic!("fn update_ticker is not implemented.");
     }
 
-    fn parse_ticker_json(&mut self, pair: String, json: Json) -> Option<()>;
+    fn parse_ticker_json(&mut self, pair: String, json: serde_json::Value) -> Option<()>;
     fn parse_ticker_json_inner(&mut self, pair: String, volume: f64) {
         let pair_text_view = self.get_pair_text_view(pair.clone());
 
@@ -376,7 +374,7 @@ pub trait Market {
             .set_total_volume(&pair, volume * conversion_coef);
     }
 
-    fn parse_last_trade_json(&mut self, pair: String, json: Json) -> Option<()>;
+    fn parse_last_trade_json(&mut self, pair: String, json: serde_json::Value) -> Option<()>;
     fn parse_last_trade_json_inner(
         &mut self,
         pair: String,
@@ -400,7 +398,7 @@ pub trait Market {
             .set_last_trade_price(&pair, last_trade_price * conversion_coef);
     }
 
-    fn parse_depth_json(&mut self, pair: String, json: Json) -> Option<()>;
+    fn parse_depth_json(&mut self, pair: String, json: serde_json::Value) -> Option<()>;
     fn parse_depth_json_inner(
         &mut self,
         pair: String,
@@ -441,6 +439,8 @@ pub trait Market {
 
 #[cfg(test)]
 mod test {
+    use crate::config_scheme::market_config::MarketConfig;
+    use crate::worker::helper_functions::get_pair_ref;
     use crate::worker::market_helpers::conversion_type::ConversionType;
     use crate::worker::market_helpers::exchange_pair::ExchangePair;
     use crate::worker::market_helpers::market::{market_factory, update, Market};
@@ -456,7 +456,9 @@ mod test {
     fn make_market(
         market_name: Option<&str>,
     ) -> (Arc<Mutex<dyn Market + Send>>, Receiver<JoinHandle<()>>) {
-        let exchange_pairs = Worker::make_exchange_pairs(None, None);
+        let config = MarketConfig::default();
+        let coins = config.coins.iter().map(|v| v.as_ref()).collect();
+        let exchange_pairs = Worker::make_exchange_pairs(coins, None);
 
         let (market_spine, rx) = make_spine(market_name);
         let market = market_factory(market_spine, exchange_pairs);
@@ -478,7 +480,7 @@ mod test {
         let pair_string = market
             .lock()
             .unwrap()
-            .make_pair(exchange_pair.get_pair_ref());
+            .make_pair(get_pair_ref(&exchange_pair.pair));
 
         market.lock().unwrap().add_exchange_pair(exchange_pair);
 
@@ -524,7 +526,9 @@ mod test {
 
         assert!(market.lock().unwrap().get_spine().arc.is_some());
 
-        let exchange_pairs = Worker::make_exchange_pairs(None, None);
+        let config = MarketConfig::default();
+        let coins = config.coins.iter().map(|v| v.as_ref()).collect();
+        let exchange_pairs = Worker::make_exchange_pairs(coins, None);
         let exchange_pair_keys: Vec<String> = market
             .lock()
             .unwrap()
@@ -536,7 +540,7 @@ mod test {
         assert_eq!(exchange_pair_keys.len(), exchange_pairs.len());
 
         for pair in &exchange_pairs {
-            let pair_string = market.lock().unwrap().make_pair(pair.get_pair_ref());
+            let pair_string = market.lock().unwrap().make_pair(get_pair_ref(&pair.pair));
             assert!(exchange_pair_keys.contains(&pair_string));
         }
     }

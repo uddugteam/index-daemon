@@ -4,17 +4,23 @@
 
 You can use _env vars_ or _config file_. You can specify _config file_ in _CLI params_ (described below). If you specify _config file_ - configs are taken from it. Else - from _env vars_. If you don't specify _config file_ and you don't have configs in _env vars_ - default configs are used.
 
+All configs are optional.
+
 ### CLI params
 
-- **service_config** _(optional)_ - path to service config file. Supports _yaml_ and _toml_
-- **market_config** _(optional)_ - path to market config file. Supports _yaml_ and _toml_
+- **service_config** - path to service config file. Supports _yaml_ and _toml_
+- **market_config** - path to market config file. Supports _yaml_ and _toml_
 
 ### Configs
 
 #### service_config
 
-- **log_level** - string. Variants: error, warn, info, debug, trace.
+- **log_level** - string. Variants: off, error, warn, info, debug, trace.
 - **rest_timeout_sec** - u64. Timeout in seconds between requests to REST API.
+- **ws** - string ("1" - on, default - off). Turn on websocket server.
+- **ws_host** - string (default: 127.0.0.1). Websocket server host.
+- **ws_port** - string (default: 8080). Websocket server port.
+- **ws_answer_timeout_ms** - u64 (min - 100, default - 100). Timeout in ms between websocket answers.
 
 #### market_config
 
@@ -34,20 +40,103 @@ You can use _env vars_ or _config file_. You can specify _config file_ in _CLI p
 
 ## Supported exchanges
 
-- binance
-- bitfinex
-- coinbase
-- poloniex
-- kraken
-- huobi
-- hitbtc
-- okcoin
-- gemini
-- bybit
-- gateio
-- kucoin
-- ftx
+<table>
+<tr>
+<td>binance</td>
+<td>bitfinex</td>
+<td>bybit</td>
+<td>coinbase</td>
+<td>ftx</td>
+<td>gateio</td>
+<td>gemini</td>
+</tr>
+<tr>
+<td>hitbtc</td>
+<td>huobi</td>
+<td>kraken</td>
+<td>kucoin</td>
+<td>okcoin</td>
+<td>poloniex</td>
+</tr>
+</table>
+
+## Websocket server
+
+Websocket server configs are described above (section _Configs -> service_config -> ws_)
+
+### Channels
+
+#### coin_average_price
+
+subscription request json example:
+
+```json
+{
+  "id": "some_id",
+  "jsonrpc": "2.0",
+  "method": "coin_average_price",
+  "params": {
+    "coins": ["BTC", "ETH"],
+    "frequency_ms": 100
+  }
+}
+```
+
+#### coin_exchange_price
+
+subscription request json example:
+
+```json
+{
+  "id": "some_id",
+  "jsonrpc": "2.0",
+  "method": "coin_exchange_price",
+  "params": {
+    "coins": ["BTC", "ETH"],
+    "exchanges": ["binance", "coinbase"],
+    "frequency_ms": 100
+  }
+}
+```
+
+#### coin_exchange_volume
+
+subscription request json example:
+
+```json
+{
+  "id": "some_id",
+  "jsonrpc": "2.0",
+  "method": "coin_exchange_volume",
+  "params": {
+    "coins": ["BTC", "ETH"],
+    "exchanges": ["binance", "coinbase"],
+    "frequency_ms": 100
+  }
+}
+```
+
+#### unsubscribe (_not a channel, but a request_)
+
+request json example:
+
+```json
+{
+  "id": null,
+  "jsonrpc": "2.0",
+  "method": "unsubscribe",
+  "params": {
+    "method": "coin_exchange_price"
+  }
+}
+```
+
+### Description
+
+- There can be only one subscription per channel. If you subscribe twice, then, previous subscription is declined and new subscription is activated.
+- `id` must be unique or `null`.
+- `id` of `unsubscribe` request is ignored.
 
 ## Note
 
-There's only one fiat currency supported - "USD", and it's hardcoded.
+There's only one fiat currency supported - `USD`, and it's hardcoded.
