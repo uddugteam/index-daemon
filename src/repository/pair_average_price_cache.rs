@@ -1,24 +1,28 @@
 use crate::repository::repository::Repository;
+use crate::worker::market_helpers::pair_average_price::PairAveragePricePrimaryT;
+use std::cell::RefCell;
 use std::collections::HashMap;
 
-pub struct PairAveragePriceCache(HashMap<(String, String), f64>);
+pub struct PairAveragePriceCache(RefCell<HashMap<PairAveragePricePrimaryT, f64>>);
 
 impl PairAveragePriceCache {
-    pub fn new() -> Self {
-        Self(HashMap::new())
+    pub fn _new() -> Self {
+        Self(RefCell::new(HashMap::new()))
     }
 }
 
-impl Repository<(String, String), f64> for PairAveragePriceCache {
-    fn read(&self, primary: (String, String)) -> Option<f64> {
-        self.0.get(&primary).copied()
+impl Repository<PairAveragePricePrimaryT, f64> for PairAveragePriceCache {
+    fn read(&self, primary: PairAveragePricePrimaryT) -> Result<Option<f64>, String> {
+        Ok(self.0.borrow_mut().get(&primary).copied())
     }
 
-    fn insert(&mut self, primary: (String, String), new_value: f64) {
-        self.0.insert(primary, new_value);
+    fn insert(&self, primary: PairAveragePricePrimaryT, new_value: f64) -> Result<(), String> {
+        self.0.borrow_mut().insert(primary, new_value);
+
+        Ok(())
     }
 
-    fn delete(&mut self, primary: (String, String)) {
-        self.0.remove(&primary);
+    fn delete(&self, primary: PairAveragePricePrimaryT) {
+        self.0.borrow_mut().remove(&primary);
     }
 }

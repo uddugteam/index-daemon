@@ -1,6 +1,7 @@
 use crate::config_scheme::config_scheme::ConfigScheme;
 use crate::config_scheme::market_config::MarketConfig;
 use crate::config_scheme::service_config::ServiceConfig;
+use crate::repository::repositories::Repositories;
 use crate::worker::defaults::FIATS;
 use crate::worker::market_helpers::conversion_type::ConversionType;
 use crate::worker::market_helpers::exchange_pair::ExchangePair;
@@ -40,6 +41,7 @@ impl Worker {
     pub fn new(
         tx: Sender<JoinHandle<()>>,
         graceful_shutdown: Arc<Mutex<bool>>,
+        repositories: Repositories,
     ) -> Arc<Mutex<Self>> {
         let worker = Worker {
             arc: None,
@@ -47,7 +49,7 @@ impl Worker {
             graceful_shutdown,
             markets: HashMap::new(),
             market_names_by_ws_channel_key: HashMap::new(),
-            pair_average_price: PairAveragePrice::new(),
+            pair_average_price: PairAveragePrice::new(repositories.pair_average_price),
             capitalization: HashMap::new(),
             last_capitalization_refresh: MIN_DATETIME,
         };

@@ -1,25 +1,25 @@
-use crate::repository::pair_average_price_cache::PairAveragePriceCache;
 use crate::repository::repository::Repository;
 use crate::worker::helper_functions::strip_usd;
 use crate::worker::network_helpers::ws_server::ws_channel_response_payload::WsChannelResponsePayload;
 use crate::worker::network_helpers::ws_server::ws_channels::WsChannels;
 use chrono::{DateTime, Utc, MIN_DATETIME};
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+
+pub type PairAveragePricePrimaryT = (DateTime<Utc>, (String, String));
 
 pub struct PairAveragePrice {
     value: HashMap<(String, String), f64>,
     timestamp: DateTime<Utc>,
-    repository: Arc<Mutex<dyn Repository<(String, String), f64> + Send>>,
+    repository: Box<dyn Repository<PairAveragePricePrimaryT, f64> + Send>,
     pub ws_channels: WsChannels,
 }
 
 impl PairAveragePrice {
-    pub fn new() -> Self {
+    pub fn new(repository: Box<dyn Repository<PairAveragePricePrimaryT, f64> + Send>) -> Self {
         Self {
             value: HashMap::new(),
             timestamp: MIN_DATETIME,
-            repository: Arc::new(Mutex::new(PairAveragePriceCache::new())),
+            repository,
             ws_channels: WsChannels::new(),
         }
     }
@@ -33,10 +33,9 @@ impl PairAveragePrice {
         self.value.insert(pair.clone(), new_price);
         self.timestamp = Utc::now();
 
-        self.repository
-            .lock()
-            .unwrap()
-            .insert(pair.clone(), new_price);
+        let _ = self
+            .repository
+            .insert((self.timestamp, pair.clone()), new_price);
 
         let coin = strip_usd(&pair);
         if let Some(coin) = coin {

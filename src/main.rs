@@ -2,6 +2,7 @@ use std::sync::mpsc;
 
 use crate::config_scheme::config_scheme::ConfigScheme;
 use crate::graceful_shutdown::start_graceful_shutdown_listener;
+use crate::repository::repositories::Repositories;
 use crate::worker::worker::Worker;
 
 #[macro_use]
@@ -19,11 +20,11 @@ mod test;
 
 fn main() {
     let graceful_shutdown = start_graceful_shutdown_listener();
-
+    let repositories = Repositories::new();
     let config = ConfigScheme::new();
 
     let (tx, rx) = mpsc::channel();
-    let worker = Worker::new(tx, graceful_shutdown);
+    let worker = Worker::new(tx, graceful_shutdown, repositories);
     worker.lock().unwrap().start(config);
 
     for received_thread in rx {
