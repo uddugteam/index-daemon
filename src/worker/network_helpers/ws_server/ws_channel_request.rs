@@ -29,28 +29,28 @@ pub enum WsChannelRequest {
 impl WsChannelRequest {
     pub fn get_id(&self) -> Option<JsonRpcId> {
         match self {
-            WsChannelRequest::CoinAveragePrice { id, .. }
-            | WsChannelRequest::CoinExchangePrice { id, .. }
-            | WsChannelRequest::CoinExchangeVolume { id, .. }
-            | WsChannelRequest::Unsubscribe { id, .. } => id.clone(),
+            Self::CoinAveragePrice { id, .. }
+            | Self::CoinExchangePrice { id, .. }
+            | Self::CoinExchangeVolume { id, .. }
+            | Self::Unsubscribe { id, .. } => id.clone(),
         }
     }
 
     pub fn get_method(&self) -> String {
         match self {
-            WsChannelRequest::CoinAveragePrice { .. } => "coin_average_price".to_string(),
-            WsChannelRequest::CoinExchangePrice { .. } => "coin_exchange_price".to_string(),
-            WsChannelRequest::CoinExchangeVolume { .. } => "coin_exchange_volume".to_string(),
-            WsChannelRequest::Unsubscribe { method, .. } => method.to_string(),
+            Self::CoinAveragePrice { .. } => "coin_average_price".to_string(),
+            Self::CoinExchangePrice { .. } => "coin_exchange_price".to_string(),
+            Self::CoinExchangeVolume { .. } => "coin_exchange_volume".to_string(),
+            Self::Unsubscribe { method, .. } => method.to_string(),
         }
     }
 
     pub fn get_frequency_ms(&self) -> u64 {
         match self {
-            WsChannelRequest::CoinAveragePrice { frequency_ms, .. }
-            | WsChannelRequest::CoinExchangePrice { frequency_ms, .. }
-            | WsChannelRequest::CoinExchangeVolume { frequency_ms, .. } => *frequency_ms,
-            WsChannelRequest::Unsubscribe { .. } => {
+            Self::CoinAveragePrice { frequency_ms, .. }
+            | Self::CoinExchangePrice { frequency_ms, .. }
+            | Self::CoinExchangeVolume { frequency_ms, .. } => *frequency_ms,
+            Self::Unsubscribe { .. } => {
                 unreachable!();
             }
         }
@@ -58,12 +58,12 @@ impl WsChannelRequest {
 
     pub fn set_frequency_ms(&mut self, new_frequency_ms: u64) {
         match self {
-            WsChannelRequest::CoinAveragePrice { frequency_ms, .. }
-            | WsChannelRequest::CoinExchangePrice { frequency_ms, .. }
-            | WsChannelRequest::CoinExchangeVolume { frequency_ms, .. } => {
+            Self::CoinAveragePrice { frequency_ms, .. }
+            | Self::CoinExchangePrice { frequency_ms, .. }
+            | Self::CoinExchangeVolume { frequency_ms, .. } => {
                 *frequency_ms = new_frequency_ms;
             }
-            WsChannelRequest::Unsubscribe { .. } => {
+            Self::Unsubscribe { .. } => {
                 unreachable!();
             }
         }
@@ -71,10 +71,10 @@ impl WsChannelRequest {
 
     pub fn get_coins(&self) -> &Vec<String> {
         match self {
-            WsChannelRequest::CoinAveragePrice { coins, .. }
-            | WsChannelRequest::CoinExchangePrice { coins, .. }
-            | WsChannelRequest::CoinExchangeVolume { coins, .. } => coins,
-            WsChannelRequest::Unsubscribe { .. } => {
+            Self::CoinAveragePrice { coins, .. }
+            | Self::CoinExchangePrice { coins, .. }
+            | Self::CoinExchangeVolume { coins, .. } => coins,
+            Self::Unsubscribe { .. } => {
                 unreachable!();
             }
         }
