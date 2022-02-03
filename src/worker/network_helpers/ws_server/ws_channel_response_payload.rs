@@ -37,6 +37,15 @@ pub enum WsChannelResponsePayload {
 }
 
 impl WsChannelResponsePayload {
+    pub fn get_method(&self) -> String {
+        match self {
+            Self::CoinAveragePrice { .. } => "coin_average_price".to_string(),
+            Self::CoinExchangePrice { .. } => "coin_exchange_price".to_string(),
+            Self::CoinExchangeVolume { .. } => "coin_exchange_volume".to_string(),
+            Self::SuccSub { method, .. } | Self::Err { method, .. } => method.to_string(),
+        }
+    }
+
     pub fn get_coin(&self) -> String {
         match self {
             Self::CoinAveragePrice { coin, .. }

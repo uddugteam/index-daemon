@@ -21,20 +21,24 @@ impl WsChannels {
 
         let mut keys_to_remove = Vec::new();
 
+        let response_method = response_payload.get_method();
+
         for (key, sender) in senders {
-            let response = WsChannelResponse {
-                id: sender.request.get_id(),
-                result: response_payload.clone(),
-            };
+            if key.1 == response_method {
+                let response = WsChannelResponse {
+                    id: sender.request.get_id(),
+                    result: response_payload.clone(),
+                };
 
-            if let Some(send_msg_result) = sender.send(response) {
-                if send_msg_result.is_err() {
-                    // Send msg error. The client is likely disconnected. We stop sending him messages.
+                if let Some(send_msg_result) = sender.send(response) {
+                    if send_msg_result.is_err() {
+                        // Send msg error. The client is likely disconnected. We stop sending him messages.
 
-                    keys_to_remove.push(key.clone());
+                        keys_to_remove.push(key.clone());
+                    }
+                } else {
+                    // Message wasn't sent because of frequency_ms (not enough time has passed since last dispatch)
                 }
-            } else {
-                // Message wasn't sent because of frequency_ms (not enough time has passed since last dispatch)
             }
         }
 
