@@ -1,9 +1,8 @@
-use std::sync::mpsc;
-
 use crate::config_scheme::config_scheme::ConfigScheme;
 use crate::graceful_shutdown::start_graceful_shutdown_listener;
 use crate::repository::repositories::Repositories;
 use crate::worker::worker::Worker;
+use std::sync::mpsc;
 
 #[macro_use]
 extern crate log;

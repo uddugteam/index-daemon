@@ -1,8 +1,7 @@
 use crate::worker::defaults::{COINS, FIATS, MARKETS};
-use crate::worker::market_helpers::market_channels::MarketChannels;
-
 use crate::worker::market_helpers::conversion_type::ConversionType;
 use crate::worker::market_helpers::exchange_pair::ExchangePair;
+use crate::worker::market_helpers::market_channels::MarketChannels;
 use clap::{App, Arg};
 use env_logger::Builder;
 
