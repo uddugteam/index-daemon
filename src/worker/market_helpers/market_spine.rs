@@ -1,3 +1,4 @@
+use crate::repository::repositories::RepositoryForF64ByTimestampAndPairTuple;
 use crate::worker::helper_functions::strip_usd;
 use crate::worker::market_helpers::conversion_type::ConversionType;
 use crate::worker::market_helpers::exchange_pair::ExchangePair;
@@ -108,9 +109,16 @@ impl MarketSpine {
         &mut self.exchange_pairs
     }
 
-    pub fn add_exchange_pair(&mut self, pair_string: String, exchange_pair: ExchangePair) {
-        self.exchange_pairs
-            .insert(pair_string.clone(), ExchangePairInfo::new());
+    pub fn add_exchange_pair(
+        &mut self,
+        pair_string: String,
+        exchange_pair: ExchangePair,
+        repository: RepositoryForF64ByTimestampAndPairTuple,
+    ) {
+        self.exchange_pairs.insert(
+            pair_string.clone(),
+            ExchangePairInfo::new(repository, self.name.clone(), exchange_pair.pair.clone()),
+        );
         self.conversions
             .insert(pair_string.clone(), exchange_pair.conversion);
         self.pairs
@@ -247,7 +255,8 @@ impl MarketSpine {
             .exchange_pairs
             .get(pair)
             .unwrap()
-            .get_last_trade_price();
+            .last_trade_price
+            .get_value();
 
         // If new value is a Real price
         if value <= 0.0 {
@@ -265,24 +274,13 @@ impl MarketSpine {
             }
         }
 
-        let timestamp = Utc::now();
         self.exchange_pairs
             .get_mut(pair)
             .unwrap()
-            .set_last_trade_price(value, timestamp);
+            .last_trade_price
+            .set_new_value(value);
 
         let pair_tuple = self.pairs.get(pair).unwrap().clone();
-        if let Some(coin) = strip_usd(&pair_tuple) {
-            let response_payload = WsChannelResponsePayload::CoinExchangePrice {
-                coin,
-                value,
-                exchange: self.name.clone(),
-                timestamp,
-            };
-
-            self.ws_channels.send(response_payload);
-        }
-
         self.recalculate_pair_average_price(pair_tuple, value);
 
         self.update_market_pair(pair, "lastTrade", false);

@@ -1,8 +1,17 @@
 use crate::config_scheme::config_scheme::ConfigScheme;
 use crate::config_scheme::market_config::MarketConfig;
 use crate::config_scheme::service_config::ServiceConfig;
-use crate::repository::repositories::Repositories;
+use crate::repository::repositories::{
+    RepositoriesByMarketName, RepositoryForF64ByTimestampAndPairTuple,
+};
 use crate::worker::market_helpers::exchange_pair::ExchangePair;
+use crate::worker::market_helpers::market::{market_factory, Market};
+use crate::worker::market_helpers::market_channels::MarketChannels;
+use crate::worker::market_helpers::market_spine::MarketSpine;
+use crate::worker::market_helpers::stored_and_ws_transmissible_f64_by_pair_tuple::StoredAndWsTransmissibleF64ByPairTuple;
+use crate::worker::network_helpers::ws_server::ws_channel_request::WsChannelRequest;
+use crate::worker::network_helpers::ws_server::ws_channel_response_sender::WsChannelResponseSender;
+use crate::worker::network_helpers::ws_server::ws_server::WsServer;
 use chrono::{DateTime, Utc, MIN_DATETIME};
 use reqwest::blocking::multipart::{Form, Part};
 use reqwest::blocking::Client;
@@ -11,14 +20,6 @@ use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time;
-
-use crate::worker::market_helpers::market::{market_factory, Market};
-use crate::worker::market_helpers::market_channels::MarketChannels;
-use crate::worker::market_helpers::market_spine::MarketSpine;
-use crate::worker::market_helpers::stored_and_ws_transmissible_f64_by_pair_tuple::StoredAndWsTransmissibleF64ByPairTuple;
-use crate::worker::network_helpers::ws_server::ws_channel_request::WsChannelRequest;
-use crate::worker::network_helpers::ws_server::ws_channel_response_sender::WsChannelResponseSender;
-use crate::worker::network_helpers::ws_server::ws_server::WsServer;
 
 pub struct Worker {
     arc: Option<Arc<Mutex<Self>>>,
@@ -39,7 +40,7 @@ impl Worker {
     pub fn new(
         tx: Sender<JoinHandle<()>>,
         graceful_shutdown: Arc<Mutex<bool>>,
-        repositories: Repositories,
+        pair_average_price_repository: RepositoryForF64ByTimestampAndPairTuple,
     ) -> Arc<Mutex<Self>> {
         let worker = Worker {
             arc: None,
@@ -48,7 +49,7 @@ impl Worker {
             markets: HashMap::new(),
             market_names_by_ws_channel_key: HashMap::new(),
             pair_average_price: StoredAndWsTransmissibleF64ByPairTuple::new(
-                repositories.pair_average_price,
+                pair_average_price_repository,
                 "coin_average_price".to_string(),
                 None,
             ),
@@ -248,6 +249,7 @@ impl Worker {
         exchange_pairs: Vec<ExchangePair>,
         channels: Vec<MarketChannels>,
         rest_timeout_sec: u64,
+        mut repositories: RepositoriesByMarketName,
     ) {
         for market_name in markets {
             let worker_2 = Arc::clone(self.arc.as_ref().unwrap());
@@ -259,7 +261,11 @@ impl Worker {
                 channels.clone(),
                 Arc::clone(&self.graceful_shutdown),
             );
-            let market = market_factory(market_spine, exchange_pairs.clone());
+            let market = market_factory(
+                market_spine,
+                exchange_pairs.clone(),
+                repositories.remove(market_name).unwrap(),
+            );
 
             self.markets.insert(market_name.to_string(), market);
         }
@@ -292,7 +298,7 @@ impl Worker {
         }
     }
 
-    pub fn start(&mut self, config: ConfigScheme) {
+    pub fn start(&mut self, config: ConfigScheme, repositories: RepositoriesByMarketName) {
         let ConfigScheme { market, service } = config;
         let MarketConfig {
             markets,
@@ -308,7 +314,13 @@ impl Worker {
 
         let markets = markets.iter().map(|v| v.as_ref()).collect();
 
-        self.configure(markets, exchange_pairs, channels, rest_timeout_sec);
+        self.configure(
+            markets,
+            exchange_pairs,
+            channels,
+            rest_timeout_sec,
+            repositories,
+        );
         self.start_ws(
             ws,
             ws_addr,

@@ -1,5 +1,4 @@
-use crate::repository::f64_by_timestamp_and_pair_tuple_sled::TimestampAndPairTuple;
-use crate::repository::repository::Repository;
+use crate::repository::repositories::RepositoryForF64ByTimestampAndPairTuple;
 use crate::worker::defaults::WS_SERVER_ALL_CHANNELS;
 use crate::worker::market_helpers::hepler_functions::send_ws_response;
 use crate::worker::network_helpers::ws_server::ws_channels::WsChannels;
@@ -8,7 +7,7 @@ use chrono::{DateTime, Utc, MIN_DATETIME};
 pub struct StoredAndWsTransmissibleF64 {
     value: f64,
     timestamp: DateTime<Utc>,
-    repository: Box<dyn Repository<TimestampAndPairTuple, f64> + Send>,
+    repository: RepositoryForF64ByTimestampAndPairTuple,
     pub ws_channels: WsChannels,
     ws_channel_name: String,
     market_name: Option<String>,
@@ -17,7 +16,7 @@ pub struct StoredAndWsTransmissibleF64 {
 
 impl StoredAndWsTransmissibleF64 {
     pub fn new(
-        repository: Box<dyn Repository<TimestampAndPairTuple, f64> + Send>,
+        repository: RepositoryForF64ByTimestampAndPairTuple,
         ws_channel_name: String,
         market_name: Option<String>,
         pair: (String, String),

@@ -1,3 +1,6 @@
+use crate::repository::repositories::{
+    RepositoriesByPairTuple, RepositoryForF64ByTimestampAndPairTuple,
+};
 use crate::worker::helper_functions::get_pair_ref;
 use crate::worker::market_helpers::exchange_pair::ExchangePair;
 use crate::worker::market_helpers::market_channels::MarketChannels;
@@ -25,6 +28,7 @@ use std::time;
 pub fn market_factory(
     mut spine: MarketSpine,
     exchange_pairs: Vec<ExchangePair>,
+    mut repositories: RepositoriesByPairTuple,
 ) -> Arc<Mutex<dyn Market + Send>> {
     let mask_pairs = match spine.name.as_ref() {
         "binance" => vec![("IOT", "IOTA"), ("USD", "USDT")],
@@ -62,7 +66,10 @@ pub fn market_factory(
         .set_arc(Arc::clone(&market));
 
     for exchange_pair in exchange_pairs {
-        market.lock().unwrap().add_exchange_pair(exchange_pair);
+        market.lock().unwrap().add_exchange_pair(
+            exchange_pair.clone(),
+            repositories.remove(&exchange_pair.pair).unwrap(),
+        );
     }
 
     market
@@ -115,10 +122,7 @@ pub fn parse_str_from_json_object<T: FromStr>(
     object.get(key)?.as_str()?.parse().ok()
 }
 
-pub fn parse_str_from_json_array<T: FromStr>(
-    array: &Vec<serde_json::Value>,
-    key: usize,
-) -> Option<T> {
+pub fn parse_str_from_json_array<T: FromStr>(array: &[serde_json::Value], key: usize) -> Option<T> {
     array.get(key)?.as_str()?.parse().ok()
 }
 
@@ -285,10 +289,14 @@ pub trait Market {
         }
     }
 
-    fn add_exchange_pair(&mut self, exchange_pair: ExchangePair) {
+    fn add_exchange_pair(
+        &mut self,
+        exchange_pair: ExchangePair,
+        repository: RepositoryForF64ByTimestampAndPairTuple,
+    ) {
         let pair_string = self.make_pair(get_pair_ref(&exchange_pair.pair));
         self.get_spine_mut()
-            .add_exchange_pair(pair_string, exchange_pair);
+            .add_exchange_pair(pair_string, exchange_pair, repository);
     }
 
     fn get_total_volume(&self, first_currency: &str, second_currency: &str) -> f64 {

@@ -1,7 +1,9 @@
+use crate::repository::repositories::RepositoryForF64ByTimestampAndPairTuple;
+use crate::worker::market_helpers::stored_and_ws_transmissible_f64::StoredAndWsTransmissibleF64;
 use chrono::{DateTime, Utc, MIN_DATETIME};
 
 pub struct ExchangePairInfo {
-    last_trade_price: f64,
+    pub last_trade_price: StoredAndWsTransmissibleF64,
     last_trade_volume: f64,
     volume: f64,
     total_ask: f64,
@@ -10,9 +12,18 @@ pub struct ExchangePairInfo {
 }
 
 impl ExchangePairInfo {
-    pub fn new() -> Self {
+    pub fn new(
+        repository: RepositoryForF64ByTimestampAndPairTuple,
+        market_name: String,
+        pair: (String, String),
+    ) -> Self {
         ExchangePairInfo {
-            last_trade_price: 0.0,
+            last_trade_price: StoredAndWsTransmissibleF64::new(
+                repository,
+                "coin_exchange_price".to_string(),
+                Some(market_name),
+                pair,
+            ),
             last_trade_volume: 0.0,
             volume: 0.0,
             total_ask: 0.0,
@@ -51,14 +62,6 @@ impl ExchangePairInfo {
     pub fn set_last_trade_volume(&mut self, value: f64) {
         self.last_trade_volume = value;
         self.timestamp = Utc::now();
-    }
-
-    pub fn get_last_trade_price(&self) -> f64 {
-        self.last_trade_price
-    }
-    pub fn set_last_trade_price(&mut self, value: f64, timestamp: DateTime<Utc>) {
-        self.last_trade_price = value;
-        self.timestamp = timestamp;
     }
 
     pub fn set_timestamp(&mut self, timestamp: DateTime<Utc>) {

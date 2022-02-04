@@ -24,8 +24,11 @@ fn main() {
     let repositories = Repositories::new(&config.market);
 
     let (tx, rx) = mpsc::channel();
-    let worker = Worker::new(tx, graceful_shutdown, repositories);
-    worker.lock().unwrap().start(config);
+    let worker = Worker::new(tx, graceful_shutdown, repositories.pair_average_price);
+    worker
+        .lock()
+        .unwrap()
+        .start(config, repositories.market_repositories);
 
     for received_thread in rx {
         let _ = received_thread.join();

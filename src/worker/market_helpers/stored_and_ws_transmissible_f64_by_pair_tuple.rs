@@ -1,5 +1,4 @@
-use crate::repository::f64_by_timestamp_and_pair_tuple_sled::TimestampAndPairTuple;
-use crate::repository::repository::Repository;
+use crate::repository::repositories::RepositoryForF64ByTimestampAndPairTuple;
 use crate::worker::defaults::WS_SERVER_ALL_CHANNELS;
 use crate::worker::market_helpers::hepler_functions::send_ws_response;
 use crate::worker::network_helpers::ws_server::ws_channels::WsChannels;
@@ -9,7 +8,7 @@ use std::collections::HashMap;
 pub struct StoredAndWsTransmissibleF64ByPairTuple {
     value: HashMap<(String, String), f64>,
     timestamp: DateTime<Utc>,
-    repository: Box<dyn Repository<TimestampAndPairTuple, f64> + Send>,
+    repository: RepositoryForF64ByTimestampAndPairTuple,
     pub ws_channels: WsChannels,
     ws_channel_name: String,
     market_name: Option<String>,
@@ -17,11 +16,20 @@ pub struct StoredAndWsTransmissibleF64ByPairTuple {
 
 impl StoredAndWsTransmissibleF64ByPairTuple {
     pub fn new(
-        repository: Box<dyn Repository<TimestampAndPairTuple, f64> + Send>,
+        repository: RepositoryForF64ByTimestampAndPairTuple,
         ws_channel_name: String,
         market_name: Option<String>,
     ) -> Self {
         assert!(WS_SERVER_ALL_CHANNELS.contains(&ws_channel_name.as_str()));
+        if ws_channel_name == "coin_average_price" {
+            // Worker's channel
+
+            assert_eq!(market_name, None);
+        } else {
+            // Market's channel
+
+            assert!(matches!(market_name, Some(..)));
+        }
 
         Self {
             value: HashMap::new(),
