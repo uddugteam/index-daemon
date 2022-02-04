@@ -22,6 +22,15 @@ impl StoredAndWsTransmissibleF64 {
         pair: (String, String),
     ) -> Self {
         assert!(WS_SERVER_ALL_CHANNELS.contains(&ws_channel_name.as_str()));
+        if ws_channel_name == "coin_average_price" {
+            // Worker's channel
+
+            assert_eq!(market_name, None);
+        } else {
+            // Market's channel
+
+            assert!(matches!(market_name, Some(..)));
+        }
 
         Self {
             value: 0.0,
