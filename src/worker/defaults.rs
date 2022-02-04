@@ -10,6 +10,11 @@ pub const COINS: [&str; 2] = ["BTC", "ETH"];
 //     "XTZ", "CAKE", "XMR", "GALA", "GRT", "AAVE", "EOS", "LRC", "BTT", "MKR", "ENJ", "CRV", "ZEC",
 //     "AMP", "NEO", "BAT", "KCS", "OKB", "CHZ", "DASH", "COMP", "NEXO", "XEM", "TUSD", "YFI",
 // ];
+pub const WS_SERVER_ALL_CHANNELS: [&str; 3] = [
+    "coin_average_price",
+    "coin_exchange_price",
+    "coin_exchange_volume",
+];
 
 pub const POLONIEX_EXCHANGE_PAIRS: [(&str, (&str, &str)); 456] = [
     ("336", ("BNB", "BTC")),

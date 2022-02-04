@@ -15,7 +15,7 @@ use std::time;
 use crate::worker::market_helpers::market::{market_factory, Market};
 use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
-use crate::worker::market_helpers::pair_average_price::PairAveragePrice;
+use crate::worker::market_helpers::stored_and_ws_transmissible_f64_by_pair_tuple::StoredAndWsTransmissibleF64ByPairTuple;
 use crate::worker::network_helpers::ws_server::ws_channel_request::WsChannelRequest;
 use crate::worker::network_helpers::ws_server::ws_channel_response_sender::WsChannelResponseSender;
 use crate::worker::network_helpers::ws_server::ws_server::WsServer;
@@ -26,7 +26,7 @@ pub struct Worker {
     graceful_shutdown: Arc<Mutex<bool>>,
     markets: HashMap<String, Arc<Mutex<dyn Market + Send>>>,
     market_names_by_ws_channel_key: HashMap<(String, String), Vec<String>>,
-    pair_average_price: PairAveragePrice,
+    pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
     capitalization: HashMap<String, f64>,
     last_capitalization_refresh: DateTime<Utc>,
 }
@@ -47,7 +47,11 @@ impl Worker {
             graceful_shutdown,
             markets: HashMap::new(),
             market_names_by_ws_channel_key: HashMap::new(),
-            pair_average_price: PairAveragePrice::new(repositories.pair_average_price),
+            pair_average_price: StoredAndWsTransmissibleF64ByPairTuple::new(
+                repositories.pair_average_price,
+                "coin_average_price".to_string(),
+                None,
+            ),
             capitalization: HashMap::new(),
             last_capitalization_refresh: MIN_DATETIME,
         };
@@ -142,14 +146,14 @@ impl Worker {
     pub fn recalculate_pair_average_price(&mut self, pair: (String, String), new_price: f64) {
         let old_avg = self
             .pair_average_price
-            .get_price(&pair)
+            .get_value(&pair)
             .unwrap_or(new_price);
 
         let new_avg = (new_price + old_avg) / 2.0;
 
         info!("new {}-{} average trade price: {}", pair.0, pair.1, new_avg);
 
-        self.pair_average_price.set_new_price(pair, new_avg);
+        self.pair_average_price.set_new_value(pair, new_avg);
     }
 
     fn refresh_capitalization_thread(&self) {
@@ -459,7 +463,7 @@ pub mod test {
                     .lock()
                     .unwrap()
                     .pair_average_price
-                    .get_price(&pair)
+                    .get_value(&pair)
                     .unwrap();
                 assert!(expected_curr_price.eq(&real_curr_price_field));
             }
