@@ -1,8 +1,7 @@
 use crate::repository::f64_by_timestamp_and_pair_tuple_sled::TimestampAndPairTuple;
 use crate::repository::repository::Repository;
 use crate::worker::defaults::WS_SERVER_ALL_CHANNELS;
-use crate::worker::helper_functions::strip_usd;
-use crate::worker::network_helpers::ws_server::ws_channel_response_payload::WsChannelResponsePayload;
+use crate::worker::market_helpers::hepler_functions::send_ws_response;
 use crate::worker::network_helpers::ws_server::ws_channels::WsChannels;
 use chrono::{DateTime, Utc, MIN_DATETIME};
 
@@ -48,33 +47,13 @@ impl StoredAndWsTransmissibleF64 {
             .repository
             .insert((self.timestamp, self.pair.clone()), new_value);
 
-        let coin = strip_usd(&self.pair);
-        if let Some(coin) = coin {
-            let response_payload = if let Some(market_name) = &self.market_name {
-                match self.ws_channel_name.as_str() {
-                    "coin_exchange_price" => WsChannelResponsePayload::CoinExchangePrice {
-                        coin,
-                        exchange: market_name.to_string(),
-                        value: new_value,
-                        timestamp: self.timestamp,
-                    },
-                    "coin_exchange_volume" => WsChannelResponsePayload::CoinExchangeVolume {
-                        coin,
-                        exchange: market_name.to_string(),
-                        value: new_value,
-                        timestamp: self.timestamp,
-                    },
-                    _ => unreachable!(),
-                }
-            } else {
-                WsChannelResponsePayload::CoinAveragePrice {
-                    coin,
-                    value: new_value,
-                    timestamp: self.timestamp,
-                }
-            };
-
-            self.ws_channels.send(response_payload);
-        }
+        send_ws_response(
+            &mut self.ws_channels,
+            &self.ws_channel_name,
+            &self.market_name,
+            &self.pair,
+            new_value,
+            self.timestamp,
+        );
     }
 }
