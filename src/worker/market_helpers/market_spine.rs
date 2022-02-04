@@ -1,14 +1,11 @@
-use crate::repository::repositories::RepositoryForF64ByTimestampAndPairTuple;
-use crate::worker::helper_functions::strip_usd;
+use crate::repository::repositories::RepositoriesByMarketValue;
 use crate::worker::market_helpers::conversion_type::ConversionType;
 use crate::worker::market_helpers::exchange_pair::ExchangePair;
 use crate::worker::market_helpers::exchange_pair_info::ExchangePairInfo;
 use crate::worker::market_helpers::market::Market;
 use crate::worker::market_helpers::market_channels::MarketChannels;
-use crate::worker::network_helpers::ws_server::ws_channel_response_payload::WsChannelResponsePayload;
 use crate::worker::network_helpers::ws_server::ws_channels::WsChannels;
 use crate::worker::worker::{self, Worker};
-use chrono::Utc;
 use std::collections::HashMap;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
@@ -113,11 +110,11 @@ impl MarketSpine {
         &mut self,
         pair_string: String,
         exchange_pair: ExchangePair,
-        repository: RepositoryForF64ByTimestampAndPairTuple,
+        repositories: RepositoriesByMarketValue,
     ) {
         self.exchange_pairs.insert(
             pair_string.clone(),
-            ExchangePairInfo::new(repository, self.name.clone(), exchange_pair.pair.clone()),
+            ExchangePairInfo::new(repositories, self.name.clone(), exchange_pair.pair.clone()),
         );
         self.conversions
             .insert(pair_string.clone(), exchange_pair.conversion);
@@ -149,7 +146,11 @@ impl MarketSpine {
 
     pub fn get_total_volume(&self, pair: &str) -> f64 {
         if self.exchange_pairs.contains_key(pair) {
-            self.exchange_pairs.get(pair).unwrap().get_total_volume()
+            self.exchange_pairs
+                .get(pair)
+                .unwrap()
+                .total_volume
+                .get_value()
         } else {
             0.0
         }
@@ -157,29 +158,23 @@ impl MarketSpine {
 
     pub fn set_total_volume(&mut self, pair: &str, value: f64) {
         if value != 0.0 {
-            let old_value: f64 = self.exchange_pairs.get(pair).unwrap().get_total_volume();
+            let old_value: f64 = self
+                .exchange_pairs
+                .get(pair)
+                .unwrap()
+                .total_volume
+                .get_value();
 
             if (old_value - value).abs() > EPS {
-                let timestamp = Utc::now();
                 self.exchange_pairs
                     .get_mut(pair)
                     .unwrap()
-                    .set_total_volume(value, timestamp);
+                    .total_volume
+                    .set_new_value(value);
 
                 self.update_market_pair(pair, "totalValues", false);
 
                 let pair_tuple = self.pairs.get(pair).unwrap();
-                if let Some(coin) = strip_usd(pair_tuple) {
-                    let response_payload = WsChannelResponsePayload::CoinExchangeVolume {
-                        coin,
-                        value,
-                        exchange: self.name.clone(),
-                        timestamp,
-                    };
-
-                    self.ws_channels.send(response_payload);
-                }
-
                 self.recalculate_total_volume(pair_tuple.0.clone());
             }
         }

@@ -1,6 +1,4 @@
-use crate::repository::repositories::{
-    RepositoriesByPairTuple, RepositoryForF64ByTimestampAndPairTuple,
-};
+use crate::repository::repositories::{RepositoriesByMarketValue, RepositoriesByPairTuple};
 use crate::worker::helper_functions::get_pair_ref;
 use crate::worker::market_helpers::exchange_pair::ExchangePair;
 use crate::worker::market_helpers::market_channels::MarketChannels;
@@ -292,11 +290,11 @@ pub trait Market {
     fn add_exchange_pair(
         &mut self,
         exchange_pair: ExchangePair,
-        repository: RepositoryForF64ByTimestampAndPairTuple,
+        repositories: RepositoriesByMarketValue,
     ) {
         let pair_string = self.make_pair(get_pair_ref(&exchange_pair.pair));
         self.get_spine_mut()
-            .add_exchange_pair(pair_string, exchange_pair, repository);
+            .add_exchange_pair(pair_string, exchange_pair, repositories);
     }
 
     fn get_total_volume(&self, first_currency: &str, second_currency: &str) -> f64 {

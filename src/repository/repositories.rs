@@ -8,8 +8,8 @@ use std::sync::{Arc, Mutex};
 
 pub type RepositoryForF64ByTimestampAndPairTuple =
     Box<dyn Repository<TimestampAndPairTuple, f64> + Send>;
-pub type RepositoriesByPairTuple =
-    HashMap<(String, String), RepositoryForF64ByTimestampAndPairTuple>;
+pub type RepositoriesByMarketValue = HashMap<String, RepositoryForF64ByTimestampAndPairTuple>;
+pub type RepositoriesByPairTuple = HashMap<(String, String), RepositoriesByMarketValue>;
 pub type RepositoriesByMarketName = HashMap<String, RepositoriesByPairTuple>;
 
 pub struct Repositories {
@@ -26,27 +26,33 @@ impl Repositories {
             Arc::clone(&tree),
         ));
 
-        let market_value = "pair_price";
-        let mut market_repositories = HashMap::new();
+        let market_values = ["pair_price", "pair_volume"];
+        let mut hash_map = HashMap::new();
         for market_name in &market_config.markets {
-            let hash_map = market_repositories
+            let hash_map = hash_map
                 .entry(market_name.clone())
                 .or_insert(HashMap::new());
 
             for exchange_pair in &market_config.exchange_pairs {
-                let entity_name = format!("market__{}__{}", market_name, market_value);
+                let hash_map = hash_map
+                    .entry(exchange_pair.pair.clone())
+                    .or_insert(HashMap::new());
 
-                let repository: RepositoryForF64ByTimestampAndPairTuple = Box::new(
-                    F64ByTimestampAndPairTupleSled::new(entity_name, Arc::clone(&tree)),
-                );
+                for market_value in market_values {
+                    let entity_name = format!("market__{}__{}", market_name, market_value);
 
-                hash_map.insert(exchange_pair.pair.clone(), repository);
+                    let repository: RepositoryForF64ByTimestampAndPairTuple = Box::new(
+                        F64ByTimestampAndPairTupleSled::new(entity_name, Arc::clone(&tree)),
+                    );
+
+                    hash_map.insert(market_value.to_string(), repository);
+                }
             }
         }
 
         Self {
             pair_average_price,
-            market_repositories,
+            market_repositories: hash_map,
         }
     }
 }
