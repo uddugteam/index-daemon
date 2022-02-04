@@ -100,17 +100,45 @@ impl Worker {
                     self.remove_ws_channel(&key);
                     self.market_names_by_ws_channel_key
                         .insert(key, exchanges.clone());
+                    let pairs: Vec<(&str, &str)> = channel
+                        .request
+                        .get_coins()
+                        .iter()
+                        .map(|v| (v.as_str(), "USD"))
+                        .collect();
 
-                    // There we have only supported exchanges, thus we can call `unwrap`
                     for exchange in exchanges {
-                        self.markets
-                            .get_mut(exchange)
-                            .unwrap()
-                            .lock()
-                            .unwrap()
-                            .get_spine_mut()
-                            .ws_channels
-                            .add_channel(conn_id.clone(), channel.clone());
+                        for pair_tuple in &pairs {
+                            let pair_string = self
+                                .markets
+                                .get_mut(exchange)
+                                .unwrap()
+                                .lock()
+                                .unwrap()
+                                .make_pair(*pair_tuple);
+
+                            let mut market =
+                                self.markets.get_mut(exchange).unwrap().lock().unwrap();
+
+                            // There we have only supported exchanges, thus we can call `unwrap`
+                            // But coins are not validated, so we need to check if pair exists
+                            let exchange_pair_info = market
+                                .get_spine_mut()
+                                .get_exchange_pairs_mut()
+                                .get_mut(&pair_string);
+
+                            if let Some(exchange_pair_info) = exchange_pair_info {
+                                exchange_pair_info
+                                    .last_trade_price
+                                    .ws_channels
+                                    .add_channel(conn_id.clone(), channel.clone());
+
+                                exchange_pair_info
+                                    .total_volume
+                                    .ws_channels
+                                    .add_channel(conn_id.clone(), channel.clone());
+                            }
+                        }
                     }
 
                     Ok(())
@@ -125,14 +153,22 @@ impl Worker {
             // Market's channel
 
             for market_name in market_names {
-                self.markets
-                    .get_mut(market_name)
-                    .unwrap()
-                    .lock()
-                    .unwrap()
-                    .get_spine_mut()
-                    .ws_channels
-                    .remove_channel(key);
+                let mut market = self.markets.get_mut(market_name).unwrap().lock().unwrap();
+
+                let exchange_pair_infos =
+                    market.get_spine_mut().get_exchange_pairs_mut().values_mut();
+
+                for exchange_pair_info in exchange_pair_infos {
+                    exchange_pair_info
+                        .last_trade_price
+                        .ws_channels
+                        .remove_channel(key);
+
+                    exchange_pair_info
+                        .total_volume
+                        .ws_channels
+                        .remove_channel(key);
+                }
             }
         } else {
             // Worker's channel

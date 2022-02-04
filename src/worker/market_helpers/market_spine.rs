@@ -4,7 +4,6 @@ use crate::worker::market_helpers::exchange_pair::ExchangePair;
 use crate::worker::market_helpers::exchange_pair_info::ExchangePairInfo;
 use crate::worker::market_helpers::market::Market;
 use crate::worker::market_helpers::market_channels::MarketChannels;
-use crate::worker::network_helpers::ws_server::ws_channels::WsChannels;
 use crate::worker::worker::{self, Worker};
 use std::collections::HashMap;
 use std::sync::mpsc::Sender;
@@ -25,7 +24,6 @@ pub struct MarketSpine {
     conversions: HashMap<String, ConversionType>,
     pairs: HashMap<String, (String, String)>,
     pub channels: Vec<MarketChannels>,
-    pub ws_channels: WsChannels,
     pub graceful_shutdown: Arc<Mutex<bool>>,
 }
 impl MarketSpine {
@@ -68,7 +66,6 @@ impl MarketSpine {
             conversions: HashMap::new(),
             pairs: HashMap::new(),
             channels,
-            ws_channels: WsChannels::new(),
             graceful_shutdown,
         }
     }
