@@ -2,7 +2,6 @@ use crate::repository::repositories::RepositoriesByMarketValue;
 use crate::worker::market_helpers::stored_and_ws_transmissible_f64::StoredAndWsTransmissibleF64;
 use chrono::{DateTime, Utc, MIN_DATETIME};
 
-
 pub struct ExchangePairInfo {
     pub last_trade_price: StoredAndWsTransmissibleF64,
     last_trade_volume: f64,
