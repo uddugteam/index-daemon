@@ -40,7 +40,7 @@ impl Worker {
     pub fn new(
         tx: Sender<JoinHandle<()>>,
         graceful_shutdown: Arc<Mutex<bool>>,
-        pair_average_price_repository: RepositoryForF64ByTimestampAndPairTuple,
+        pair_average_price_repository: Option<RepositoryForF64ByTimestampAndPairTuple>,
     ) -> Arc<Mutex<Self>> {
         let worker = Worker {
             arc: None,
@@ -285,8 +285,10 @@ impl Worker {
         exchange_pairs: Vec<ExchangePair>,
         channels: Vec<MarketChannels>,
         rest_timeout_sec: u64,
-        mut repositories: RepositoriesByMarketName,
+        repositories: Option<RepositoriesByMarketName>,
     ) {
+        let mut repositories = repositories.unwrap_or(HashMap::new());
+
         for market_name in markets {
             let worker_2 = Arc::clone(self.arc.as_ref().unwrap());
             let market_spine = MarketSpine::new(
@@ -300,7 +302,7 @@ impl Worker {
             let market = market_factory(
                 market_spine,
                 exchange_pairs.clone(),
-                repositories.remove(market_name).unwrap(),
+                repositories.remove(market_name),
             );
 
             self.markets.insert(market_name.to_string(), market);
@@ -334,7 +336,7 @@ impl Worker {
         }
     }
 
-    pub fn start(&mut self, config: ConfigScheme, repositories: RepositoriesByMarketName) {
+    pub fn start(&mut self, config: ConfigScheme, repositories: Option<RepositoriesByMarketName>) {
         let ConfigScheme { market, service } = config;
         let MarketConfig {
             markets,
@@ -346,6 +348,7 @@ impl Worker {
             ws,
             ws_addr,
             ws_answer_timeout_ms,
+            historical: _,
             storage: _,
         } = service;
 

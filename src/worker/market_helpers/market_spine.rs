@@ -107,7 +107,7 @@ impl MarketSpine {
         &mut self,
         pair_string: String,
         exchange_pair: ExchangePair,
-        repositories: RepositoriesByMarketValue,
+        repositories: Option<RepositoriesByMarketValue>,
     ) {
         self.exchange_pairs.insert(
             pair_string.clone(),

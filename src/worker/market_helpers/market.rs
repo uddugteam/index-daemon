@@ -18,6 +18,7 @@ use crate::worker::markets::okcoin::Okcoin;
 use crate::worker::markets::poloniex::Poloniex;
 use crate::worker::network_helpers::ws_client::WsClient;
 use chrono::Utc;
+use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -26,8 +27,10 @@ use std::time;
 pub fn market_factory(
     mut spine: MarketSpine,
     exchange_pairs: Vec<ExchangePair>,
-    mut repositories: RepositoriesByPairTuple,
+    repositories: Option<RepositoriesByPairTuple>,
 ) -> Arc<Mutex<dyn Market + Send>> {
+    let mut repositories = repositories.unwrap_or(HashMap::new());
+
     let mask_pairs = match spine.name.as_ref() {
         "binance" => vec![("IOT", "IOTA"), ("USD", "USDT")],
         "bitfinex" => vec![("DASH", "dsh"), ("QTUM", "QTM")],
@@ -66,7 +69,7 @@ pub fn market_factory(
     for exchange_pair in exchange_pairs {
         market.lock().unwrap().add_exchange_pair(
             exchange_pair.clone(),
-            repositories.remove(&exchange_pair.pair).unwrap(),
+            repositories.remove(&exchange_pair.pair),
         );
     }
 
@@ -290,7 +293,7 @@ pub trait Market {
     fn add_exchange_pair(
         &mut self,
         exchange_pair: ExchangePair,
-        repositories: RepositoriesByMarketValue,
+        repositories: Option<RepositoriesByMarketValue>,
     ) {
         let pair_string = self.make_pair(get_pair_ref(&exchange_pair.pair));
         self.get_spine_mut()

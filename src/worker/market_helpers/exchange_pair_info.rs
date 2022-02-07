@@ -1,6 +1,7 @@
 use crate::repository::repositories::RepositoriesByMarketValue;
 use crate::worker::market_helpers::stored_and_ws_transmissible_f64::StoredAndWsTransmissibleF64;
 use chrono::{DateTime, Utc, MIN_DATETIME};
+use std::collections::HashMap;
 
 pub struct ExchangePairInfo {
     pub last_trade_price: StoredAndWsTransmissibleF64,
@@ -13,20 +14,22 @@ pub struct ExchangePairInfo {
 
 impl ExchangePairInfo {
     pub fn new(
-        mut repositories: RepositoriesByMarketValue,
+        repositories: Option<RepositoriesByMarketValue>,
         market_name: String,
         pair: (String, String),
     ) -> Self {
+        let mut repositories = repositories.unwrap_or(HashMap::new());
+
         ExchangePairInfo {
             last_trade_price: StoredAndWsTransmissibleF64::new(
-                repositories.remove("pair_price").unwrap(),
+                repositories.remove("pair_price"),
                 "coin_exchange_price".to_string(),
                 Some(market_name.clone()),
                 pair.clone(),
             ),
             last_trade_volume: 0.0,
             total_volume: StoredAndWsTransmissibleF64::new(
-                repositories.remove("pair_volume").unwrap(),
+                repositories.remove("pair_volume"),
                 "coin_exchange_volume".to_string(),
                 Some(market_name),
                 pair,

@@ -20,14 +20,12 @@ mod test;
 fn main() {
     let graceful_shutdown = start_graceful_shutdown_listener();
     let config = ConfigScheme::new();
-    let repositories = Repositories::new(&config);
+    let (pair_average_price, market_repositories) =
+        Repositories::optionize_fields(Repositories::new(&config));
 
     let (tx, rx) = mpsc::channel();
-    let worker = Worker::new(tx, graceful_shutdown, repositories.pair_average_price);
-    worker
-        .lock()
-        .unwrap()
-        .start(config, repositories.market_repositories);
+    let worker = Worker::new(tx, graceful_shutdown, pair_average_price);
+    worker.lock().unwrap().start(config, market_repositories);
 
     for received_thread in rx {
         let _ = received_thread.join();

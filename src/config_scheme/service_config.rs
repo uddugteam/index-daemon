@@ -7,6 +7,7 @@ pub struct ServiceConfig {
     pub ws: bool,
     pub ws_addr: String,
     pub ws_answer_timeout_ms: u64,
+    pub historical: bool,
     pub storage: String,
 }
 impl ServiceConfig {
@@ -63,6 +64,25 @@ impl ServiceConfig {
                 ws_answer_timeout_ms
             );
         }
+
+        let historical = if let Ok(historical) = service_config.get_str("historical") {
+            if historical == "1" {
+                true
+            } else {
+                panic!(
+                    "Got wrong config value. service_config: historical={}",
+                    historical
+                );
+            }
+        } else {
+            default.historical
+        };
+        if !historical && service_config.get_str("storage").is_ok() {
+            panic!(
+                "Got unexpected config. service_config: storage. That config is allowed only if historical=1"
+            );
+        }
+
         let storage = service_config.get_str("storage").unwrap_or(default.storage);
 
         Self {
@@ -70,6 +90,7 @@ impl ServiceConfig {
             ws,
             ws_addr,
             ws_answer_timeout_ms,
+            historical,
             storage,
         }
     }
@@ -81,6 +102,7 @@ impl Default for ServiceConfig {
             ws: false,
             ws_addr: get_default_host() + ":" + &get_default_port(),
             ws_answer_timeout_ms: 100,
+            historical: false,
             storage: "sled".to_string(),
         }
     }

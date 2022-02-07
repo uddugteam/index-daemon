@@ -21,6 +21,7 @@ All configs are optional.
 - **ws_host** - string (default: 127.0.0.1). Websocket server host.
 - **ws_port** - string (default: 8080). Websocket server port.
 - **ws_answer_timeout_ms** - u64 (min - 100, default - 100). Timeout in ms between websocket answers.
+- **historical** - string ("1" - on, default - off). Turn on historical data storage.
 - **storage** - string. Variants: sled. Default: sled.
 
 #### market_config

@@ -8,7 +8,7 @@ use std::collections::HashMap;
 pub struct StoredAndWsTransmissibleF64ByPairTuple {
     value: HashMap<(String, String), f64>,
     timestamp: DateTime<Utc>,
-    repository: RepositoryForF64ByTimestampAndPairTuple,
+    repository: Option<RepositoryForF64ByTimestampAndPairTuple>,
     pub ws_channels: WsChannels,
     ws_channel_name: String,
     market_name: Option<String>,
@@ -16,7 +16,7 @@ pub struct StoredAndWsTransmissibleF64ByPairTuple {
 
 impl StoredAndWsTransmissibleF64ByPairTuple {
     pub fn new(
-        repository: RepositoryForF64ByTimestampAndPairTuple,
+        repository: Option<RepositoryForF64ByTimestampAndPairTuple>,
         ws_channel_name: String,
         market_name: Option<String>,
     ) -> Self {
@@ -49,9 +49,9 @@ impl StoredAndWsTransmissibleF64ByPairTuple {
         self.value.insert(pair.clone(), new_value);
         self.timestamp = Utc::now();
 
-        let _ = self
-            .repository
-            .insert((self.timestamp, pair.clone()), new_value);
+        if let Some(repository) = &self.repository {
+            let _ = repository.insert((self.timestamp, pair.clone()), new_value);
+        }
 
         send_ws_response(
             &mut self.ws_channels,
