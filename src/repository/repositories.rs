@@ -2,13 +2,16 @@ use crate::config_scheme::config_scheme::ConfigScheme;
 use crate::repository::f64_by_timestamp_and_pair_tuple_sled::{
     F64ByTimestampAndPairTupleSled, TimestampAndPairTuple,
 };
+use crate::repository::f64_by_timestamp_sled::F64ByTimestampSled;
 use crate::repository::repository::Repository;
+use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 pub type RepositoryForF64ByTimestampAndPairTuple =
     Box<dyn Repository<TimestampAndPairTuple, f64> + Send>;
-pub type RepositoriesByMarketValue = HashMap<String, RepositoryForF64ByTimestampAndPairTuple>;
+pub type RepositoryForF64ByTimestamp = Box<dyn Repository<DateTime<Utc>, f64> + Send>;
+pub type RepositoriesByMarketValue = HashMap<String, RepositoryForF64ByTimestamp>;
 pub type RepositoriesByPairTuple = HashMap<(String, String), RepositoriesByMarketValue>;
 pub type RepositoriesByMarketName = HashMap<String, RepositoriesByPairTuple>;
 
@@ -46,11 +49,13 @@ impl Repositories {
                                 .or_insert(HashMap::new());
 
                             for market_value in market_values {
+                                let pair =
+                                    format!("{}_{}", exchange_pair.pair.0, exchange_pair.pair.1);
                                 let entity_name =
-                                    format!("market__{}__{}", market_name, market_value);
+                                    format!("market__{}__{}__{}", market_name, market_value, pair);
 
-                                let repository: RepositoryForF64ByTimestampAndPairTuple =
-                                    Box::new(F64ByTimestampAndPairTupleSled::new(
+                                let repository: RepositoryForF64ByTimestamp =
+                                    Box::new(F64ByTimestampSled::new(
                                         entity_name,
                                         Arc::clone(&tree),
                                         service_config.historical_storage_frequency_ms,
