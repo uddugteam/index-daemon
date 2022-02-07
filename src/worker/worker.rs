@@ -149,11 +149,11 @@ impl Worker {
     }
 
     pub fn remove_ws_channel(&mut self, key: &(String, String)) {
-        if let Some(market_names) = self.market_names_by_ws_channel_key.get(key) {
+        if let Some(market_names) = self.market_names_by_ws_channel_key.remove(key) {
             // Market's channel
 
             for market_name in market_names {
-                let mut market = self.markets.get_mut(market_name).unwrap().lock().unwrap();
+                let mut market = self.markets.get_mut(&market_name).unwrap().lock().unwrap();
 
                 let exchange_pair_infos =
                     market.get_spine_mut().get_exchange_pairs_mut().values_mut();
