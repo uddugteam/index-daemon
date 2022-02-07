@@ -49,7 +49,7 @@ impl StoredAndWsTransmissibleF64ByPairTuple {
         self.value.insert(pair.clone(), new_value);
         self.timestamp = Utc::now();
 
-        if let Some(repository) = &self.repository {
+        if let Some(repository) = &mut self.repository {
             let _ = repository.insert((self.timestamp, pair.clone()), new_value);
         }
 

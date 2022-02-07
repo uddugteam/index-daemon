@@ -30,6 +30,7 @@ impl Repositories {
                     let pair_average_price = Box::new(F64ByTimestampAndPairTupleSled::new(
                         "worker__pair_average_price".to_string(),
                         Arc::clone(&tree),
+                        service_config.historical_storage_frequency_ms,
                     ));
 
                     let market_values = ["pair_price", "pair_volume"];
@@ -52,6 +53,7 @@ impl Repositories {
                                     Box::new(F64ByTimestampAndPairTupleSled::new(
                                         entity_name,
                                         Arc::clone(&tree),
+                                        service_config.historical_storage_frequency_ms,
                                     ));
 
                                 hash_map.insert(market_value.to_string(), repository);

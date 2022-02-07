@@ -9,6 +9,7 @@ pub struct ServiceConfig {
     pub ws_answer_timeout_ms: u64,
     pub historical: bool,
     pub storage: String,
+    pub historical_storage_frequency_ms: u64,
 }
 impl ServiceConfig {
     pub fn new() -> Self {
@@ -77,14 +78,27 @@ impl ServiceConfig {
         } else {
             default.historical
         };
-        if !historical && service_config.get_str("storage").is_ok() {
+        if !historical
+            && (service_config.get_str("storage").is_ok()
+                || service_config
+                    .get_str("historical_storage_frequency_ms")
+                    .is_ok())
+        {
             panic!(
-                "Got unexpected config. service_config: storage. That config is allowed only if historical=1"
+                "Got unexpected config. service_config: \"storage\" or \"historical_storage_frequency_ms\". These configs are allowed only if historical=1"
             );
         }
-
         let storage = service_config.get_str("storage").unwrap_or(default.storage);
-
+        let historical_storage_frequency_ms = service_config
+            .get_str("historical_storage_frequency_ms")
+            .map(|v| v.parse().unwrap())
+            .unwrap_or(default.historical_storage_frequency_ms);
+        if historical_storage_frequency_ms < 10 {
+            panic!(
+                "Got wrong config value. Value is less than allowed min. service_config: historical_storage_frequency_ms={}",
+                historical_storage_frequency_ms
+            );
+        }
         Self {
             rest_timeout_sec,
             ws,
@@ -92,6 +106,7 @@ impl ServiceConfig {
             ws_answer_timeout_ms,
             historical,
             storage,
+            historical_storage_frequency_ms,
         }
     }
 }
@@ -104,6 +119,7 @@ impl Default for ServiceConfig {
             ws_answer_timeout_ms: 100,
             historical: false,
             storage: "sled".to_string(),
+            historical_storage_frequency_ms: 20,
         }
     }
 }

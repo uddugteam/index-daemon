@@ -350,6 +350,7 @@ impl Worker {
             ws_answer_timeout_ms,
             historical: _,
             storage: _,
+            historical_storage_frequency_ms: _,
         } = service;
 
         let markets = markets.iter().map(|v| v.as_ref()).collect();

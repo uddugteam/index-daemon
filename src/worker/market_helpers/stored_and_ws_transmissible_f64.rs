@@ -51,7 +51,7 @@ impl StoredAndWsTransmissibleF64 {
         self.value = new_value;
         self.timestamp = Utc::now();
 
-        if let Some(repository) = &self.repository {
+        if let Some(repository) = &mut self.repository {
             let _ = repository.insert((self.timestamp, self.pair.clone()), new_value);
         }
 
