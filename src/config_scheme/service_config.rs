@@ -7,6 +7,7 @@ pub struct ServiceConfig {
     pub ws: bool,
     pub ws_addr: String,
     pub ws_answer_timeout_ms: u64,
+    pub storage: String,
 }
 impl ServiceConfig {
     pub fn new() -> Self {
@@ -62,12 +63,14 @@ impl ServiceConfig {
                 ws_answer_timeout_ms
             );
         }
+        let storage = service_config.get_str("storage").unwrap_or(default.storage);
 
         Self {
             rest_timeout_sec,
             ws,
             ws_addr,
             ws_answer_timeout_ms,
+            storage,
         }
     }
 }
@@ -78,6 +81,7 @@ impl Default for ServiceConfig {
             ws: false,
             ws_addr: get_default_host() + ":" + &get_default_port(),
             ws_answer_timeout_ms: 100,
+            storage: "sled".to_string(),
         }
     }
 }

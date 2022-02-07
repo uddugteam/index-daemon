@@ -20,7 +20,7 @@ mod test;
 fn main() {
     let graceful_shutdown = start_graceful_shutdown_listener();
     let config = ConfigScheme::new();
-    let repositories = Repositories::new(&config.market);
+    let repositories = Repositories::new(&config);
 
     let (tx, rx) = mpsc::channel();
     let worker = Worker::new(tx, graceful_shutdown, repositories.pair_average_price);

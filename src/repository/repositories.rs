@@ -1,4 +1,4 @@
-use crate::config_scheme::market_config::MarketConfig;
+use crate::config_scheme::config_scheme::ConfigScheme;
 use crate::repository::f64_by_timestamp_and_pair_tuple_sled::{
     F64ByTimestampAndPairTupleSled, TimestampAndPairTuple,
 };
@@ -18,41 +18,51 @@ pub struct Repositories {
 }
 
 impl Repositories {
-    pub fn new(market_config: &MarketConfig) -> Self {
-        let tree = Arc::new(Mutex::new(vsdbsled::open("db").expect("Open db error.")));
+    pub fn new(config: &ConfigScheme) -> Self {
+        let market_config = &config.market;
+        let service_config = &config.service;
 
-        let pair_average_price = Box::new(F64ByTimestampAndPairTupleSled::new(
-            "worker__pair_average_price".to_string(),
-            Arc::clone(&tree),
-        ));
+        let (pair_average_price, market_repositories) = match service_config.storage.as_str() {
+            "sled" => {
+                let tree = Arc::new(Mutex::new(vsdbsled::open("db").expect("Open db error.")));
 
-        let market_values = ["pair_price", "pair_volume"];
-        let mut hash_map = HashMap::new();
-        for market_name in &market_config.markets {
-            let hash_map = hash_map
-                .entry(market_name.clone())
-                .or_insert(HashMap::new());
+                let pair_average_price = Box::new(F64ByTimestampAndPairTupleSled::new(
+                    "worker__pair_average_price".to_string(),
+                    Arc::clone(&tree),
+                ));
 
-            for exchange_pair in &market_config.exchange_pairs {
-                let hash_map = hash_map
-                    .entry(exchange_pair.pair.clone())
-                    .or_insert(HashMap::new());
+                let market_values = ["pair_price", "pair_volume"];
+                let mut hash_map = HashMap::new();
+                for market_name in &market_config.markets {
+                    let hash_map = hash_map
+                        .entry(market_name.clone())
+                        .or_insert(HashMap::new());
 
-                for market_value in market_values {
-                    let entity_name = format!("market__{}__{}", market_name, market_value);
+                    for exchange_pair in &market_config.exchange_pairs {
+                        let hash_map = hash_map
+                            .entry(exchange_pair.pair.clone())
+                            .or_insert(HashMap::new());
 
-                    let repository: RepositoryForF64ByTimestampAndPairTuple = Box::new(
-                        F64ByTimestampAndPairTupleSled::new(entity_name, Arc::clone(&tree)),
-                    );
+                        for market_value in market_values {
+                            let entity_name = format!("market__{}__{}", market_name, market_value);
 
-                    hash_map.insert(market_value.to_string(), repository);
+                            let repository: RepositoryForF64ByTimestampAndPairTuple = Box::new(
+                                F64ByTimestampAndPairTupleSled::new(entity_name, Arc::clone(&tree)),
+                            );
+
+                            hash_map.insert(market_value.to_string(), repository);
+                        }
+                    }
                 }
+
+                (pair_average_price, hash_map)
             }
-        }
+            other_storage => panic!("Got wrong storage name: {}", other_storage),
+        };
 
         Self {
             pair_average_price,
-            market_repositories: hash_map,
+            market_repositories,
         }
     }
 }

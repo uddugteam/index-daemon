@@ -346,6 +346,7 @@ impl Worker {
             ws,
             ws_addr,
             ws_answer_timeout_ms,
+            storage: _,
         } = service;
 
         let markets = markets.iter().map(|v| v.as_ref()).collect();
