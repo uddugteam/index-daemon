@@ -15,13 +15,13 @@ All configs are optional.
 
 #### service_config
 
-- **log_level** - string. Variants: off, error, warn, info, debug, trace.
+- **log_level** - string. Variants: off, error, warn, info, debug, trace. Default: trace.
 - **rest_timeout_sec** - u64. Timeout in seconds between requests to REST API.
 - **ws** - string ("1" - on, default - off). Turn on websocket server.
 - **ws_host** - string (default: 127.0.0.1). Websocket server host.
 - **ws_port** - string (default: 8080). Websocket server port.
 - **ws_answer_timeout_ms** - u64 (min - 100, default - 100). Timeout in ms between websocket answers.
-- **storage** - string. Variants: sled.
+- **storage** - string. Variants: sled. Default: sled.
 
 #### market_config
 
