@@ -455,7 +455,6 @@ mod test {
     use crate::worker::market_helpers::market_channels::MarketChannels;
     use crate::worker::market_helpers::market_spine::test::make_spine;
     use crate::worker::worker::test::check_threads;
-    use crate::worker::worker::Worker;
     use ntest::timeout;
     use std::sync::mpsc::Receiver;
     use std::sync::{Arc, Mutex};
@@ -465,11 +464,9 @@ mod test {
         market_name: Option<&str>,
     ) -> (Arc<Mutex<dyn Market + Send>>, Receiver<JoinHandle<()>>) {
         let config = MarketConfig::default();
-        let coins = config.coins.iter().map(|v| v.as_ref()).collect();
-        let exchange_pairs = Worker::make_exchange_pairs(coins, None);
 
         let (market_spine, rx) = make_spine(market_name);
-        let market = market_factory(market_spine, exchange_pairs);
+        let market = market_factory(market_spine, config.exchange_pairs, None);
 
         (market, rx)
     }
@@ -490,7 +487,10 @@ mod test {
             .unwrap()
             .make_pair(get_pair_ref(&exchange_pair.pair));
 
-        market.lock().unwrap().add_exchange_pair(exchange_pair);
+        market
+            .lock()
+            .unwrap()
+            .add_exchange_pair(exchange_pair, None);
 
         assert!(market
             .lock()
@@ -535,8 +535,6 @@ mod test {
         assert!(market.lock().unwrap().get_spine().arc.is_some());
 
         let config = MarketConfig::default();
-        let coins = config.coins.iter().map(|v| v.as_ref()).collect();
-        let exchange_pairs = Worker::make_exchange_pairs(coins, None);
         let exchange_pair_keys: Vec<String> = market
             .lock()
             .unwrap()
@@ -545,9 +543,9 @@ mod test {
             .keys()
             .cloned()
             .collect();
-        assert_eq!(exchange_pair_keys.len(), exchange_pairs.len());
+        assert_eq!(exchange_pair_keys.len(), config.exchange_pairs.len());
 
-        for pair in &exchange_pairs {
+        for pair in &config.exchange_pairs {
             let pair_string = market.lock().unwrap().make_pair(get_pair_ref(&pair.pair));
             assert!(exchange_pair_keys.contains(&pair_string));
         }

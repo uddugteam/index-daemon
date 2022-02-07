@@ -348,7 +348,7 @@ pub mod test {
             conversion: conversion_type,
         };
 
-        spine.add_exchange_pair(pair_string.clone(), exchange_pair);
+        spine.add_exchange_pair(pair_string.clone(), exchange_pair, None);
 
         assert!(spine.get_exchange_pairs().get(&pair_string).is_some());
 

@@ -394,9 +394,9 @@ impl Worker {
 #[cfg(test)]
 pub mod test {
     use crate::config_scheme::config_scheme::ConfigScheme;
+    use crate::config_scheme::helper_functions::make_exchange_pairs;
     use crate::config_scheme::market_config::MarketConfig;
     use crate::config_scheme::service_config::ServiceConfig;
-    use crate::worker::market_helpers::conversion_type::ConversionType;
     use crate::worker::market_helpers::exchange_pair::ExchangePair;
     use crate::worker::market_helpers::market_channels::MarketChannels;
     use crate::worker::network_helpers::ws_server::ws_channels::test::check_subscriptions;
@@ -404,7 +404,6 @@ pub mod test {
     use chrono::{Duration, Utc};
     use ntest::timeout;
     use serial_test::serial;
-    use std::collections::HashMap;
     use std::sync::mpsc::{Receiver, Sender};
     use std::sync::{mpsc, Arc, Mutex};
     use std::thread;
@@ -418,7 +417,7 @@ pub mod test {
     ) {
         let (tx, rx) = mpsc::channel();
         let graceful_shutdown = Arc::new(Mutex::new(false));
-        let worker = Worker::new(tx.clone(), graceful_shutdown);
+        let worker = Worker::new(tx.clone(), graceful_shutdown, None);
 
         (worker, tx, rx)
     }
@@ -445,12 +444,16 @@ pub mod test {
         assert!(worker.lock().unwrap().arc.is_some());
     }
 
-    fn test_configure(markets: Vec<&str>, coins: Vec<&str>, channels: Vec<MarketChannels>) {
+    fn test_configure(
+        markets: Vec<&str>,
+        exchange_pairs: Vec<ExchangePair>,
+        channels: Vec<MarketChannels>,
+    ) {
         let (worker, _, _) = make_worker();
         worker
             .lock()
             .unwrap()
-            .configure(markets.clone(), coins.clone(), channels, 1);
+            .configure(markets.clone(), exchange_pairs, channels, 1, None);
 
         assert_eq!(markets.len(), worker.lock().unwrap().markets.len());
 
@@ -465,18 +468,18 @@ pub mod test {
     fn test_configure_with_default_params() {
         let config = MarketConfig::default();
         let markets = config.markets.iter().map(|v| v.as_ref()).collect();
-        let coins = config.coins.iter().map(|v| v.as_ref()).collect();
 
-        test_configure(markets, coins, config.channels);
+        test_configure(markets, config.exchange_pairs, config.channels);
     }
 
     #[test]
     fn test_configure_with_custom_params() {
         let markets = vec!["binance", "bitfinex"];
-        let coins = vec!["ABC", "DEF", "GHI"];
+        let coins = vec!["ABC".to_string(), "DEF".to_string(), "GHI".to_string()];
+        let exchange_pairs = make_exchange_pairs(coins, Some(vec!["JKL"]));
         let channels = vec![MarketChannels::Ticker];
 
-        test_configure(markets, coins, channels);
+        test_configure(markets, exchange_pairs, channels);
     }
 
     #[test]
@@ -484,9 +487,8 @@ pub mod test {
     fn test_configure_panic() {
         let config = MarketConfig::default();
         let markets = vec!["not_existing_market"];
-        let coins = config.coins.iter().map(|v| v.as_ref()).collect();
 
-        test_configure(markets, coins, config.channels);
+        test_configure(markets, config.exchange_pairs, config.channels);
     }
 
     #[test]
@@ -540,67 +542,8 @@ pub mod test {
         inner_test_refresh_capitalization(worker);
     }
 
-    fn inner_test_make_exchange_pairs(
-        coins: Vec<&str>,
-        fiats: Option<Vec<&str>>,
-        expected_exchange_pairs: Vec<ExchangePair>,
-    ) {
-        let real_exchange_pairs = Worker::make_exchange_pairs(coins, fiats);
-
-        assert_eq!(expected_exchange_pairs.len(), real_exchange_pairs.len());
-        for (i, expected_exchange_pair) in expected_exchange_pairs.into_iter().enumerate() {
-            assert_eq!(expected_exchange_pair, real_exchange_pairs[i]);
-        }
-    }
-
-    #[test]
-    fn test_make_exchange_pairs_with_default_params() {
-        let expected_exchange_pairs = vec![
-            ExchangePair {
-                pair: ("BTC".to_string(), "USD".to_string()),
-                conversion: ConversionType::None,
-            },
-            ExchangePair {
-                pair: ("ETH".to_string(), "USD".to_string()),
-                conversion: ConversionType::None,
-            },
-        ];
-
-        let config = MarketConfig::default();
-        let coins = config.coins.iter().map(|v| v.as_ref()).collect();
-
-        inner_test_make_exchange_pairs(coins, None, expected_exchange_pairs);
-    }
-
-    #[test]
-    fn test_make_exchange_pairs_with_custom_params() {
-        let expected_exchange_pairs = vec![
-            ExchangePair {
-                pair: ("ABC".to_string(), "GHI".to_string()),
-                conversion: ConversionType::None,
-            },
-            ExchangePair {
-                pair: ("ABC".to_string(), "JKL".to_string()),
-                conversion: ConversionType::None,
-            },
-            ExchangePair {
-                pair: ("DEF".to_string(), "GHI".to_string()),
-                conversion: ConversionType::None,
-            },
-            ExchangePair {
-                pair: ("DEF".to_string(), "JKL".to_string()),
-                conversion: ConversionType::None,
-            },
-        ];
-
-        let coins = vec!["ABC", "DEF"];
-        let fiats = Some(vec!["GHI", "JKL"]);
-
-        inner_test_make_exchange_pairs(coins, fiats, expected_exchange_pairs);
-    }
-
     /// TODO: Add tests for WsServer
-    fn inner_test_start(markets: Vec<String>, coins: Vec<String>, channels: Vec<MarketChannels>) {
+    fn inner_test_start(config: ConfigScheme) {
         // To prevent DDoS attack on exchanges
         thread::sleep(time::Duration::from_millis(3000));
 
@@ -608,22 +551,12 @@ pub mod test {
 
         let mut thread_names = Vec::new();
         thread_names.push("fn: refresh_capitalization".to_string());
-        for market in &markets {
+        for market in &config.market.markets {
             let thread_name = format!("fn: perform, market: {}", market);
             thread_names.push(thread_name);
         }
 
-        let market = MarketConfig {
-            markets,
-            coins,
-            channels,
-        };
-        let config = ConfigScheme {
-            market,
-            service: ServiceConfig::default(),
-        };
-
-        worker.lock().unwrap().start(config);
+        worker.lock().unwrap().start(config, None);
         check_threads(thread_names, rx);
     }
 
@@ -632,9 +565,9 @@ pub mod test {
     // #[serial]
     #[timeout(5000)]
     fn test_start_with_default_params() {
-        let config = MarketConfig::default();
+        let config = ConfigScheme::default();
 
-        inner_test_start(config.markets, config.coins, config.channels);
+        inner_test_start(config);
     }
 
     /// `serial` and `timeout` are incompatible
@@ -644,19 +577,29 @@ pub mod test {
     fn test_start_with_custom_params() {
         let markets = vec!["binance".to_string(), "bitfinex".to_string()];
         let coins = vec!["ABC".to_string(), "DEF".to_string()];
+        let exchange_pairs = make_exchange_pairs(coins, Some(vec!["GHI"]));
         let channels = vec![MarketChannels::Ticker];
 
-        inner_test_start(markets, coins, channels);
+        let config = ConfigScheme {
+            market: MarketConfig {
+                markets,
+                exchange_pairs,
+                channels,
+            },
+            service: ServiceConfig::default(),
+        };
+
+        inner_test_start(config);
     }
 
     #[test]
     #[serial]
     #[should_panic]
     fn test_start_panic() {
-        let config = MarketConfig::default();
-        let markets = vec!["not_existing_market".to_string()];
+        let mut config = ConfigScheme::default();
+        config.market.markets = vec!["not_existing_market".to_string()];
 
-        inner_test_start(markets, config.coins, config.channels);
+        inner_test_start(config);
     }
 
     pub fn check_worker_subscriptions(
@@ -669,30 +612,30 @@ pub mod test {
         );
     }
 
-    pub fn check_market_subscriptions(
-        worker: &Arc<Mutex<Worker>>,
-        subscriptions: Vec<(String, String, Vec<String>, Vec<String>)>,
-    ) {
-        let mut subscriptions_new = HashMap::new();
-        for (sub_id, method, coins, exchanges) in subscriptions {
-            for exchange in exchanges {
-                let new_sub = (sub_id.clone(), method.clone(), coins.clone());
-                subscriptions_new
-                    .entry(exchange)
-                    .or_insert(Vec::new())
-                    .push(new_sub);
-            }
-        }
-
-        for (market_name, market) in worker.lock().unwrap().markets.clone() {
-            if let Some(subscriptions) = subscriptions_new.get(&market_name) {
-                check_subscriptions(
-                    &market.lock().unwrap().get_spine().ws_channels,
-                    subscriptions,
-                );
-            } else {
-                check_subscriptions(&market.lock().unwrap().get_spine().ws_channels, &Vec::new());
-            }
-        }
-    }
+    // pub fn check_market_subscriptions(
+    //     worker: &Arc<Mutex<Worker>>,
+    //     subscriptions: Vec<(String, String, Vec<String>, Vec<String>)>,
+    // ) {
+    //     let mut subscriptions_new = HashMap::new();
+    //     for (sub_id, method, coins, exchanges) in subscriptions {
+    //         for exchange in exchanges {
+    //             let new_sub = (sub_id.clone(), method.clone(), coins.clone());
+    //             subscriptions_new
+    //                 .entry(exchange)
+    //                 .or_insert(Vec::new())
+    //                 .push(new_sub);
+    //         }
+    //     }
+    //
+    //     for (market_name, market) in worker.lock().unwrap().markets.clone() {
+    //         if let Some(subscriptions) = subscriptions_new.get(&market_name) {
+    //             check_subscriptions(
+    //                 &market.lock().unwrap().get_spine().ws_channels,
+    //                 subscriptions,
+    //             );
+    //         } else {
+    //             check_subscriptions(&market.lock().unwrap().get_spine().ws_channels, &Vec::new());
+    //         }
+    //     }
+    // }
 }

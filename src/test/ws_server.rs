@@ -3,10 +3,9 @@ mod ws_client_for_testing;
 use crate::config_scheme::config_scheme::ConfigScheme;
 use crate::test::ws_server::ws_client_for_testing::WsClientForTesting;
 use crate::worker::market_helpers::market_channels::MarketChannels;
-use crate::worker::worker::test::{check_market_subscriptions, check_worker_subscriptions};
+use crate::worker::worker::test::check_worker_subscriptions;
 use crate::worker::worker::Worker;
 use serde_json::json;
-use serial_test::serial;
 use std::collections::HashMap;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{mpsc, Arc, Mutex};
@@ -34,8 +33,8 @@ fn start_application(
     config.market.channels = vec![MarketChannels::Trades];
 
     let (tx, rx) = mpsc::channel();
-    let worker = Worker::new(tx, graceful_shutdown);
-    worker.lock().unwrap().start(config);
+    let worker = Worker::new(tx, graceful_shutdown, None);
+    worker.lock().unwrap().start(config, None);
 
     // Give Websocket server time to start
     thread::sleep(time::Duration::from_millis(1000));
@@ -236,101 +235,101 @@ fn test_worker_unsub_ws_channel() {
 
 // #[test]
 // #[serial]
-/// TODO: Fix (not always working on github)
-fn test_market_add_ws_channels() {
-    let ws_addr = "127.0.0.1:8004";
-    let (_rx, worker, (incoming_msg_tx, _incoming_msg_rx)) = start_application(ws_addr);
-
-    let mut requests = Vec::new();
-    let mut subscriptions = Vec::new();
-
-    let sub_id = Uuid::new_v4().to_string();
-    let method = "coin_exchange_price".to_string();
-    let coins = ["BTC".to_string(), "ETH".to_string()].to_vec();
-    let exchanges = ["binance".to_string(), "coinbase".to_string()].to_vec();
-    let request = make_request(&sub_id, &method, &coins, Some(&exchanges));
-    requests.push(request);
-    subscriptions.push((sub_id, method, coins, exchanges));
-
-    let sub_id = Uuid::new_v4().to_string();
-    let method = "coin_exchange_volume".to_string();
-    let coins = ["BTC".to_string()].to_vec();
-    let exchanges = ["binance".to_string()].to_vec();
-    let request = make_request(&sub_id, &method, &coins, Some(&exchanges));
-    requests.push(request);
-    subscriptions.push((sub_id, method, coins, exchanges));
-
-    ws_connect_and_subscribe(ws_addr, requests, incoming_msg_tx);
-    check_market_subscriptions(&worker, subscriptions);
-}
-
-// #[test]
-// #[serial]
-/// TODO: Fix (not always working on github)
-fn test_market_resub_ws_channels() {
-    let ws_addr = "127.0.0.1:8005";
-    let (_rx, worker, (incoming_msg_tx, _incoming_msg_rx)) = start_application(ws_addr);
-
-    let mut requests = Vec::new();
-    let mut subscriptions = Vec::new();
-
-    let sub_id = Uuid::new_v4().to_string();
-    let method = "coin_exchange_price".to_string();
-    let coins = ["BTC".to_string()].to_vec();
-    let exchanges = ["binance".to_string()].to_vec();
-    let request = make_request(&sub_id, &method, &coins, Some(&exchanges));
-    requests.push(request);
-    subscriptions.push((sub_id, method, coins, exchanges));
-
-    let sub_id = Uuid::new_v4().to_string();
-    let method = "coin_exchange_volume".to_string();
-    let coins = ["BTC".to_string(), "ETH".to_string()].to_vec();
-    let exchanges = ["binance".to_string(), "coinbase".to_string()].to_vec();
-    let request = make_request(&sub_id, &method, &coins, Some(&exchanges));
-    requests.push(request);
-
-    let sub_id = Uuid::new_v4().to_string();
-    let coins = ["BTC".to_string()].to_vec();
-    let exchanges = ["binance".to_string()].to_vec();
-    let request = make_request(&sub_id, &method, &coins, Some(&exchanges));
-    requests.push(request);
-    subscriptions.push((sub_id, method, coins, exchanges));
-
-    ws_connect_and_subscribe(ws_addr, requests, incoming_msg_tx);
-    check_market_subscriptions(&worker, subscriptions);
-}
+// /// TODO: Fix (not always working on github)
+// fn test_market_add_ws_channels() {
+//     let ws_addr = "127.0.0.1:8004";
+//     let (_rx, worker, (incoming_msg_tx, _incoming_msg_rx)) = start_application(ws_addr);
+//
+//     let mut requests = Vec::new();
+//     let mut subscriptions = Vec::new();
+//
+//     let sub_id = Uuid::new_v4().to_string();
+//     let method = "coin_exchange_price".to_string();
+//     let coins = ["BTC".to_string(), "ETH".to_string()].to_vec();
+//     let exchanges = ["binance".to_string(), "coinbase".to_string()].to_vec();
+//     let request = make_request(&sub_id, &method, &coins, Some(&exchanges));
+//     requests.push(request);
+//     subscriptions.push((sub_id, method, coins, exchanges));
+//
+//     let sub_id = Uuid::new_v4().to_string();
+//     let method = "coin_exchange_volume".to_string();
+//     let coins = ["BTC".to_string()].to_vec();
+//     let exchanges = ["binance".to_string()].to_vec();
+//     let request = make_request(&sub_id, &method, &coins, Some(&exchanges));
+//     requests.push(request);
+//     subscriptions.push((sub_id, method, coins, exchanges));
+//
+//     ws_connect_and_subscribe(ws_addr, requests, incoming_msg_tx);
+//     check_market_subscriptions(&worker, subscriptions);
+// }
 
 // #[test]
 // #[serial]
-/// TODO: Fix (not always working on github)
-fn test_market_unsub_ws_channels() {
-    let ws_addr = "127.0.0.1:8006";
-    let (_rx, worker, (incoming_msg_tx, _incoming_msg_rx)) = start_application(ws_addr);
+// /// TODO: Fix (not always working on github)
+// fn test_market_resub_ws_channels() {
+//     let ws_addr = "127.0.0.1:8005";
+//     let (_rx, worker, (incoming_msg_tx, _incoming_msg_rx)) = start_application(ws_addr);
+//
+//     let mut requests = Vec::new();
+//     let mut subscriptions = Vec::new();
+//
+//     let sub_id = Uuid::new_v4().to_string();
+//     let method = "coin_exchange_price".to_string();
+//     let coins = ["BTC".to_string()].to_vec();
+//     let exchanges = ["binance".to_string()].to_vec();
+//     let request = make_request(&sub_id, &method, &coins, Some(&exchanges));
+//     requests.push(request);
+//     subscriptions.push((sub_id, method, coins, exchanges));
+//
+//     let sub_id = Uuid::new_v4().to_string();
+//     let method = "coin_exchange_volume".to_string();
+//     let coins = ["BTC".to_string(), "ETH".to_string()].to_vec();
+//     let exchanges = ["binance".to_string(), "coinbase".to_string()].to_vec();
+//     let request = make_request(&sub_id, &method, &coins, Some(&exchanges));
+//     requests.push(request);
+//
+//     let sub_id = Uuid::new_v4().to_string();
+//     let coins = ["BTC".to_string()].to_vec();
+//     let exchanges = ["binance".to_string()].to_vec();
+//     let request = make_request(&sub_id, &method, &coins, Some(&exchanges));
+//     requests.push(request);
+//     subscriptions.push((sub_id, method, coins, exchanges));
+//
+//     ws_connect_and_subscribe(ws_addr, requests, incoming_msg_tx);
+//     check_market_subscriptions(&worker, subscriptions);
+// }
 
-    let mut requests = Vec::new();
-    let mut subscriptions = Vec::new();
-
-    let sub_id = Uuid::new_v4().to_string();
-    let method = "coin_exchange_price".to_string();
-    let coins = ["BTC".to_string()].to_vec();
-    let exchanges = ["binance".to_string()].to_vec();
-    let request = make_request(&sub_id, &method, &coins, Some(&exchanges));
-    requests.push(request);
-    subscriptions.push((sub_id, method, coins, exchanges));
-
-    let sub_id = Uuid::new_v4().to_string();
-    let method = "coin_exchange_volume".to_string();
-    let coins = ["BTC".to_string(), "ETH".to_string()].to_vec();
-    let exchanges = ["binance".to_string(), "coinbase".to_string()].to_vec();
-    let request = make_request(&sub_id, &method, &coins, Some(&exchanges));
-    requests.push(request);
-
-    let request = make_unsub_request(&method);
-    requests.push(request);
-
-    ws_connect_and_subscribe(ws_addr, requests, incoming_msg_tx);
-    check_market_subscriptions(&worker, subscriptions);
-}
+// #[test]
+// #[serial]
+// /// TODO: Fix (not always working on github)
+// fn test_market_unsub_ws_channels() {
+//     let ws_addr = "127.0.0.1:8006";
+//     let (_rx, worker, (incoming_msg_tx, _incoming_msg_rx)) = start_application(ws_addr);
+//
+//     let mut requests = Vec::new();
+//     let mut subscriptions = Vec::new();
+//
+//     let sub_id = Uuid::new_v4().to_string();
+//     let method = "coin_exchange_price".to_string();
+//     let coins = ["BTC".to_string()].to_vec();
+//     let exchanges = ["binance".to_string()].to_vec();
+//     let request = make_request(&sub_id, &method, &coins, Some(&exchanges));
+//     requests.push(request);
+//     subscriptions.push((sub_id, method, coins, exchanges));
+//
+//     let sub_id = Uuid::new_v4().to_string();
+//     let method = "coin_exchange_volume".to_string();
+//     let coins = ["BTC".to_string(), "ETH".to_string()].to_vec();
+//     let exchanges = ["binance".to_string(), "coinbase".to_string()].to_vec();
+//     let request = make_request(&sub_id, &method, &coins, Some(&exchanges));
+//     requests.push(request);
+//
+//     let request = make_unsub_request(&method);
+//     requests.push(request);
+//
+//     ws_connect_and_subscribe(ws_addr, requests, incoming_msg_tx);
+//     check_market_subscriptions(&worker, subscriptions);
+// }
 
 // #[test]
 // #[serial]
