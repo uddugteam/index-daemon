@@ -287,7 +287,7 @@ impl Worker {
         rest_timeout_sec: u64,
         repositories: Option<RepositoriesByMarketName>,
     ) {
-        let mut repositories = repositories.unwrap_or(HashMap::new());
+        let mut repositories = repositories.unwrap_or_default();
 
         for market_name in markets {
             let worker_2 = Arc::clone(self.arc.as_ref().unwrap());

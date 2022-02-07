@@ -18,7 +18,7 @@ use crate::worker::markets::okcoin::Okcoin;
 use crate::worker::markets::poloniex::Poloniex;
 use crate::worker::network_helpers::ws_client::WsClient;
 use chrono::Utc;
-use std::collections::HashMap;
+
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -29,7 +29,7 @@ pub fn market_factory(
     exchange_pairs: Vec<ExchangePair>,
     repositories: Option<RepositoriesByPairTuple>,
 ) -> Arc<Mutex<dyn Market + Send>> {
-    let mut repositories = repositories.unwrap_or(HashMap::new());
+    let mut repositories = repositories.unwrap_or_default();
 
     let mask_pairs = match spine.name.as_ref() {
         "binance" => vec![("IOT", "IOTA"), ("USD", "USDT")],
