@@ -1,11 +1,14 @@
+use crate::repository::hepler_functions::get_all_keys_sled;
 use crate::repository::repository::Repository;
+use crate::worker::helper_functions::date_time_from_timestamp;
 use chrono::{DateTime, Utc, MIN_DATETIME};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::str;
 use std::sync::{Arc, Mutex};
 
 pub type TimestampAndPairTuple = (DateTime<Utc>, (String, String));
 
+#[derive(Clone)]
 pub struct F64ByTimestampAndPairTupleSled {
     entity_name: String,
     repository: Arc<Mutex<vsdbsled::Db>>,
@@ -27,7 +30,7 @@ impl F64ByTimestampAndPairTupleSled {
         }
     }
 
-    fn make_key(&self, primary: TimestampAndPairTuple) -> String {
+    fn stringify_primary(&self, primary: TimestampAndPairTuple) -> String {
         let timestamp = primary.0;
         let pair = primary.1;
         let pair = format!("{}_{}", pair.0, pair.1);
@@ -40,18 +43,8 @@ impl F64ByTimestampAndPairTupleSled {
         )
     }
 
-    fn get_keys(&self) -> HashSet<String> {
-        self.repository
-            .lock()
-            .unwrap()
-            .get("keys")
-            .map(|v| v.map(|v| str::from_utf8(&v.to_vec()).unwrap().to_string()))
-            .unwrap()
-            .unwrap()
-            .split(',')
-            .filter(|v| !v.is_empty())
-            .map(|v| v.to_string())
-            .collect()
+    fn get_all_keys(&self) -> HashSet<String> {
+        get_all_keys_sled(&self.repository)
     }
 
     fn set_keys(&mut self, keys: HashSet<String>) {
@@ -63,7 +56,7 @@ impl F64ByTimestampAndPairTupleSled {
     }
 
     fn add_key(&mut self, key: String) {
-        let mut keys = self.get_keys();
+        let mut keys = self.get_all_keys();
 
         keys.insert(key);
 
@@ -71,17 +64,35 @@ impl F64ByTimestampAndPairTupleSled {
     }
 
     fn remove_key(&mut self, key: &str) {
-        let mut keys = self.get_keys();
+        let mut keys = self.get_all_keys();
 
         keys.remove(key);
 
         self.set_keys(keys);
     }
+
+    fn parse_pair_tuple(pair_tuple_text_view: &str) -> (String, String) {
+        let parts: Vec<&str> = pair_tuple_text_view.split('_').collect();
+
+        (parts[0].to_string(), parts[1].to_string())
+    }
+
+    fn parse_primary_from_ivec(key: vsdbsled::IVec) -> TimestampAndPairTuple {
+        let key = str::from_utf8(&key.to_vec()).unwrap().to_string();
+
+        let parts: Vec<&str> = key.rsplit("__").collect();
+        let date_time = date_time_from_timestamp(parts[0].parse().unwrap());
+        let pair_tuple = Self::parse_pair_tuple(parts[1]);
+
+        (date_time, pair_tuple)
+    }
 }
 
 impl Repository<TimestampAndPairTuple, f64> for F64ByTimestampAndPairTupleSled {
+    // fn get_my_keys(&self) -> HashSet<TimestampAndPairTuple> {}
+
     fn read(&self, primary: TimestampAndPairTuple) -> Result<Option<f64>, String> {
-        let key = self.make_key(primary);
+        let key = self.stringify_primary(primary);
 
         self.repository
             .lock()
@@ -89,6 +100,51 @@ impl Repository<TimestampAndPairTuple, f64> for F64ByTimestampAndPairTupleSled {
             .get(key)
             .map(|v| v.map(|v| f64::from_ne_bytes(v[0..8].try_into().unwrap())))
             .map_err(|e| e.to_string())
+    }
+
+    fn read_range(
+        &self,
+        primary_from: TimestampAndPairTuple,
+        primary_to: TimestampAndPairTuple,
+    ) -> Result<HashMap<TimestampAndPairTuple, f64>, String> {
+        let key_from = self.stringify_primary(primary_from);
+        let key_to = self.stringify_primary(primary_to);
+
+        let mut oks = HashMap::new();
+        let mut errors = Vec::new();
+
+        self.repository
+            .lock()
+            .unwrap()
+            .range(key_from..key_to)
+            .for_each(|v| match v {
+                Ok((k, v)) => {
+                    oks.insert(k, v);
+                }
+                Err(e) => errors.push(e.to_string()),
+            });
+
+        if !errors.is_empty() {
+            let mut error_string = String::new();
+
+            for error in errors {
+                error_string += &(error + ". ");
+            }
+
+            Err(error_string)
+        } else {
+            let res = oks
+                .into_iter()
+                .map(|(k, v)| {
+                    (
+                        Self::parse_primary_from_ivec(k),
+                        f64::from_ne_bytes(v[0..8].try_into().unwrap()),
+                    )
+                })
+                .collect();
+
+            Ok(res)
+        }
     }
 
     fn insert(
@@ -102,7 +158,7 @@ impl Repository<TimestampAndPairTuple, f64> for F64ByTimestampAndPairTupleSled {
             // Enough time passed
             self.last_insert_timestamp = timestamp;
 
-            let key = self.make_key(primary);
+            let key = self.stringify_primary(primary);
 
             self.add_key(key.clone());
 
@@ -123,7 +179,7 @@ impl Repository<TimestampAndPairTuple, f64> for F64ByTimestampAndPairTupleSled {
     }
 
     fn delete(&mut self, primary: TimestampAndPairTuple) {
-        let key = self.make_key(primary);
+        let key = self.stringify_primary(primary);
 
         self.remove_key(&key);
         let _ = self.repository.lock().unwrap().remove(key);

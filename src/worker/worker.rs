@@ -314,6 +314,7 @@ impl Worker {
         ws: bool,
         ws_addr: String,
         ws_answer_timeout_ms: u64,
+        pair_average_price_historical: Option<RepositoryForF64ByTimestampAndPairTuple>,
         graceful_shutdown: Arc<Mutex<bool>>,
     ) {
         if ws {
@@ -327,6 +328,7 @@ impl Worker {
                         worker,
                         ws_addr,
                         ws_answer_timeout_ms,
+                        pair_average_price_historical,
                         graceful_shutdown,
                     };
                     ws_server.start();
@@ -336,7 +338,12 @@ impl Worker {
         }
     }
 
-    pub fn start(&mut self, config: ConfigScheme, repositories: Option<RepositoriesByMarketName>) {
+    pub fn start(
+        &mut self,
+        config: ConfigScheme,
+        market_repositories: Option<RepositoriesByMarketName>,
+        pair_average_price_historical: Option<RepositoryForF64ByTimestampAndPairTuple>,
+    ) {
         let ConfigScheme { market, service } = config;
         let MarketConfig {
             markets,
@@ -360,12 +367,13 @@ impl Worker {
             exchange_pairs,
             channels,
             rest_timeout_sec,
-            repositories,
+            market_repositories,
         );
         self.start_ws(
             ws,
             ws_addr,
             ws_answer_timeout_ms,
+            pair_average_price_historical,
             self.graceful_shutdown.clone(),
         );
 

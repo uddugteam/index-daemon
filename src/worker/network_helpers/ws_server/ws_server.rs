@@ -1,8 +1,11 @@
-use crate::worker::helper_functions::add_jsonrpc_version_and_method;
+use crate::repository::repositories::RepositoryForF64ByTimestampAndPairTuple;
+use crate::worker::helper_functions::{add_jsonrpc_version_and_method, date_time_from_timestamp};
 use crate::worker::network_helpers::ws_server::jsonrpc_messages::{JsonRpcId, JsonRpcRequest};
-use crate::worker::network_helpers::ws_server::ws_channel_request::WsChannelRequest;
+use crate::worker::network_helpers::ws_server::ws_channel_request::{Interval, WsChannelRequest};
 use crate::worker::network_helpers::ws_server::ws_channel_response::WsChannelResponse;
-use crate::worker::network_helpers::ws_server::ws_channel_response_payload::WsChannelResponsePayload;
+use crate::worker::network_helpers::ws_server::ws_channel_response_payload::{
+    CoinAveragePriceHistoricalSnapshot, WsChannelResponsePayload,
+};
 use crate::worker::network_helpers::ws_server::ws_channel_response_sender::WsChannelResponseSender;
 use crate::worker::worker::Worker;
 use async_std::{
@@ -10,6 +13,7 @@ use async_std::{
     task,
 };
 use async_tungstenite::tungstenite::protocol::Message;
+use chrono::{DateTime, Utc, MAX_DATETIME};
 use futures::{
     channel::mpsc::{unbounded, UnboundedSender},
     future, pin_mut,
@@ -28,6 +32,7 @@ pub struct WsServer {
     pub worker: Arc<Mutex<Worker>>,
     pub ws_addr: String,
     pub ws_answer_timeout_ms: u64,
+    pub pair_average_price_historical: Option<RepositoryForF64ByTimestampAndPairTuple>,
     pub graceful_shutdown: Arc<Mutex<bool>>,
 }
 
@@ -42,6 +47,35 @@ impl WsServer {
 
     fn parse_ws_channel_request(request: JsonRpcRequest) -> Result<WsChannelRequest, String> {
         request.try_into()
+    }
+
+    fn thin_by_interval(
+        mut values: Vec<(DateTime<Utc>, f64)>,
+        interval: Interval,
+    ) -> Vec<(DateTime<Utc>, f64)> {
+        values.sort_by(|a, b| a.0.cmp(&b.0));
+
+        let interval = interval.into_millis();
+
+        let mut res = Vec::new();
+
+        if let Some(mut last_el) = values.get(0).cloned() {
+            // Push dummy
+            values.push((MAX_DATETIME, 0.0));
+
+            let mut last_timestamp = values[0].0.timestamp() as u64;
+
+            for el in values {
+                if el.0.timestamp() as u64 > last_timestamp {
+                    res.push(last_el);
+                    last_timestamp += interval;
+                }
+
+                last_el = el;
+            }
+        }
+
+        res
     }
 
     fn send_error(
@@ -115,7 +149,9 @@ impl WsServer {
 
     /// What function does:
     /// -- check whether request is `Ok`
-    /// -- if request is `Ok` - call `Self::add_new_channel`
+    /// -- if request is `Ok` then:
+    /// -- -- if request is `request`, prepare response data and send to recipient
+    /// -- -- if request is `channel`, call `Self::add_new_channel`
     /// -- else - send error response (call `Self::send_error`)
     fn do_response(
         worker: Arc<Mutex<Worker>>,
@@ -126,22 +162,74 @@ impl WsServer {
         method: String,
         request: Result<WsChannelRequest, String>,
         ws_answer_timeout_ms: u64,
+        pair_average_price_historical: Option<RepositoryForF64ByTimestampAndPairTuple>,
     ) {
         match request {
-            Ok(channel) => {
-                info!(
-                    "Client with addr: {} subscribed to: {:?}",
-                    client_addr, channel
-                );
+            Ok(channel) => match channel.clone() {
+                WsChannelRequest::CoinAveragePriceHistorical {
+                    id,
+                    coin,
+                    interval,
+                    from,
+                    to,
+                } => {
+                    // It's not a channel. It's just a request
 
-                Self::add_new_channel(
-                    worker,
-                    broadcast_recipient,
-                    conn_id,
-                    channel,
-                    ws_answer_timeout_ms,
-                );
-            }
+                    let pair_tuple = (coin.to_string(), "USD".to_string());
+                    let from = date_time_from_timestamp(from as i64);
+                    let to = date_time_from_timestamp(to as i64);
+
+                    info!("Client with addr: {} requested: {:?}", client_addr, channel);
+
+                    // There we should take data from DB and send to recipient
+                    if let Some(res) = pair_average_price_historical {
+                        let res = res.read_range((from, pair_tuple.clone()), (to, pair_tuple));
+
+                        match res {
+                            Ok(res) => {
+                                let res = res.into_iter().map(|(k, v)| (k.0, v)).collect();
+                                let res = Self::thin_by_interval(res, interval);
+                                let res =
+                                    res.into_iter()
+                                        .map(|(timestamp, value)| {
+                                            CoinAveragePriceHistoricalSnapshot { value, timestamp }
+                                        })
+                                        .collect();
+
+                                let response = WsChannelResponse {
+                                    id,
+                                    result: WsChannelResponsePayload::CoinAveragePriceHistorical {
+                                        coin,
+                                        values: res,
+                                    },
+                                };
+                                let mut response = serde_json::to_string(&response).unwrap();
+                                add_jsonrpc_version_and_method(&mut response, None);
+
+                                let response = Message::from(response);
+                                let _ = broadcast_recipient.unbounded_send(response);
+                            }
+                            Err(e) => error!("Read range error: {}", e),
+                        }
+                    }
+                }
+                _ => {
+                    // It's a channel
+
+                    info!(
+                        "Client with addr: {} subscribed to: {:?}",
+                        client_addr, channel
+                    );
+
+                    Self::add_new_channel(
+                        worker,
+                        broadcast_recipient,
+                        conn_id,
+                        channel,
+                        ws_answer_timeout_ms,
+                    );
+                }
+            },
             Err(e) => {
                 Self::send_error(
                     &broadcast_recipient,
@@ -162,6 +250,7 @@ impl WsServer {
         client_addr: SocketAddr,
         conn_id: &str,
         ws_answer_timeout_ms: u64,
+        pair_average_price_historical: &mut Option<RepositoryForF64ByTimestampAndPairTuple>,
         _graceful_shutdown: &Arc<Mutex<bool>>,
     ) {
         let request_string = request.clone();
@@ -178,6 +267,7 @@ impl WsServer {
                 if let Some(broadcast_recipient) = peers.get(&client_addr).cloned() {
                     let conn_id_2 = conn_id.to_string();
                     let worker_2 = Arc::clone(worker);
+                    let pair_average_price_historical_2 = pair_average_price_historical.clone();
 
                     let thread_name = format!(
                         "fn: process_request, addr: {}, request: {:?}",
@@ -195,6 +285,7 @@ impl WsServer {
                                 method,
                                 request,
                                 ws_answer_timeout_ms,
+                                pair_average_price_historical_2,
                             )
                         })
                         .unwrap();
@@ -220,6 +311,7 @@ impl WsServer {
         client_addr: SocketAddr,
         conn_id: String,
         ws_answer_timeout_ms: u64,
+        mut pair_average_price_historical: Option<RepositoryForF64ByTimestampAndPairTuple>,
         graceful_shutdown: Arc<Mutex<bool>>,
     ) {
         match async_tungstenite::accept_async(raw_stream).await {
@@ -244,6 +336,7 @@ impl WsServer {
                         client_addr,
                         &conn_id,
                         ws_answer_timeout_ms,
+                        &mut pair_average_price_historical,
                         &graceful_shutdown,
                     );
                     future::ok(())
@@ -290,6 +383,7 @@ impl WsServer {
                 client_addr,
                 conn_id,
                 self.ws_answer_timeout_ms,
+                self.pair_average_price_historical.clone(),
                 Arc::clone(&self.graceful_shutdown),
             ));
         }

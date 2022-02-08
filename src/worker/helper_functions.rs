@@ -1,3 +1,5 @@
+use chrono::{DateTime, NaiveDateTime, Utc};
+
 pub fn get_pair_ref(pair: &(String, String)) -> (&str, &str) {
     (pair.0.as_str(), pair.1.as_str())
 }
@@ -29,4 +31,10 @@ pub fn add_jsonrpc_version_and_method(response: &mut String, method: Option<Stri
     }
 
     *response = value.to_string();
+}
+
+pub fn date_time_from_timestamp(timestamp: i64) -> DateTime<Utc> {
+    let naive = NaiveDateTime::from_timestamp(timestamp, 0);
+
+    DateTime::from_utc(naive, Utc)
 }
