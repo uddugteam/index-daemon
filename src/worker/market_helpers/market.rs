@@ -17,7 +17,6 @@ use crate::worker::markets::kucoin::Kucoin;
 use crate::worker::markets::okcoin::Okcoin;
 use crate::worker::markets::poloniex::Poloniex;
 use crate::worker::network_helpers::ws_client::WsClient;
-use chrono::Utc;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -434,13 +433,6 @@ pub trait Market {
             ask_sum,
             bid_sum
         );
-
-        let timestamp = Utc::now();
-        self.get_spine_mut()
-            .get_exchange_pairs_mut()
-            .get_mut(&pair)
-            .unwrap()
-            .set_timestamp(timestamp);
     }
 }
 

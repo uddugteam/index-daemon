@@ -62,8 +62,4 @@ impl ExchangePairInfo {
         self.last_trade_volume = value;
         self.timestamp = Utc::now();
     }
-
-    pub fn set_timestamp(&mut self, timestamp: DateTime<Utc>) {
-        self.timestamp = timestamp;
-    }
 }
