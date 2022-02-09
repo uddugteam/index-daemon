@@ -1,12 +1,6 @@
+use crate::worker::network_helpers::ws_server::coin_average_price_historical_snapshot::CoinAveragePriceHistoricalSnapshots;
 use crate::worker::network_helpers::ws_server::ser_date_into_timestamp;
 use chrono::{DateTime, Utc};
-
-#[derive(Serialize, Clone)]
-pub struct CoinAveragePriceHistoricalSnapshot {
-    pub value: f64,
-    #[serde(with = "ser_date_into_timestamp")]
-    pub timestamp: DateTime<Utc>,
-}
 
 #[derive(Serialize, Clone)]
 #[serde(untagged)]
@@ -42,7 +36,7 @@ pub enum WsChannelResponsePayload {
     },
     CoinAveragePriceHistorical {
         coin: String,
-        values: Vec<CoinAveragePriceHistoricalSnapshot>,
+        values: CoinAveragePriceHistoricalSnapshots,
     },
 }
 

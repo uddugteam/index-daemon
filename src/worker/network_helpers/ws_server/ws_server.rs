@@ -1,12 +1,11 @@
 use crate::repository::repositories::RepositoryForF64ByTimestampAndPairTuple;
 use crate::worker::helper_functions::date_time_from_timestamp;
+use crate::worker::network_helpers::ws_server::coin_average_price_historical_snapshot::CoinAveragePriceHistoricalSnapshots;
 use crate::worker::network_helpers::ws_server::hepler_functions::ws_send_response;
 use crate::worker::network_helpers::ws_server::jsonrpc_messages::{JsonRpcId, JsonRpcRequest};
-use crate::worker::network_helpers::ws_server::ws_channel_request::{Interval, WsChannelRequest};
+use crate::worker::network_helpers::ws_server::ws_channel_request::WsChannelRequest;
 use crate::worker::network_helpers::ws_server::ws_channel_response::WsChannelResponse;
-use crate::worker::network_helpers::ws_server::ws_channel_response_payload::{
-    CoinAveragePriceHistoricalSnapshot, WsChannelResponsePayload,
-};
+use crate::worker::network_helpers::ws_server::ws_channel_response_payload::WsChannelResponsePayload;
 use crate::worker::network_helpers::ws_server::ws_channel_response_sender::WsChannelResponseSender;
 use crate::worker::worker::Worker;
 use async_std::{
@@ -14,7 +13,6 @@ use async_std::{
     task,
 };
 use async_tungstenite::tungstenite::protocol::Message;
-use chrono::{DateTime, Utc, MAX_DATETIME};
 use futures::{
     channel::mpsc::{unbounded, UnboundedSender},
     future, pin_mut,
@@ -48,35 +46,6 @@ impl WsServer {
 
     fn parse_ws_channel_request(request: JsonRpcRequest) -> Result<WsChannelRequest, String> {
         request.try_into()
-    }
-
-    fn thin_by_interval(
-        mut values: Vec<(DateTime<Utc>, f64)>,
-        interval: Interval,
-    ) -> Vec<(DateTime<Utc>, f64)> {
-        values.sort_by(|a, b| a.0.cmp(&b.0));
-
-        let interval = interval.into_millis();
-
-        let mut res = Vec::new();
-
-        if let Some(mut last_el) = values.get(0).cloned() {
-            // Push dummy
-            values.push((MAX_DATETIME, 0.0));
-
-            let mut last_timestamp = values[0].0.timestamp() as u64;
-
-            for el in values {
-                if el.0.timestamp() as u64 > last_timestamp {
-                    res.push(last_el);
-                    last_timestamp += interval;
-                }
-
-                last_el = el;
-            }
-        }
-
-        res
     }
 
     fn send_error(
@@ -162,67 +131,60 @@ impl WsServer {
         pair_average_price_historical: Option<RepositoryForF64ByTimestampAndPairTuple>,
     ) {
         match request {
-            Ok(channel) => match channel.clone() {
-                WsChannelRequest::CoinAveragePriceHistorical {
-                    id,
-                    coin,
-                    interval,
-                    from,
-                    to,
-                } => {
-                    // It's not a channel. It's just a request
+            Ok(channel) => {
+                match channel.clone() {
+                    WsChannelRequest::CoinAveragePriceHistorical {
+                        id,
+                        coin,
+                        interval,
+                        from,
+                        to,
+                    } => {
+                        // It's not a channel. It's just a request
 
-                    let pair_tuple = (coin.to_string(), "USD".to_string());
-                    let from = date_time_from_timestamp(from as i64);
-                    let to = date_time_from_timestamp(to as i64);
+                        let pair_tuple = (coin.to_string(), "USD".to_string());
+                        let from = date_time_from_timestamp(from as i64);
+                        let to = date_time_from_timestamp(to as i64);
 
-                    info!("Client with addr: {} requested: {:?}", client_addr, channel);
+                        info!("Client with addr: {} requested: {:?}", client_addr, channel);
 
-                    // There we should take data from DB and send to recipient
-                    if let Some(res) = pair_average_price_historical {
-                        let res = res.read_range((from, pair_tuple.clone()), (to, pair_tuple));
+                        // There we should take data from DB and send to recipient
+                        if let Some(res) = pair_average_price_historical {
+                            let res = res.read_range((from, pair_tuple.clone()), (to, pair_tuple));
 
-                        match res {
-                            Ok(res) => {
-                                let res = res.into_iter().map(|(k, v)| (k.0, v)).collect();
-                                let res = Self::thin_by_interval(res, interval);
-                                let res =
-                                    res.into_iter()
-                                        .map(|(timestamp, value)| {
-                                            CoinAveragePriceHistoricalSnapshot { value, timestamp }
-                                        })
-                                        .collect();
-
-                                let response = WsChannelResponse {
-                                    id,
-                                    result: WsChannelResponsePayload::CoinAveragePriceHistorical {
-                                        coin,
-                                        values: res,
-                                    },
-                                };
-                                let _ = ws_send_response(&broadcast_recipient, response, None);
+                            match res {
+                                Ok(res) => {
+                                    let response = WsChannelResponse {
+                                        id,
+                                        result: WsChannelResponsePayload::CoinAveragePriceHistorical {
+                                            coin,
+                                            values: CoinAveragePriceHistoricalSnapshots::with_interval(res, interval),
+                                        },
+                                    };
+                                    let _ = ws_send_response(&broadcast_recipient, response, None);
+                                }
+                                Err(e) => error!("Read range error: {}", e),
                             }
-                            Err(e) => error!("Read range error: {}", e),
                         }
                     }
-                }
-                _ => {
-                    // It's a channel
+                    _ => {
+                        // It's a channel
 
-                    info!(
-                        "Client with addr: {} subscribed to: {:?}",
-                        client_addr, channel
-                    );
+                        info!(
+                            "Client with addr: {} subscribed to: {:?}",
+                            client_addr, channel
+                        );
 
-                    Self::add_new_channel(
-                        worker,
-                        broadcast_recipient,
-                        conn_id,
-                        channel,
-                        ws_answer_timeout_ms,
-                    );
+                        Self::add_new_channel(
+                            worker,
+                            broadcast_recipient,
+                            conn_id,
+                            channel,
+                            ws_answer_timeout_ms,
+                        );
+                    }
                 }
-            },
+            }
             Err(e) => {
                 Self::send_error(
                     &broadcast_recipient,

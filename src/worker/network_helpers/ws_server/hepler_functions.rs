@@ -1,5 +1,7 @@
+use crate::worker::network_helpers::ws_server::ws_channel_request::Interval;
 use crate::worker::network_helpers::ws_server::ws_channel_response::WsChannelResponse;
 use async_tungstenite::tungstenite::protocol::Message;
+use chrono::{DateTime, Utc, MAX_DATETIME};
 use futures::channel::mpsc::{TrySendError, UnboundedSender};
 
 type Tx = UnboundedSender<Message>;
@@ -31,4 +33,33 @@ pub fn ws_send_response(
     let response = Message::from(response);
 
     broadcast_recipient.unbounded_send(response)
+}
+
+pub fn thin_by_interval(
+    mut values: Vec<(DateTime<Utc>, f64)>,
+    interval: Interval,
+) -> Vec<(DateTime<Utc>, f64)> {
+    values.sort_by(|a, b| a.0.cmp(&b.0));
+
+    let interval = interval.into_millis();
+
+    let mut res = Vec::new();
+
+    if let Some(mut last_el) = values.get(0).cloned() {
+        // Push dummy
+        values.push((MAX_DATETIME, 0.0));
+
+        let mut last_timestamp = values[0].0.timestamp() as u64;
+
+        for el in values {
+            if el.0.timestamp() as u64 > last_timestamp {
+                res.push(last_el);
+                last_timestamp += interval;
+            }
+
+            last_el = el;
+        }
+    }
+
+    res
 }
