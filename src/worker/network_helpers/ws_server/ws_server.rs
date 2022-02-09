@@ -1,5 +1,6 @@
 use crate::repository::repositories::RepositoryForF64ByTimestampAndPairTuple;
-use crate::worker::helper_functions::{add_jsonrpc_version_and_method, date_time_from_timestamp};
+use crate::worker::helper_functions::date_time_from_timestamp;
+use crate::worker::network_helpers::ws_server::hepler_functions::ws_send_response;
 use crate::worker::network_helpers::ws_server::jsonrpc_messages::{JsonRpcId, JsonRpcRequest};
 use crate::worker::network_helpers::ws_server::ws_channel_request::{Interval, WsChannelRequest};
 use crate::worker::network_helpers::ws_server::ws_channel_response::WsChannelResponse;
@@ -93,11 +94,7 @@ impl WsServer {
                 message,
             },
         };
-        let mut response = serde_json::to_string(&response).unwrap();
-        add_jsonrpc_version_and_method(&mut response, None);
-
-        let response = Message::from(response);
-        let _ = broadcast_recipient.unbounded_send(response);
+        let _ = ws_send_response(broadcast_recipient, response, None);
     }
 
     /// Function adds new channel to worker or removes existing channel from worker (depends on `channel`)
@@ -203,11 +200,7 @@ impl WsServer {
                                         values: res,
                                     },
                                 };
-                                let mut response = serde_json::to_string(&response).unwrap();
-                                add_jsonrpc_version_and_method(&mut response, None);
-
-                                let response = Message::from(response);
-                                let _ = broadcast_recipient.unbounded_send(response);
+                                let _ = ws_send_response(&broadcast_recipient, response, None);
                             }
                             Err(e) => error!("Read range error: {}", e),
                         }

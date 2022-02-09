@@ -1,4 +1,4 @@
-use crate::worker::helper_functions::add_jsonrpc_version_and_method;
+use crate::worker::network_helpers::ws_server::hepler_functions::ws_send_response;
 use crate::worker::network_helpers::ws_server::ws_channel_request::WsChannelRequest;
 use crate::worker::network_helpers::ws_server::ws_channel_response::WsChannelResponse;
 use crate::worker::network_helpers::ws_server::ws_channel_response_payload::WsChannelResponsePayload;
@@ -34,12 +34,11 @@ impl WsChannelResponseSender {
     }
 
     fn send_inner(&self, response: WsChannelResponse) -> Result<(), TrySendError<Message>> {
-        let mut response = serde_json::to_string(&response).unwrap();
-        add_jsonrpc_version_and_method(&mut response, Some(self.request.get_method()));
-
-        let response = Message::from(response);
-
-        self.broadcast_recipient.unbounded_send(response)
+        ws_send_response(
+            &self.broadcast_recipient,
+            response,
+            Some(self.request.get_method()),
+        )
     }
 
     pub fn send_succ_sub_notif(&self) -> Result<(), TrySendError<Message>> {

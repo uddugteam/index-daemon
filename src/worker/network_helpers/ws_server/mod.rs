@@ -6,3 +6,4 @@ pub mod ws_channel_response_payload;
 pub mod ws_channel_response_sender;
 pub mod ws_channels;
 pub mod ws_server;
+pub mod hepler_functions;
