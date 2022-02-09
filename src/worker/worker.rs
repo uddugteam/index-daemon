@@ -564,7 +564,7 @@ pub mod test {
             thread_names.push(thread_name);
         }
 
-        worker.lock().unwrap().start(config, None);
+        worker.lock().unwrap().start(config, None, None);
         check_threads(thread_names, rx);
     }
 

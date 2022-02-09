@@ -34,7 +34,7 @@ fn start_application(
 
     let (tx, rx) = mpsc::channel();
     let worker = Worker::new(tx, graceful_shutdown, None);
-    worker.lock().unwrap().start(config, None);
+    worker.lock().unwrap().start(config, None, None);
 
     // Give Websocket server time to start
     thread::sleep(time::Duration::from_millis(1000));
