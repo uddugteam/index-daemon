@@ -50,7 +50,10 @@ impl Worker {
             market_names_by_ws_channel_key: HashMap::new(),
             pair_average_price: StoredAndWsTransmissibleF64ByPairTuple::new(
                 pair_average_price_repository,
-                "coin_average_price".to_string(),
+                vec![
+                    "coin_average_price".to_string(),
+                    "coin_average_price_candles".to_string(),
+                ],
                 None,
             ),
             capitalization: HashMap::new(),
@@ -73,7 +76,8 @@ impl Worker {
         channel: WsChannelResponseSender,
     ) -> Result<(), Vec<String>> {
         match &channel.request {
-            WsChannelRequest::CoinAveragePrice { .. } => {
+            WsChannelRequest::CoinAveragePrice { .. }
+            | WsChannelRequest::CoinAveragePriceCandles { .. } => {
                 // Worker's channel
 
                 self.pair_average_price

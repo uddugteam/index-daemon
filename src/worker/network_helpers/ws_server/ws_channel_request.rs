@@ -12,7 +12,7 @@ pub enum Interval {
     Month,
 }
 impl Interval {
-    fn into_seconds(self) -> u64 {
+    pub fn into_seconds(self) -> u64 {
         match self {
             Self::Second => 1,
             Self::Minute => 60,
@@ -54,6 +54,12 @@ pub enum WsChannelRequest {
         from: u64,
         to: u64,
     },
+    CoinAveragePriceCandles {
+        id: Option<JsonRpcId>,
+        coins: Vec<String>,
+        frequency_ms: u64,
+        interval: Interval,
+    },
     Unsubscribe {
         id: Option<JsonRpcId>,
         method: String,
@@ -67,6 +73,7 @@ impl WsChannelRequest {
             | Self::CoinExchangePrice { id, .. }
             | Self::CoinExchangeVolume { id, .. }
             | Self::CoinAveragePriceHistorical { id, .. }
+            | Self::CoinAveragePriceCandles { id, .. }
             | Self::Unsubscribe { id, .. } => id.clone(),
         }
     }
@@ -77,6 +84,7 @@ impl WsChannelRequest {
             Self::CoinExchangePrice { .. } => "coin_exchange_price".to_string(),
             Self::CoinExchangeVolume { .. } => "coin_exchange_volume".to_string(),
             Self::CoinAveragePriceHistorical { .. } => "coin_average_price_historical".to_string(),
+            Self::CoinAveragePriceCandles { .. } => "coin_average_price_candles".to_string(),
             Self::Unsubscribe { method, .. } => method.to_string(),
         }
     }
@@ -85,7 +93,8 @@ impl WsChannelRequest {
         match self {
             Self::CoinAveragePrice { frequency_ms, .. }
             | Self::CoinExchangePrice { frequency_ms, .. }
-            | Self::CoinExchangeVolume { frequency_ms, .. } => *frequency_ms,
+            | Self::CoinExchangeVolume { frequency_ms, .. }
+            | Self::CoinAveragePriceCandles { frequency_ms, .. } => *frequency_ms,
             Self::CoinAveragePriceHistorical { .. } | Self::Unsubscribe { .. } => {
                 unreachable!();
             }
@@ -96,7 +105,8 @@ impl WsChannelRequest {
         match self {
             Self::CoinAveragePrice { frequency_ms, .. }
             | Self::CoinExchangePrice { frequency_ms, .. }
-            | Self::CoinExchangeVolume { frequency_ms, .. } => {
+            | Self::CoinExchangeVolume { frequency_ms, .. }
+            | Self::CoinAveragePriceCandles { frequency_ms, .. } => {
                 *frequency_ms = new_frequency_ms;
             }
             Self::CoinAveragePriceHistorical { .. } | Self::Unsubscribe { .. } => {
@@ -109,8 +119,22 @@ impl WsChannelRequest {
         match self {
             Self::CoinAveragePrice { coins, .. }
             | Self::CoinExchangePrice { coins, .. }
-            | Self::CoinExchangeVolume { coins, .. } => coins,
+            | Self::CoinExchangeVolume { coins, .. }
+            | Self::CoinAveragePriceCandles { coins, .. } => coins,
             Self::CoinAveragePriceHistorical { .. } | Self::Unsubscribe { .. } => {
+                unreachable!();
+            }
+        }
+    }
+
+    pub fn get_interval(&self) -> Interval {
+        match self {
+            Self::CoinAveragePriceHistorical { interval, .. }
+            | Self::CoinAveragePriceCandles { interval, .. } => *interval,
+            Self::CoinAveragePrice { .. }
+            | Self::CoinExchangePrice { .. }
+            | Self::CoinExchangeVolume { .. }
+            | Self::Unsubscribe { .. } => {
                 unreachable!();
             }
         }
@@ -139,6 +163,11 @@ impl TryFrom<JsonRpcRequest> for WsChannelRequest {
         let object = request.params.as_object().ok_or(e)?;
         let coins = Self::parse_vec_of_str(object, "coins").ok_or(e);
         let frequency_ms = Self::parse_u64(object, "frequency_ms").ok_or(e);
+        let interval = object
+            .get("interval")
+            .cloned()
+            .ok_or(e)
+            .map(|v| serde_json::from_value(v).map_err(|_| e));
 
         match request.method.as_str() {
             "coin_average_price" => {
@@ -174,8 +203,7 @@ impl TryFrom<JsonRpcRequest> for WsChannelRequest {
             }
             "coin_average_price_historical" => {
                 let coin = object.get("coin").ok_or(e)?.as_str().ok_or(e)?.to_string();
-                let interval = object.get("interval").cloned().ok_or(e)?;
-                let interval: Interval = serde_json::from_value(interval).map_err(|_| e)?;
+                let interval = interval??;
                 let from = Self::parse_u64(object, "from").ok_or(e)?;
                 let to = Self::parse_u64(object, "to").ok_or(e)?;
 
@@ -185,6 +213,18 @@ impl TryFrom<JsonRpcRequest> for WsChannelRequest {
                     interval,
                     from,
                     to,
+                })
+            }
+            "coin_average_price_candles" => {
+                let coins = coins?;
+                let frequency_ms = frequency_ms?;
+                let interval = interval??;
+
+                Ok(Self::CoinAveragePriceCandles {
+                    id,
+                    coins,
+                    frequency_ms,
+                    interval,
                 })
             }
             "unsubscribe" => {

@@ -55,13 +55,18 @@ impl StoredAndWsTransmissibleF64 {
             let _ = repository.insert(self.timestamp, new_value);
         }
 
-        send_ws_response_1(
-            &mut self.ws_channels,
-            &self.ws_channel_name,
-            &self.market_name,
-            &self.pair,
-            new_value,
-            self.timestamp,
-        );
+        match self.ws_channel_name.as_str() {
+            "coin_average_price" | "coin_exchange_price" | "coin_exchange_volume" => {
+                send_ws_response_1(
+                    &mut self.ws_channels,
+                    &self.ws_channel_name,
+                    &self.market_name,
+                    &self.pair,
+                    new_value,
+                    self.timestamp,
+                );
+            }
+            _ => unreachable!(),
+        }
     }
 }

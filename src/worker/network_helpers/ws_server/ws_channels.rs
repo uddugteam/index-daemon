@@ -1,3 +1,4 @@
+use crate::worker::network_helpers::ws_server::ws_channel_request::WsChannelRequest;
 use crate::worker::network_helpers::ws_server::ws_channel_response::WsChannelResponse;
 use crate::worker::network_helpers::ws_server::ws_channel_response_payload::WsChannelResponsePayload;
 use crate::worker::network_helpers::ws_server::ws_channel_response_sender::WsChannelResponseSender;
@@ -10,7 +11,65 @@ impl WsChannels {
         Self(HashMap::new())
     }
 
-    pub fn send(&mut self, response_payload: WsChannelResponsePayload) {
+    pub fn get_channels_by_method(
+        &self,
+        method: &str,
+    ) -> HashMap<&(String, String), &WsChannelRequest> {
+        self.0
+            .iter()
+            .filter(|(k, _)| k.1 == method)
+            .map(|(k, v)| (k, &v.request))
+            .collect()
+    }
+
+    fn send_inner(
+        sender: &mut WsChannelResponseSender,
+        response_payload: WsChannelResponsePayload,
+    ) -> Result<(), ()> {
+        let response = WsChannelResponse {
+            id: sender.request.get_id(),
+            result: response_payload.clone(),
+        };
+
+        if let Some(send_msg_result) = sender.send(response) {
+            if send_msg_result.is_err() {
+                // Send msg error. The client is likely disconnected. We stop sending him messages.
+
+                Err(())
+            } else {
+                Ok(())
+            }
+        } else {
+            // Message wasn't sent because of frequency_ms (not enough time has passed since last dispatch)
+
+            Ok(())
+        }
+    }
+
+    pub fn send_individual(
+        &mut self,
+        responses: HashMap<(String, String), WsChannelResponsePayload>,
+    ) {
+        let mut keys_to_remove = Vec::new();
+
+        for (key, response_payload) in responses {
+            if let Some(sender) = self.0.get_mut(&key) {
+                let send_result = Self::send_inner(sender, response_payload.clone());
+
+                if send_result.is_err() {
+                    // Send msg error. The client is likely disconnected. We stop sending him messages.
+
+                    keys_to_remove.push(key.clone());
+                }
+            }
+        }
+
+        for key in keys_to_remove {
+            self.0.remove(&key);
+        }
+    }
+
+    pub fn send_general(&mut self, response_payload: WsChannelResponsePayload) {
         let coin = response_payload.get_coin();
 
         let senders: HashMap<&(String, String), &mut WsChannelResponseSender> = self
@@ -25,19 +84,12 @@ impl WsChannels {
 
         for (key, sender) in senders {
             if key.1 == response_method {
-                let response = WsChannelResponse {
-                    id: sender.request.get_id(),
-                    result: response_payload.clone(),
-                };
+                let send_result = Self::send_inner(sender, response_payload.clone());
 
-                if let Some(send_msg_result) = sender.send(response) {
-                    if send_msg_result.is_err() {
-                        // Send msg error. The client is likely disconnected. We stop sending him messages.
+                if send_result.is_err() {
+                    // Send msg error. The client is likely disconnected. We stop sending him messages.
 
-                        keys_to_remove.push(key.clone());
-                    }
-                } else {
-                    // Message wasn't sent because of frequency_ms (not enough time has passed since last dispatch)
+                    keys_to_remove.push(key.clone());
                 }
             }
         }

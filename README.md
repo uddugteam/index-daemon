@@ -140,6 +140,23 @@ request json example:
 }
 ```
 
+#### coin_average_price_candles
+
+subscription request json example:
+
+```json
+{
+  "id": 7,
+  "jsonrpc": "2.0",
+  "method": "coin_average_price_candles",
+  "params": {
+    "coins": ["BTC", "ETH"],
+    "frequency_ms": 50,
+    "interval": "day"
+  }
+}
+```
+
 #### unsubscribe (_not a channel, but a request_)
 
 request json example:

@@ -38,6 +38,16 @@ pub enum WsChannelResponsePayload {
         coin: String,
         values: CoinAveragePriceHistoricalSnapshots,
     },
+    CoinAveragePriceCandles {
+        coin: String,
+        open: f64,
+        close: f64,
+        min: f64,
+        max: f64,
+        avg: f64,
+        #[serde(with = "ser_date_into_timestamp")]
+        timestamp: DateTime<Utc>,
+    },
 }
 
 impl WsChannelResponsePayload {
@@ -47,6 +57,7 @@ impl WsChannelResponsePayload {
             Self::CoinExchangePrice { .. } => "coin_exchange_price".to_string(),
             Self::CoinExchangeVolume { .. } => "coin_exchange_volume".to_string(),
             Self::CoinAveragePriceHistorical { .. } => "coin_average_price_historical".to_string(),
+            Self::CoinAveragePriceCandles { .. } => "coin_average_price_candles".to_string(),
             Self::SuccSub { method, .. } | Self::Err { method, .. } => method.to_string(),
         }
     }
@@ -56,7 +67,8 @@ impl WsChannelResponsePayload {
             Self::CoinAveragePrice { coin, .. }
             | Self::CoinExchangePrice { coin, .. }
             | Self::CoinExchangeVolume { coin, .. }
-            | Self::CoinAveragePriceHistorical { coin, .. } => coin.to_string(),
+            | Self::CoinAveragePriceHistorical { coin, .. }
+            | Self::CoinAveragePriceCandles { coin, .. } => coin.to_string(),
             Self::SuccSub { .. } | Self::Err { .. } => {
                 unreachable!()
             }
@@ -67,7 +79,8 @@ impl WsChannelResponsePayload {
         match self {
             Self::CoinAveragePrice { timestamp, .. }
             | Self::CoinExchangePrice { timestamp, .. }
-            | Self::CoinExchangeVolume { timestamp, .. } => *timestamp,
+            | Self::CoinExchangeVolume { timestamp, .. }
+            | Self::CoinAveragePriceCandles { timestamp, .. } => *timestamp,
             Self::CoinAveragePriceHistorical { .. } | Self::SuccSub { .. } | Self::Err { .. } => {
                 unreachable!()
             }
