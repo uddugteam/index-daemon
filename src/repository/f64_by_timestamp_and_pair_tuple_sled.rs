@@ -89,8 +89,6 @@ impl F64ByTimestampAndPairTupleSled {
 }
 
 impl Repository<TimestampAndPairTuple, f64> for F64ByTimestampAndPairTupleSled {
-    // fn get_my_keys(&self) -> HashSet<TimestampAndPairTuple> {}
-
     fn read(&self, primary: TimestampAndPairTuple) -> Result<Option<f64>, String> {
         let key = self.stringify_primary(primary);
 

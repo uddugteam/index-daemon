@@ -70,21 +70,6 @@ impl F64ByTimestampSled {
 }
 
 impl Repository<DateTime<Utc>, f64> for F64ByTimestampSled {
-    // fn get_my_keys(&self) -> HashSet<DateTime<Utc>> {
-    //     let mut keys = HashSet::new();
-    //
-    //     for key in self.get_all_keys() {
-    //         match parse_date_time_from_repository_key(&key) {
-    //             Ok(timestamp) => {
-    //                 keys.insert(timestamp);
-    //             }
-    //             Err(e) => error!("Parse timestamp error: {}", e),
-    //         }
-    //     }
-    //
-    //     keys
-    // }
-
     fn read(&self, primary: DateTime<Utc>) -> Result<Option<f64>, String> {
         let key = self.stringify_primary(primary);
 
