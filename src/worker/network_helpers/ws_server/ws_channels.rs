@@ -28,7 +28,7 @@ impl WsChannels {
     ) -> Result<(), ()> {
         let response = WsChannelResponse {
             id: sender.request.get_id(),
-            result: response_payload.clone(),
+            result: response_payload,
         };
 
         if let Some(send_msg_result) = sender.send(response) {
