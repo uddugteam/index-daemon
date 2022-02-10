@@ -1,6 +1,6 @@
 use crate::repository::hepler_functions::get_all_keys_sled;
 use crate::repository::repository::Repository;
-use crate::worker::helper_functions::date_time_from_timestamp;
+use crate::worker::helper_functions::date_time_from_timestamp_millis;
 use chrono::{DateTime, Utc, MIN_DATETIME};
 use std::collections::{HashMap, HashSet};
 use std::str;
@@ -81,7 +81,7 @@ impl F64ByTimestampAndPairTupleSled {
         let key = str::from_utf8(&key.to_vec()).unwrap().to_string();
 
         let parts: Vec<&str> = key.rsplit("__").collect();
-        let date_time = date_time_from_timestamp(parts[0].parse().unwrap());
+        let date_time = date_time_from_timestamp_millis(parts[0].parse().unwrap());
         let pair_tuple = Self::parse_pair_tuple(parts[1]);
 
         (date_time, pair_tuple)

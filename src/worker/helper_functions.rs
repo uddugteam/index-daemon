@@ -17,8 +17,12 @@ pub fn strip_usd(pair: &(String, String)) -> Option<String> {
     }
 }
 
-pub fn date_time_from_timestamp(timestamp: i64) -> DateTime<Utc> {
-    let naive = NaiveDateTime::from_timestamp(timestamp, 0);
+pub fn date_time_from_timestamp_sec(timestamp_sec: i64) -> DateTime<Utc> {
+    let naive = NaiveDateTime::from_timestamp(timestamp_sec, 0);
 
     DateTime::from_utc(naive, Utc)
+}
+
+pub fn date_time_from_timestamp_millis(timestamp_millis: i64) -> DateTime<Utc> {
+    date_time_from_timestamp_sec(timestamp_millis / 1000)
 }

@@ -22,10 +22,6 @@ impl Interval {
             Self::Month => 2592000,
         }
     }
-
-    pub fn into_millis(self) -> u64 {
-        self.into_seconds() * 1000
-    }
 }
 
 #[derive(Debug, Clone)]

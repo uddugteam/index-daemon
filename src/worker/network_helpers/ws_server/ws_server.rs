@@ -1,5 +1,5 @@
 use crate::repository::repositories::RepositoryForF64ByTimestampAndPairTuple;
-use crate::worker::helper_functions::date_time_from_timestamp;
+use crate::worker::helper_functions::date_time_from_timestamp_sec;
 use crate::worker::network_helpers::ws_server::coin_average_price_historical_snapshot::CoinAveragePriceHistoricalSnapshots;
 use crate::worker::network_helpers::ws_server::hepler_functions::ws_send_response;
 use crate::worker::network_helpers::ws_server::jsonrpc_messages::{JsonRpcId, JsonRpcRequest};
@@ -143,8 +143,8 @@ impl WsServer {
                         // It's not a channel. It's just a request
 
                         let pair_tuple = (coin.to_string(), "USD".to_string());
-                        let from = date_time_from_timestamp(from as i64);
-                        let to = date_time_from_timestamp(to as i64);
+                        let from = date_time_from_timestamp_sec(from as i64);
+                        let to = date_time_from_timestamp_sec(to as i64);
 
                         info!("Client with addr: {} requested: {:?}", client_addr, channel);
 

@@ -134,8 +134,8 @@ request json example:
   "params": {
     "coin": "BTC",
     "interval": "day",
-    "from": 1643835600000,
-    "to": 1644440400000
+    "from": 1643835600,
+    "to": 1644440400
   }
 }
 ```

@@ -41,7 +41,7 @@ pub fn thin_by_interval(
 ) -> Vec<(DateTime<Utc>, f64)> {
     values.sort_by(|a, b| a.0.cmp(&b.0));
 
-    let interval = interval.into_millis();
+    let interval = interval.into_seconds();
 
     let mut res = Vec::new();
 
