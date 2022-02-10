@@ -1,6 +1,6 @@
 use crate::repository::repositories::RepositoryForF64ByTimestampAndPairTuple;
 use crate::worker::defaults::WS_SERVER_ALL_CHANNELS;
-use crate::worker::market_helpers::hepler_functions::send_ws_response;
+use crate::worker::market_helpers::hepler_functions::send_ws_response_1;
 use crate::worker::network_helpers::ws_server::ws_channels::WsChannels;
 use chrono::{DateTime, Utc, MIN_DATETIME};
 use std::collections::HashMap;
@@ -53,7 +53,7 @@ impl StoredAndWsTransmissibleF64ByPairTuple {
             let _ = repository.insert((self.timestamp, pair.clone()), new_value);
         }
 
-        send_ws_response(
+        send_ws_response_1(
             &mut self.ws_channels,
             &self.ws_channel_name,
             &self.market_name,
