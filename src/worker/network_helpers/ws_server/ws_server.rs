@@ -52,7 +52,7 @@ impl WsServer {
     fn send_error(
         broadcast_recipient: &Tx,
         id: Option<JsonRpcId>,
-        method: WsChannelName,
+        method: Option<WsChannelName>,
         code: i64,
         message: String,
     ) {
@@ -96,7 +96,7 @@ impl WsServer {
                     Self::send_error(
                         &broadcast_recipient,
                         sub_id.clone(),
-                        method.clone(),
+                        Some(method),
                         JSONRPC_ERROR_INVALID_PARAMS,
                         error,
                     );
@@ -202,7 +202,7 @@ impl WsServer {
                 Self::send_error(
                     &broadcast_recipient,
                     sub_id,
-                    method,
+                    Some(method),
                     JSONRPC_ERROR_INVALID_REQUEST,
                     e,
                 );
@@ -221,18 +221,15 @@ impl WsServer {
         pair_average_price_repository: &mut Option<RepositoryForF64ByTimestampAndPairTuple>,
         _graceful_shutdown: &Arc<Mutex<bool>>,
     ) {
-        let request_string = request.clone();
-        let request = Self::parse_jsonrpc_request(&request);
+        let peers = peer_map.lock().unwrap();
 
-        match request {
-            Ok(request) => {
-                let sub_id = request.id.clone();
-                let method = request.method;
-                let request = Self::parse_ws_channel_request(request);
+        if let Some(broadcast_recipient) = peers.get(&client_addr).cloned() {
+            match Self::parse_jsonrpc_request(&request) {
+                Ok(request) => {
+                    let sub_id = request.id.clone();
+                    let method = request.method;
+                    let request = Self::parse_ws_channel_request(request);
 
-                let peers = peer_map.lock().unwrap();
-
-                if let Some(broadcast_recipient) = peers.get(&client_addr).cloned() {
                     let conn_id_2 = conn_id.to_string();
                     let worker_2 = Arc::clone(worker);
                     let pair_average_price_repository_2 = pair_average_price_repository.clone();
@@ -257,16 +254,19 @@ impl WsServer {
                             )
                         })
                         .unwrap();
-                } else {
-                    // FSR broadcast recipient is not found
+                }
+                Err(e) => {
+                    Self::send_error(
+                        &broadcast_recipient,
+                        None,
+                        None,
+                        JSONRPC_ERROR_INVALID_REQUEST,
+                        e.to_string(),
+                    );
                 }
             }
-            Err(e) => {
-                error!(
-                    "Parse request error. Client addr: {}, request: {}, error: {:?}",
-                    client_addr, request_string, e
-                );
-            }
+        } else {
+            // FSR broadcast recipient is not found
         }
     }
 

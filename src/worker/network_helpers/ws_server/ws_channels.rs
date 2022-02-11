@@ -81,16 +81,16 @@ impl WsChannels {
 
         let mut keys_to_remove = Vec::new();
 
-        let response_method = response_payload.get_method();
+        if let Some(response_method) = response_payload.get_method() {
+            for (key, sender) in senders {
+                if key.1 == response_method {
+                    let send_result = Self::send_inner(sender, response_payload.clone());
 
-        for (key, sender) in senders {
-            if key.1 == response_method {
-                let send_result = Self::send_inner(sender, response_payload.clone());
+                    if send_result.is_err() {
+                        // Send msg error. The client is likely disconnected. We stop sending him messages.
 
-                if send_result.is_err() {
-                    // Send msg error. The client is likely disconnected. We stop sending him messages.
-
-                    keys_to_remove.push(key.clone());
+                        keys_to_remove.push(key.clone());
+                    }
                 }
             }
         }

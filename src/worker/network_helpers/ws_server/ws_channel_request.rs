@@ -59,7 +59,7 @@ pub enum WsChannelRequest {
     },
     Unsubscribe {
         id: Option<JsonRpcId>,
-        method: String,
+        method: WsChannelName,
     },
 }
 
@@ -82,7 +82,7 @@ impl WsChannelRequest {
             Self::CoinExchangeVolume { .. } => WsChannelName::CoinExchangeVolume,
             Self::CoinAveragePriceHistorical { .. } => WsChannelName::CoinAveragePriceHistorical,
             Self::CoinAveragePriceCandles { .. } => WsChannelName::CoinAveragePriceCandles,
-            Self::Unsubscribe { method, .. } => method.parse().unwrap(),
+            Self::Unsubscribe { method, .. } => *method,
         }
     }
 
@@ -238,6 +238,7 @@ impl TryFrom<JsonRpcRequest> for WsChannelRequest {
             WsChannelName::Unsubscribe => {
                 let method = object.get("method").ok_or(e)?;
                 let method = method.as_str().ok_or(e)?.to_string();
+                let method = method.parse().map_err(|_| e)?;
 
                 Ok(Self::Unsubscribe { id, method })
             }

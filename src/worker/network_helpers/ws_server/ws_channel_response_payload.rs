@@ -11,7 +11,7 @@ pub enum WsChannelResponsePayload {
         message: String,
     },
     Err {
-        method: WsChannelName,
+        method: Option<WsChannelName>,
         code: i64,
         message: String,
     },
@@ -52,14 +52,17 @@ pub enum WsChannelResponsePayload {
 }
 
 impl WsChannelResponsePayload {
-    pub fn get_method(&self) -> WsChannelName {
+    pub fn get_method(&self) -> Option<WsChannelName> {
         match self {
-            Self::CoinAveragePrice { .. } => WsChannelName::CoinAveragePrice,
-            Self::CoinExchangePrice { .. } => WsChannelName::CoinExchangePrice,
-            Self::CoinExchangeVolume { .. } => WsChannelName::CoinExchangeVolume,
-            Self::CoinAveragePriceHistorical { .. } => WsChannelName::CoinAveragePriceHistorical,
-            Self::CoinAveragePriceCandles { .. } => WsChannelName::CoinAveragePriceCandles,
-            Self::SuccSub { method, .. } | Self::Err { method, .. } => *method,
+            Self::CoinAveragePrice { .. } => Some(WsChannelName::CoinAveragePrice),
+            Self::CoinExchangePrice { .. } => Some(WsChannelName::CoinExchangePrice),
+            Self::CoinExchangeVolume { .. } => Some(WsChannelName::CoinExchangeVolume),
+            Self::CoinAveragePriceHistorical { .. } => {
+                Some(WsChannelName::CoinAveragePriceHistorical)
+            }
+            Self::CoinAveragePriceCandles { .. } => Some(WsChannelName::CoinAveragePriceCandles),
+            Self::SuccSub { method, .. } => Some(*method),
+            Self::Err { method, .. } => *method,
         }
     }
 
