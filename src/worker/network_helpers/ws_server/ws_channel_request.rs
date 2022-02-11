@@ -136,6 +136,17 @@ impl WsChannelRequest {
         }
     }
 
+    pub fn is_channel(&self) -> bool {
+        match self {
+            Self::CoinAveragePrice { .. }
+            | Self::CoinExchangePrice { .. }
+            | Self::CoinExchangeVolume { .. }
+            | Self::CoinAveragePriceCandles { .. } => true,
+            Self::CoinAveragePriceHistorical { .. } => false,
+            _ => unreachable!(),
+        }
+    }
+
     fn parse_vec_of_str(object: &Map<String, serde_json::Value>, key: &str) -> Option<Vec<String>> {
         let mut items = Vec::new();
         for item in object.get(key)?.as_array()? {

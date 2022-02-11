@@ -17,7 +17,6 @@ pub type RepositoriesByMarketName = HashMap<String, RepositoriesByPairTuple>;
 
 pub struct Repositories {
     pub pair_average_price: RepositoryForF64ByTimestampAndPairTuple,
-    pub pair_average_price_historical: RepositoryForF64ByTimestampAndPairTuple,
     pub market_repositories: RepositoriesByMarketName,
 }
 
@@ -35,8 +34,6 @@ impl Repositories {
                             config,
                             Arc::clone(&tree),
                         ),
-                        pair_average_price_historical:
-                            Self::make_pair_average_price_historical_sled(config, Arc::clone(&tree)),
                         market_repositories: Self::make_market_repositories_sled(
                             config,
                             Arc::clone(&tree),
@@ -54,16 +51,14 @@ impl Repositories {
         config: Option<Self>,
     ) -> (
         Option<RepositoryForF64ByTimestampAndPairTuple>,
-        Option<RepositoryForF64ByTimestampAndPairTuple>,
         Option<RepositoriesByMarketName>,
     ) {
         match config {
             Some(config) => (
                 Some(config.pair_average_price),
-                Some(config.pair_average_price_historical),
                 Some(config.market_repositories),
             ),
-            None => (None, None, None),
+            None => (None, None),
         }
     }
 
@@ -76,13 +71,6 @@ impl Repositories {
             Arc::clone(&tree),
             config.service.historical_storage_frequency_ms,
         ))
-    }
-
-    fn make_pair_average_price_historical_sled(
-        config: &ConfigScheme,
-        tree: Arc<Mutex<vsdbsled::Db>>,
-    ) -> RepositoryForF64ByTimestampAndPairTuple {
-        Self::make_pair_average_price_sled(config, tree)
     }
 
     fn make_market_repositories_sled(

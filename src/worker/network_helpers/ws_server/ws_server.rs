@@ -31,7 +31,7 @@ pub struct WsServer {
     pub worker: Arc<Mutex<Worker>>,
     pub ws_addr: String,
     pub ws_answer_timeout_ms: u64,
-    pub pair_average_price_historical: Option<RepositoryForF64ByTimestampAndPairTuple>,
+    pub pair_average_price_repository: Option<RepositoryForF64ByTimestampAndPairTuple>,
     pub graceful_shutdown: Arc<Mutex<bool>>,
 }
 
@@ -113,13 +113,55 @@ impl WsServer {
         }
     }
 
+    /// Prepares response data and sends to recipient
+    fn do_response(
+        broadcast_recipient: Tx,
+        channel: WsChannelRequest,
+        pair_average_price_repository: Option<RepositoryForF64ByTimestampAndPairTuple>,
+    ) {
+        match channel {
+            WsChannelRequest::CoinAveragePriceHistorical {
+                id,
+                coin,
+                interval,
+                from,
+                to,
+            } => {
+                let pair_tuple = (coin.to_string(), "USD".to_string());
+                let from = date_time_from_timestamp_sec(from as i64);
+                let to = date_time_from_timestamp_sec(to as i64);
+
+                if let Some(res) = pair_average_price_repository {
+                    let res = res.read_range((from, pair_tuple.clone()), (to, pair_tuple));
+
+                    match res {
+                        Ok(res) => {
+                            let response = WsChannelResponse {
+                                id,
+                                result: WsChannelResponsePayload::CoinAveragePriceHistorical {
+                                    coin,
+                                    values: CoinAveragePriceHistoricalSnapshots::with_interval(
+                                        res, interval,
+                                    ),
+                                },
+                            };
+                            let _ = ws_send_response(&broadcast_recipient, response, None);
+                        }
+                        Err(e) => error!("Read range error: {}", e),
+                    }
+                }
+            }
+            _ => unreachable!(),
+        }
+    }
+
     /// What function does:
     /// -- check whether request is `Ok`
     /// -- if request is `Ok` then:
-    /// -- -- if request is `request`, prepare response data and send to recipient
+    /// -- -- if request is `request`, call `Self::do_response`
     /// -- -- if request is `channel`, call `Self::add_new_channel`
     /// -- else - send error response (call `Self::send_error`)
-    fn do_response(
+    fn process_ws_channel_request(
         worker: Arc<Mutex<Worker>>,
         client_addr: &SocketAddr,
         broadcast_recipient: Tx,
@@ -128,61 +170,31 @@ impl WsServer {
         method: String,
         request: Result<WsChannelRequest, String>,
         ws_answer_timeout_ms: u64,
-        pair_average_price_historical: Option<RepositoryForF64ByTimestampAndPairTuple>,
+        pair_average_price_repository: Option<RepositoryForF64ByTimestampAndPairTuple>,
     ) {
         match request {
             Ok(channel) => {
-                match channel.clone() {
-                    WsChannelRequest::CoinAveragePriceHistorical {
-                        id,
-                        coin,
-                        interval,
-                        from,
-                        to,
-                    } => {
-                        // It's not a channel. It's just a request
+                if channel.is_channel() {
+                    // It's a channel
 
-                        let pair_tuple = (coin.to_string(), "USD".to_string());
-                        let from = date_time_from_timestamp_sec(from as i64);
-                        let to = date_time_from_timestamp_sec(to as i64);
+                    info!(
+                        "Client with addr: {} subscribed to: {:?}",
+                        client_addr, channel
+                    );
 
-                        info!("Client with addr: {} requested: {:?}", client_addr, channel);
+                    Self::add_new_channel(
+                        worker,
+                        broadcast_recipient,
+                        conn_id,
+                        channel,
+                        ws_answer_timeout_ms,
+                    );
+                } else {
+                    // It's not a channel. It's just a request
 
-                        // There we should take data from DB and send to recipient
-                        if let Some(res) = pair_average_price_historical {
-                            let res = res.read_range((from, pair_tuple.clone()), (to, pair_tuple));
+                    info!("Client with addr: {} requested: {:?}", client_addr, channel);
 
-                            match res {
-                                Ok(res) => {
-                                    let response = WsChannelResponse {
-                                        id,
-                                        result: WsChannelResponsePayload::CoinAveragePriceHistorical {
-                                            coin,
-                                            values: CoinAveragePriceHistoricalSnapshots::with_interval(res, interval),
-                                        },
-                                    };
-                                    let _ = ws_send_response(&broadcast_recipient, response, None);
-                                }
-                                Err(e) => error!("Read range error: {}", e),
-                            }
-                        }
-                    }
-                    _ => {
-                        // It's a channel
-
-                        info!(
-                            "Client with addr: {} subscribed to: {:?}",
-                            client_addr, channel
-                        );
-
-                        Self::add_new_channel(
-                            worker,
-                            broadcast_recipient,
-                            conn_id,
-                            channel,
-                            ws_answer_timeout_ms,
-                        );
-                    }
+                    Self::do_response(broadcast_recipient, channel, pair_average_price_repository);
                 }
             }
             Err(e) => {
@@ -197,15 +209,15 @@ impl WsServer {
         }
     }
 
-    /// Function parses request, then calls `Self::do_response` in a separate thread
-    fn process_request(
+    /// Function parses request, then calls `Self::process_ws_channel_request` in a separate thread
+    fn process_jsonrpc_request(
         request: String,
         worker: &Arc<Mutex<Worker>>,
         peer_map: &PeerMap,
         client_addr: SocketAddr,
         conn_id: &str,
         ws_answer_timeout_ms: u64,
-        pair_average_price_historical: &mut Option<RepositoryForF64ByTimestampAndPairTuple>,
+        pair_average_price_repository: &mut Option<RepositoryForF64ByTimestampAndPairTuple>,
         _graceful_shutdown: &Arc<Mutex<bool>>,
     ) {
         let request_string = request.clone();
@@ -222,16 +234,16 @@ impl WsServer {
                 if let Some(broadcast_recipient) = peers.get(&client_addr).cloned() {
                     let conn_id_2 = conn_id.to_string();
                     let worker_2 = Arc::clone(worker);
-                    let pair_average_price_historical_2 = pair_average_price_historical.clone();
+                    let pair_average_price_repository_2 = pair_average_price_repository.clone();
 
                     let thread_name = format!(
-                        "fn: process_request, addr: {}, request: {:?}",
+                        "fn: process_jsonrpc_request, addr: {}, request: {:?}",
                         client_addr, request
                     );
                     thread::Builder::new()
                         .name(thread_name)
                         .spawn(move || {
-                            Self::do_response(
+                            Self::process_ws_channel_request(
                                 worker_2,
                                 &client_addr,
                                 broadcast_recipient,
@@ -240,7 +252,7 @@ impl WsServer {
                                 method,
                                 request,
                                 ws_answer_timeout_ms,
-                                pair_average_price_historical_2,
+                                pair_average_price_repository_2,
                             )
                         })
                         .unwrap();
@@ -258,7 +270,7 @@ impl WsServer {
     }
 
     /// Function handles one connection - function is executing until client is disconnected.
-    /// Function listens for requests and process them (calls `Self::process_request`)
+    /// Function listens for requests and process them (calls `Self::process_jsonrpc_request`)
     async fn handle_connection(
         worker: Arc<Mutex<Worker>>,
         peer_map: PeerMap,
@@ -266,7 +278,7 @@ impl WsServer {
         client_addr: SocketAddr,
         conn_id: String,
         ws_answer_timeout_ms: u64,
-        mut pair_average_price_historical: Option<RepositoryForF64ByTimestampAndPairTuple>,
+        mut pair_average_price_repository: Option<RepositoryForF64ByTimestampAndPairTuple>,
         graceful_shutdown: Arc<Mutex<bool>>,
     ) {
         match async_tungstenite::accept_async(raw_stream).await {
@@ -284,14 +296,14 @@ impl WsServer {
 
                 // TODO: Replace for_each with a simple loop (this is needed for graceful_shutdown)
                 let broadcast_incoming = incoming.try_for_each(|request| {
-                    Self::process_request(
+                    Self::process_jsonrpc_request(
                         request.to_string(),
                         &worker,
                         &peer_map,
                         client_addr,
                         &conn_id,
                         ws_answer_timeout_ms,
-                        &mut pair_average_price_historical,
+                        &mut pair_average_price_repository,
                         &graceful_shutdown,
                     );
                     future::ok(())
@@ -338,7 +350,7 @@ impl WsServer {
                 client_addr,
                 conn_id,
                 self.ws_answer_timeout_ms,
-                self.pair_average_price_historical.clone(),
+                self.pair_average_price_repository.clone(),
                 Arc::clone(&self.graceful_shutdown),
             ));
         }
