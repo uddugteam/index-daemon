@@ -412,6 +412,7 @@ pub mod test {
     use crate::config_scheme::service_config::ServiceConfig;
     use crate::worker::market_helpers::exchange_pair::ExchangePair;
     use crate::worker::market_helpers::market_channels::MarketChannels;
+    use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
     use crate::worker::network_helpers::ws_server::ws_channels::test::check_subscriptions;
     use crate::worker::worker::Worker;
     use chrono::{Duration, Utc};
@@ -617,7 +618,7 @@ pub mod test {
 
     pub fn check_worker_subscriptions(
         worker: &Arc<Mutex<Worker>>,
-        subscriptions: Vec<(String, String, Vec<String>)>,
+        subscriptions: Vec<(String, WsChannelName, Vec<String>)>,
     ) {
         check_subscriptions(
             &worker.lock().unwrap().pair_average_price.ws_channels,
@@ -627,7 +628,7 @@ pub mod test {
 
     // pub fn check_market_subscriptions(
     //     worker: &Arc<Mutex<Worker>>,
-    //     subscriptions: Vec<(String, String, Vec<String>, Vec<String>)>,
+    //     subscriptions: Vec<(String, WsChannelName, Vec<String>, Vec<String>)>,
     // ) {
     //     let mut subscriptions_new = HashMap::new();
     //     for (sub_id, method, coins, exchanges) in subscriptions {

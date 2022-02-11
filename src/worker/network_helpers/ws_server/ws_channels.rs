@@ -123,7 +123,7 @@ pub mod test {
 
     pub fn check_subscriptions(
         ws_channels: &WsChannels,
-        subscriptions: &Vec<(String, String, Vec<String>)>,
+        subscriptions: &Vec<(String, WsChannelName, Vec<String>)>,
     ) {
         assert_eq!(subscriptions.len(), ws_channels.0.len());
 

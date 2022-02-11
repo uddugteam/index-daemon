@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-#[derive(Clone, Copy, Serialize, Deserialize, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Eq, PartialEq, Hash)]
 #[serde(rename_all = "snake_case")]
 pub enum WsChannelName {
     CoinAveragePrice,
