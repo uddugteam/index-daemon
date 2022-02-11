@@ -146,7 +146,7 @@ subscription request json example:
 
 ```json
 {
-  "id": 7,
+  "id": "some_id",
   "jsonrpc": "2.0",
   "method": "coin_average_price_candles",
   "params": {

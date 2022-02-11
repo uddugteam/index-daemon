@@ -142,9 +142,9 @@ impl WsChannelRequest {
             Self::CoinAveragePrice { .. }
             | Self::CoinExchangePrice { .. }
             | Self::CoinExchangeVolume { .. }
-            | Self::CoinAveragePriceCandles { .. } => true,
+            | Self::CoinAveragePriceCandles { .. }
+            | Self::Unsubscribe { .. } => true,
             Self::CoinAveragePriceHistorical { .. } => false,
-            _ => unreachable!(),
         }
     }
 
