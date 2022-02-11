@@ -1,7 +1,7 @@
 use crate::repository::repositories::RepositoryForF64ByTimestampAndPairTuple;
-use crate::worker::defaults::WS_SERVER_ALL_CHANNELS;
 use crate::worker::helper_functions::strip_usd;
 use crate::worker::market_helpers::hepler_functions::{prepare_candle_data, send_ws_response_1};
+use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
 use crate::worker::network_helpers::ws_server::ws_channel_response_payload::WsChannelResponsePayload;
 use crate::worker::network_helpers::ws_server::ws_channels::WsChannels;
 use chrono::{DateTime, NaiveDateTime, Utc, MIN_DATETIME};
@@ -12,22 +12,18 @@ pub struct StoredAndWsTransmissibleF64ByPairTuple {
     timestamp: DateTime<Utc>,
     repository: Option<RepositoryForF64ByTimestampAndPairTuple>,
     pub ws_channels: WsChannels,
-    ws_channel_names: Vec<String>,
+    ws_channel_names: Vec<WsChannelName>,
     market_name: Option<String>,
 }
 
 impl StoredAndWsTransmissibleF64ByPairTuple {
     pub fn new(
         repository: Option<RepositoryForF64ByTimestampAndPairTuple>,
-        ws_channel_names: Vec<String>,
+        ws_channel_names: Vec<WsChannelName>,
         market_name: Option<String>,
     ) -> Self {
         for ws_channel_name in &ws_channel_names {
-            assert!(WS_SERVER_ALL_CHANNELS.contains(&ws_channel_name.as_str()));
-
-            if (ws_channel_name == "coin_average_price")
-                | (ws_channel_name == "coin_average_price_candles")
-            {
+            if ws_channel_name.is_worker_channel() {
                 // Worker's channel
 
                 assert_eq!(market_name, None);
@@ -61,20 +57,22 @@ impl StoredAndWsTransmissibleF64ByPairTuple {
         }
 
         for ws_channel_name in &self.ws_channel_names {
-            match ws_channel_name.as_str() {
-                "coin_average_price" | "coin_exchange_price" | "coin_exchange_volume" => {
+            match ws_channel_name {
+                WsChannelName::CoinAveragePrice
+                | WsChannelName::CoinExchangePrice
+                | WsChannelName::CoinExchangeVolume => {
                     send_ws_response_1(
                         &mut self.ws_channels,
-                        ws_channel_name,
+                        *ws_channel_name,
                         &self.market_name,
                         &pair,
                         new_value,
                         self.timestamp,
                     );
                 }
-                "coin_average_price_candles" => {
+                WsChannelName::CoinAveragePriceCandles => {
                     if let Some(repository) = &self.repository {
-                        let channels = self.ws_channels.get_channels_by_method(ws_channel_name);
+                        let channels = self.ws_channels.get_channels_by_method(*ws_channel_name);
                         let mut responses = HashMap::new();
 
                         for (key, request) in channels {

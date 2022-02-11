@@ -1,5 +1,6 @@
 use crate::repository::repositories::RepositoriesByMarketValue;
 use crate::worker::market_helpers::stored_and_ws_transmissible_f64::StoredAndWsTransmissibleF64;
+use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
 use chrono::{DateTime, Utc, MIN_DATETIME};
 
 pub struct ExchangePairInfo {
@@ -22,14 +23,14 @@ impl ExchangePairInfo {
         ExchangePairInfo {
             last_trade_price: StoredAndWsTransmissibleF64::new(
                 repositories.remove("pair_price"),
-                "coin_exchange_price".to_string(),
+                WsChannelName::CoinExchangePrice,
                 Some(market_name.clone()),
                 pair.clone(),
             ),
             last_trade_volume: 0.0,
             total_volume: StoredAndWsTransmissibleF64::new(
                 repositories.remove("pair_volume"),
-                "coin_exchange_volume".to_string(),
+                WsChannelName::CoinExchangeVolume,
                 Some(market_name),
                 pair,
             ),

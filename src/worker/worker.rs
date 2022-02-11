@@ -9,6 +9,7 @@ use crate::worker::market_helpers::market::{market_factory, Market};
 use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
 use crate::worker::market_helpers::stored_and_ws_transmissible_f64_by_pair_tuple::StoredAndWsTransmissibleF64ByPairTuple;
+use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
 use crate::worker::network_helpers::ws_server::ws_channel_request::WsChannelRequest;
 use crate::worker::network_helpers::ws_server::ws_channel_response_sender::WsChannelResponseSender;
 use crate::worker::network_helpers::ws_server::ws_server::WsServer;
@@ -26,7 +27,7 @@ pub struct Worker {
     tx: Sender<JoinHandle<()>>,
     graceful_shutdown: Arc<Mutex<bool>>,
     markets: HashMap<String, Arc<Mutex<dyn Market + Send>>>,
-    market_names_by_ws_channel_key: HashMap<(String, String), Vec<String>>,
+    market_names_by_ws_channel_key: HashMap<(String, WsChannelName), Vec<String>>,
     pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
     capitalization: HashMap<String, f64>,
     last_capitalization_refresh: DateTime<Utc>,
@@ -51,8 +52,8 @@ impl Worker {
             pair_average_price: StoredAndWsTransmissibleF64ByPairTuple::new(
                 pair_average_price_repository,
                 vec![
-                    "coin_average_price".to_string(),
-                    "coin_average_price_candles".to_string(),
+                    WsChannelName::CoinAveragePrice,
+                    WsChannelName::CoinAveragePriceCandles,
                 ],
                 None,
             ),
@@ -152,7 +153,7 @@ impl Worker {
         }
     }
 
-    pub fn remove_ws_channel(&mut self, key: &(String, String)) {
+    pub fn remove_ws_channel(&mut self, key: &(String, WsChannelName)) {
         if let Some(market_names) = self.market_names_by_ws_channel_key.remove(key) {
             // Market's channel
 

@@ -1,6 +1,6 @@
 use crate::repository::repositories::RepositoryForF64ByTimestamp;
-use crate::worker::defaults::WS_SERVER_ALL_CHANNELS;
 use crate::worker::market_helpers::hepler_functions::send_ws_response_1;
+use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
 use crate::worker::network_helpers::ws_server::ws_channels::WsChannels;
 use chrono::{DateTime, Utc, MIN_DATETIME};
 
@@ -9,7 +9,7 @@ pub struct StoredAndWsTransmissibleF64 {
     timestamp: DateTime<Utc>,
     repository: Option<RepositoryForF64ByTimestamp>,
     pub ws_channels: WsChannels,
-    ws_channel_name: String,
+    ws_channel_name: WsChannelName,
     market_name: Option<String>,
     pair: (String, String),
 }
@@ -17,12 +17,11 @@ pub struct StoredAndWsTransmissibleF64 {
 impl StoredAndWsTransmissibleF64 {
     pub fn new(
         repository: Option<RepositoryForF64ByTimestamp>,
-        ws_channel_name: String,
+        ws_channel_name: WsChannelName,
         market_name: Option<String>,
         pair: (String, String),
     ) -> Self {
-        assert!(WS_SERVER_ALL_CHANNELS.contains(&ws_channel_name.as_str()));
-        if ws_channel_name == "coin_average_price" {
+        if ws_channel_name.is_worker_channel() {
             // Worker's channel
 
             assert_eq!(market_name, None);
@@ -55,11 +54,13 @@ impl StoredAndWsTransmissibleF64 {
             let _ = repository.insert(self.timestamp, new_value);
         }
 
-        match self.ws_channel_name.as_str() {
-            "coin_average_price" | "coin_exchange_price" | "coin_exchange_volume" => {
+        match self.ws_channel_name {
+            WsChannelName::CoinAveragePrice
+            | WsChannelName::CoinExchangePrice
+            | WsChannelName::CoinExchangeVolume => {
                 send_ws_response_1(
                     &mut self.ws_channels,
-                    &self.ws_channel_name,
+                    self.ws_channel_name,
                     &self.market_name,
                     &self.pair,
                     new_value,

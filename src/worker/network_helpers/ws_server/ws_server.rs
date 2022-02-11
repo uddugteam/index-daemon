@@ -3,6 +3,7 @@ use crate::worker::helper_functions::date_time_from_timestamp_sec;
 use crate::worker::network_helpers::ws_server::coin_average_price_historical_snapshot::CoinAveragePriceHistoricalSnapshots;
 use crate::worker::network_helpers::ws_server::hepler_functions::ws_send_response;
 use crate::worker::network_helpers::ws_server::jsonrpc_messages::{JsonRpcId, JsonRpcRequest};
+use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
 use crate::worker::network_helpers::ws_server::ws_channel_request::WsChannelRequest;
 use crate::worker::network_helpers::ws_server::ws_channel_response::WsChannelResponse;
 use crate::worker::network_helpers::ws_server::ws_channel_response_payload::WsChannelResponsePayload;
@@ -51,7 +52,7 @@ impl WsServer {
     fn send_error(
         broadcast_recipient: &Tx,
         id: Option<JsonRpcId>,
-        method: String,
+        method: WsChannelName,
         code: i64,
         message: String,
     ) {
@@ -167,7 +168,7 @@ impl WsServer {
         broadcast_recipient: Tx,
         conn_id: String,
         sub_id: Option<JsonRpcId>,
-        method: String,
+        method: WsChannelName,
         request: Result<WsChannelRequest, String>,
         ws_answer_timeout_ms: u64,
         pair_average_price_repository: Option<RepositoryForF64ByTimestampAndPairTuple>,
@@ -226,7 +227,7 @@ impl WsServer {
         match request {
             Ok(request) => {
                 let sub_id = request.id.clone();
-                let method = request.method.clone();
+                let method = request.method;
                 let request = Self::parse_ws_channel_request(request);
 
                 let peers = peer_map.lock().unwrap();

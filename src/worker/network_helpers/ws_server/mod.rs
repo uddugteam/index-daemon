@@ -2,6 +2,7 @@ pub mod coin_average_price_historical_snapshot;
 pub mod hepler_functions;
 pub mod jsonrpc_messages;
 pub mod ser_date_into_timestamp;
+pub mod ws_channel_name;
 pub mod ws_channel_request;
 pub mod ws_channel_response;
 pub mod ws_channel_response_payload;

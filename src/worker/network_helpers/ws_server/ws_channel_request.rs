@@ -1,4 +1,5 @@
 use crate::worker::network_helpers::ws_server::jsonrpc_messages::{JsonRpcId, JsonRpcRequest};
+use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
 use serde_json::Map;
 
 #[derive(Deserialize, Debug, Clone, Copy)]
@@ -74,14 +75,14 @@ impl WsChannelRequest {
         }
     }
 
-    pub fn get_method(&self) -> String {
+    pub fn get_method(&self) -> WsChannelName {
         match self {
-            Self::CoinAveragePrice { .. } => "coin_average_price".to_string(),
-            Self::CoinExchangePrice { .. } => "coin_exchange_price".to_string(),
-            Self::CoinExchangeVolume { .. } => "coin_exchange_volume".to_string(),
-            Self::CoinAveragePriceHistorical { .. } => "coin_average_price_historical".to_string(),
-            Self::CoinAveragePriceCandles { .. } => "coin_average_price_candles".to_string(),
-            Self::Unsubscribe { method, .. } => method.to_string(),
+            Self::CoinAveragePrice { .. } => WsChannelName::CoinAveragePrice,
+            Self::CoinExchangePrice { .. } => WsChannelName::CoinExchangePrice,
+            Self::CoinExchangeVolume { .. } => WsChannelName::CoinExchangeVolume,
+            Self::CoinAveragePriceHistorical { .. } => WsChannelName::CoinAveragePriceHistorical,
+            Self::CoinAveragePriceCandles { .. } => WsChannelName::CoinAveragePriceCandles,
+            Self::Unsubscribe { method, .. } => method.parse().unwrap(),
         }
     }
 
@@ -176,8 +177,8 @@ impl TryFrom<JsonRpcRequest> for WsChannelRequest {
             .ok_or(e)
             .map(|v| serde_json::from_value(v).map_err(|_| e));
 
-        match request.method.as_str() {
-            "coin_average_price" => {
+        match request.method {
+            WsChannelName::CoinAveragePrice => {
                 let coins = coins?;
                 let frequency_ms = frequency_ms?;
 
@@ -187,19 +188,19 @@ impl TryFrom<JsonRpcRequest> for WsChannelRequest {
                     frequency_ms,
                 })
             }
-            "coin_exchange_price" | "coin_exchange_volume" => {
+            WsChannelName::CoinExchangePrice | WsChannelName::CoinExchangeVolume => {
                 let coins = coins?;
                 let exchanges = Self::parse_vec_of_str(object, "exchanges").ok_or(e)?;
                 let frequency_ms = frequency_ms?;
 
-                match request.method.as_str() {
-                    "coin_exchange_price" => Ok(Self::CoinExchangePrice {
+                match request.method {
+                    WsChannelName::CoinExchangePrice => Ok(Self::CoinExchangePrice {
                         id,
                         coins,
                         exchanges,
                         frequency_ms,
                     }),
-                    "coin_exchange_volume" => Ok(Self::CoinExchangeVolume {
+                    WsChannelName::CoinExchangeVolume => Ok(Self::CoinExchangeVolume {
                         id,
                         coins,
                         exchanges,
@@ -208,7 +209,7 @@ impl TryFrom<JsonRpcRequest> for WsChannelRequest {
                     _ => unreachable!(),
                 }
             }
-            "coin_average_price_historical" => {
+            WsChannelName::CoinAveragePriceHistorical => {
                 let coin = object.get("coin").ok_or(e)?.as_str().ok_or(e)?.to_string();
                 let interval = interval??;
                 let from = Self::parse_u64(object, "from").ok_or(e)?;
@@ -222,7 +223,7 @@ impl TryFrom<JsonRpcRequest> for WsChannelRequest {
                     to,
                 })
             }
-            "coin_average_price_candles" => {
+            WsChannelName::CoinAveragePriceCandles => {
                 let coins = coins?;
                 let frequency_ms = frequency_ms?;
                 let interval = interval??;
@@ -234,13 +235,12 @@ impl TryFrom<JsonRpcRequest> for WsChannelRequest {
                     interval,
                 })
             }
-            "unsubscribe" => {
+            WsChannelName::Unsubscribe => {
                 let method = object.get("method").ok_or(e)?;
                 let method = method.as_str().ok_or(e)?.to_string();
 
                 Ok(Self::Unsubscribe { id, method })
             }
-            _ => Err("Wrong method.".to_string()),
         }
     }
 }

@@ -1,10 +1,11 @@
+use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
 use crate::worker::network_helpers::ws_server::ws_channel_request::WsChannelRequest;
 use crate::worker::network_helpers::ws_server::ws_channel_response::WsChannelResponse;
 use crate::worker::network_helpers::ws_server::ws_channel_response_payload::WsChannelResponsePayload;
 use crate::worker::network_helpers::ws_server::ws_channel_response_sender::WsChannelResponseSender;
 use std::collections::HashMap;
 
-pub struct WsChannels(HashMap<(String, String), WsChannelResponseSender>);
+pub struct WsChannels(HashMap<(String, WsChannelName), WsChannelResponseSender>);
 
 impl WsChannels {
     pub fn new() -> Self {
@@ -13,8 +14,8 @@ impl WsChannels {
 
     pub fn get_channels_by_method(
         &self,
-        method: &str,
-    ) -> HashMap<&(String, String), &WsChannelRequest> {
+        method: WsChannelName,
+    ) -> HashMap<&(String, WsChannelName), &WsChannelRequest> {
         self.0
             .iter()
             .filter(|(k, _)| k.1 == method)
@@ -48,7 +49,7 @@ impl WsChannels {
 
     pub fn send_individual(
         &mut self,
-        responses: HashMap<(String, String), WsChannelResponsePayload>,
+        responses: HashMap<(String, WsChannelName), WsChannelResponsePayload>,
     ) {
         let mut keys_to_remove = Vec::new();
 
@@ -72,7 +73,7 @@ impl WsChannels {
     pub fn send_general(&mut self, response_payload: WsChannelResponsePayload) {
         let coin = response_payload.get_coin();
 
-        let senders: HashMap<&(String, String), &mut WsChannelResponseSender> = self
+        let senders: HashMap<&(String, WsChannelName), &mut WsChannelResponseSender> = self
             .0
             .iter_mut()
             .filter(|(_, v)| v.request.get_coins().contains(&coin))
@@ -109,7 +110,7 @@ impl WsChannels {
         }
     }
 
-    pub fn remove_channel(&mut self, key: &(String, String)) {
+    pub fn remove_channel(&mut self, key: &(String, WsChannelName)) {
         self.0.remove(key);
     }
 }
@@ -117,6 +118,7 @@ impl WsChannels {
 #[cfg(test)]
 pub mod test {
     use crate::worker::network_helpers::ws_server::jsonrpc_messages::JsonRpcId;
+    use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
     use crate::worker::network_helpers::ws_server::ws_channels::WsChannels;
 
     pub fn check_subscriptions(
@@ -126,7 +128,7 @@ pub mod test {
         assert_eq!(subscriptions.len(), ws_channels.0.len());
 
         for (sub_id, method, coins) in subscriptions {
-            let keys: Vec<&(String, String)> = ws_channels
+            let keys: Vec<&(String, WsChannelName)> = ws_channels
                 .0
                 .keys()
                 .filter(|(_conn_id, method_inner)| method_inner == method)

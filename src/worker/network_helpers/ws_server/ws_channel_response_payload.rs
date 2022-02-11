@@ -1,16 +1,17 @@
 use crate::worker::network_helpers::ws_server::coin_average_price_historical_snapshot::CoinAveragePriceHistoricalSnapshots;
 use crate::worker::network_helpers::ws_server::ser_date_into_timestamp;
+use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
 use chrono::{DateTime, Utc};
 
 #[derive(Serialize, Clone)]
 #[serde(untagged)]
 pub enum WsChannelResponsePayload {
     SuccSub {
-        method: String,
+        method: WsChannelName,
         message: String,
     },
     Err {
-        method: String,
+        method: WsChannelName,
         code: i64,
         message: String,
     },
@@ -51,14 +52,14 @@ pub enum WsChannelResponsePayload {
 }
 
 impl WsChannelResponsePayload {
-    pub fn get_method(&self) -> String {
+    pub fn get_method(&self) -> WsChannelName {
         match self {
-            Self::CoinAveragePrice { .. } => "coin_average_price".to_string(),
-            Self::CoinExchangePrice { .. } => "coin_exchange_price".to_string(),
-            Self::CoinExchangeVolume { .. } => "coin_exchange_volume".to_string(),
-            Self::CoinAveragePriceHistorical { .. } => "coin_average_price_historical".to_string(),
-            Self::CoinAveragePriceCandles { .. } => "coin_average_price_candles".to_string(),
-            Self::SuccSub { method, .. } | Self::Err { method, .. } => method.to_string(),
+            Self::CoinAveragePrice { .. } => WsChannelName::CoinAveragePrice,
+            Self::CoinExchangePrice { .. } => WsChannelName::CoinExchangePrice,
+            Self::CoinExchangeVolume { .. } => WsChannelName::CoinExchangeVolume,
+            Self::CoinAveragePriceHistorical { .. } => WsChannelName::CoinAveragePriceHistorical,
+            Self::CoinAveragePriceCandles { .. } => WsChannelName::CoinAveragePriceCandles,
+            Self::SuccSub { method, .. } | Self::Err { method, .. } => *method,
         }
     }
 
