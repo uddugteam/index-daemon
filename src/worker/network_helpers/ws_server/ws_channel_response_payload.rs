@@ -1,3 +1,4 @@
+use crate::worker::network_helpers::ws_server::candles::{Candle, Candles};
 use crate::worker::network_helpers::ws_server::coin_average_price_historical_snapshot::CoinAveragePriceHistoricalSnapshots;
 use crate::worker::network_helpers::ws_server::ser_date_into_timestamp;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
@@ -41,13 +42,11 @@ pub enum WsChannelResponsePayload {
     },
     CoinAveragePriceCandles {
         coin: String,
-        open: f64,
-        close: f64,
-        min: f64,
-        max: f64,
-        avg: f64,
-        #[serde(with = "ser_date_into_timestamp")]
-        timestamp: DateTime<Utc>,
+        value: Candle,
+    },
+    CoinAveragePriceCandlesHistorical {
+        coin: String,
+        values: Candles,
     },
 }
 
@@ -61,6 +60,9 @@ impl WsChannelResponsePayload {
                 Some(WsChannelName::CoinAveragePriceHistorical)
             }
             Self::CoinAveragePriceCandles { .. } => Some(WsChannelName::CoinAveragePriceCandles),
+            Self::CoinAveragePriceCandlesHistorical { .. } => {
+                Some(WsChannelName::CoinAveragePriceCandlesHistorical)
+            }
             Self::SuccSub { method, .. } => Some(*method),
             Self::Err { method, .. } => *method,
         }
@@ -72,7 +74,8 @@ impl WsChannelResponsePayload {
             | Self::CoinExchangePrice { coin, .. }
             | Self::CoinExchangeVolume { coin, .. }
             | Self::CoinAveragePriceHistorical { coin, .. }
-            | Self::CoinAveragePriceCandles { coin, .. } => coin.to_string(),
+            | Self::CoinAveragePriceCandles { coin, .. }
+            | Self::CoinAveragePriceCandlesHistorical { coin, .. } => coin.to_string(),
             Self::SuccSub { .. } | Self::Err { .. } => {
                 unreachable!()
             }
@@ -83,9 +86,12 @@ impl WsChannelResponsePayload {
         match self {
             Self::CoinAveragePrice { timestamp, .. }
             | Self::CoinExchangePrice { timestamp, .. }
-            | Self::CoinExchangeVolume { timestamp, .. }
-            | Self::CoinAveragePriceCandles { timestamp, .. } => *timestamp,
-            Self::CoinAveragePriceHistorical { .. } | Self::SuccSub { .. } | Self::Err { .. } => {
+            | Self::CoinExchangeVolume { timestamp, .. } => *timestamp,
+            Self::CoinAveragePriceCandles { value, .. } => value.timestamp,
+            Self::CoinAveragePriceHistorical { .. }
+            | Self::CoinAveragePriceCandlesHistorical { .. }
+            | Self::SuccSub { .. }
+            | Self::Err { .. } => {
                 unreachable!()
             }
         }

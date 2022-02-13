@@ -121,8 +121,8 @@ subscription request json example:
 #### coin_average_price_historical (_not a channel, but a request_)
 
 - **interval** - interval between snapshots. Variants: second, minute, hour, day, week, month.
-- **from** - timestamp from in ms.
-- **to** - timestamp to in ms.
+- **from** - timestamp from
+- **to** - timestamp to
 
 request json example:
 
@@ -153,6 +153,28 @@ subscription request json example:
     "coins": ["BTC", "ETH"],
     "frequency_ms": 50,
     "interval": "day"
+  }
+}
+```
+
+#### coin_average_price_candles_historical (_not a channel, but a request_)
+
+- **interval** - interval between snapshots. Variants: second, minute, hour, day, week, month.
+- **from** - timestamp from
+- **to** - timestamp to
+
+request json example:
+
+```json
+{
+  "id": "some_id",
+  "jsonrpc": "2.0",
+  "method": "coin_average_price_candles_historical",
+  "params": {
+    "coin": "BTC",
+    "interval": "day",
+    "from": 1643662800,
+    "to": 1644872400
   }
 }
 ```

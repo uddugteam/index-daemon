@@ -57,6 +57,13 @@ pub enum WsChannelRequest {
         frequency_ms: u64,
         interval: Interval,
     },
+    CoinAveragePriceCandlesHistorical {
+        id: Option<JsonRpcId>,
+        coin: String,
+        interval: Interval,
+        from: u64,
+        to: u64,
+    },
     Unsubscribe {
         id: Option<JsonRpcId>,
         method: WsChannelName,
@@ -71,6 +78,7 @@ impl WsChannelRequest {
             | Self::CoinExchangeVolume { id, .. }
             | Self::CoinAveragePriceHistorical { id, .. }
             | Self::CoinAveragePriceCandles { id, .. }
+            | Self::CoinAveragePriceCandlesHistorical { id, .. }
             | Self::Unsubscribe { id, .. } => id.clone(),
         }
     }
@@ -82,6 +90,9 @@ impl WsChannelRequest {
             Self::CoinExchangeVolume { .. } => WsChannelName::CoinExchangeVolume,
             Self::CoinAveragePriceHistorical { .. } => WsChannelName::CoinAveragePriceHistorical,
             Self::CoinAveragePriceCandles { .. } => WsChannelName::CoinAveragePriceCandles,
+            Self::CoinAveragePriceCandlesHistorical { .. } => {
+                WsChannelName::CoinAveragePriceCandlesHistorical
+            }
             Self::Unsubscribe { method, .. } => *method,
         }
     }
@@ -92,7 +103,9 @@ impl WsChannelRequest {
             | Self::CoinExchangePrice { frequency_ms, .. }
             | Self::CoinExchangeVolume { frequency_ms, .. }
             | Self::CoinAveragePriceCandles { frequency_ms, .. } => *frequency_ms,
-            Self::CoinAveragePriceHistorical { .. } | Self::Unsubscribe { .. } => {
+            Self::CoinAveragePriceHistorical { .. }
+            | Self::CoinAveragePriceCandlesHistorical { .. }
+            | Self::Unsubscribe { .. } => {
                 unreachable!();
             }
         }
@@ -106,7 +119,9 @@ impl WsChannelRequest {
             | Self::CoinAveragePriceCandles { frequency_ms, .. } => {
                 *frequency_ms = new_frequency_ms;
             }
-            Self::CoinAveragePriceHistorical { .. } | Self::Unsubscribe { .. } => {
+            Self::CoinAveragePriceHistorical { .. }
+            | Self::CoinAveragePriceCandlesHistorical { .. }
+            | Self::Unsubscribe { .. } => {
                 unreachable!();
             }
         }
@@ -118,7 +133,9 @@ impl WsChannelRequest {
             | Self::CoinExchangePrice { coins, .. }
             | Self::CoinExchangeVolume { coins, .. }
             | Self::CoinAveragePriceCandles { coins, .. } => coins,
-            Self::CoinAveragePriceHistorical { .. } | Self::Unsubscribe { .. } => {
+            Self::CoinAveragePriceHistorical { .. }
+            | Self::CoinAveragePriceCandlesHistorical { .. }
+            | Self::Unsubscribe { .. } => {
                 unreachable!();
             }
         }
@@ -127,7 +144,8 @@ impl WsChannelRequest {
     pub fn get_interval(&self) -> Interval {
         match self {
             Self::CoinAveragePriceHistorical { interval, .. }
-            | Self::CoinAveragePriceCandles { interval, .. } => *interval,
+            | Self::CoinAveragePriceCandles { interval, .. }
+            | Self::CoinAveragePriceCandlesHistorical { interval, .. } => *interval,
             Self::CoinAveragePrice { .. }
             | Self::CoinExchangePrice { .. }
             | Self::CoinExchangeVolume { .. }
@@ -144,7 +162,8 @@ impl WsChannelRequest {
             | Self::CoinExchangeVolume { .. }
             | Self::CoinAveragePriceCandles { .. }
             | Self::Unsubscribe { .. } => true,
-            Self::CoinAveragePriceHistorical { .. } => false,
+            Self::CoinAveragePriceHistorical { .. }
+            | Self::CoinAveragePriceCandlesHistorical { .. } => false,
         }
     }
 
@@ -209,19 +228,34 @@ impl TryFrom<JsonRpcRequest> for WsChannelRequest {
                     _ => unreachable!(),
                 }
             }
-            WsChannelName::CoinAveragePriceHistorical => {
+            WsChannelName::CoinAveragePriceHistorical
+            | WsChannelName::CoinAveragePriceCandlesHistorical => {
                 let coin = object.get("coin").ok_or(e)?.as_str().ok_or(e)?.to_string();
                 let interval = interval??;
                 let from = Self::parse_u64(object, "from").ok_or(e)?;
                 let to = Self::parse_u64(object, "to").ok_or(e)?;
 
-                Ok(Self::CoinAveragePriceHistorical {
-                    id,
-                    coin,
-                    interval,
-                    from,
-                    to,
-                })
+                match request.method {
+                    WsChannelName::CoinAveragePriceHistorical => {
+                        Ok(Self::CoinAveragePriceHistorical {
+                            id,
+                            coin,
+                            interval,
+                            from,
+                            to,
+                        })
+                    }
+                    WsChannelName::CoinAveragePriceCandlesHistorical => {
+                        Ok(Self::CoinAveragePriceCandlesHistorical {
+                            id,
+                            coin,
+                            interval,
+                            from,
+                            to,
+                        })
+                    }
+                    _ => unreachable!(),
+                }
             }
             WsChannelName::CoinAveragePriceCandles => {
                 let coins = coins?;

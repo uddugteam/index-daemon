@@ -1,5 +1,6 @@
-use crate::repository::f64_by_timestamp_and_pair_tuple_sled::TimestampAndPairTuple;
-use crate::worker::helper_functions::strip_usd;
+use crate::repository::repositories::RepositoryForF64ByTimestampAndPairTuple;
+use crate::worker::helper_functions::{date_time_from_timestamp_sec, strip_usd};
+use crate::worker::network_helpers::ws_server::candles::Candle;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
 use crate::worker::network_helpers::ws_server::ws_channel_response_payload::WsChannelResponsePayload;
 use crate::worker::network_helpers::ws_server::ws_channels::WsChannels;
@@ -14,9 +15,9 @@ pub fn send_ws_response_1(
     new_value: f64,
     timestamp: DateTime<Utc>,
 ) -> Option<()> {
-    let market_name = market_name.as_ref().map(|v| v.to_string());
-
     if let Some(coin) = strip_usd(pair) {
+        let market_name = market_name.as_ref().map(|v| v.to_string());
+
         let response_payload = match ws_channel_name {
             WsChannelName::CoinAveragePrice => WsChannelResponsePayload::CoinAveragePrice {
                 coin,
@@ -46,33 +47,56 @@ pub fn send_ws_response_1(
     }
 }
 
-pub fn prepare_candle_data(
-    values: HashMap<TimestampAndPairTuple, f64>,
-) -> (f64, f64, f64, f64, f64) {
-    let mut values: Vec<(DateTime<Utc>, f64)> = values.into_iter().map(|(k, v)| (k.0, v)).collect();
-    values.sort_by(|a, b| a.0.cmp(&b.0));
+pub fn send_ws_response_2(
+    repository: &Option<RepositoryForF64ByTimestampAndPairTuple>,
+    ws_channels: &mut WsChannels,
+    ws_channel_name: WsChannelName,
+    pair: &(String, String),
+    timestamp: DateTime<Utc>,
+) -> Option<()> {
+    if let Some(coin) = strip_usd(pair) {
+        if let Some(repository) = &repository {
+            let channels = ws_channels.get_channels_by_method(ws_channel_name);
+            let mut responses = HashMap::new();
 
-    let open = values.first().unwrap().1;
-    let close = values.last().unwrap().1;
-    let mut min = values.first().unwrap().1;
-    let mut max = values.first().unwrap().1;
+            for (key, request) in channels {
+                let to = timestamp;
 
-    let mut sum = 0.0;
-    let count = values.len();
+                let interval = request.get_interval().into_seconds() as i64;
+                let from = timestamp.timestamp() - interval;
+                let from = date_time_from_timestamp_sec(from);
 
-    for (_, value) in values {
-        if value < min {
-            min = value;
+                if let Ok(values) = repository.read_range((from, pair.clone()), (to, pair.clone()))
+                {
+                    let values: Vec<(DateTime<Utc>, f64)> =
+                        values.into_iter().map(|(k, v)| (k.0, v)).collect();
+
+                    let response_payload = if !values.is_empty() {
+                        WsChannelResponsePayload::CoinAveragePriceCandles {
+                            coin: coin.clone(),
+                            value: Candle::calculate(values, timestamp).unwrap(),
+                        }
+                    } else {
+                        // Send "empty" message
+
+                        WsChannelResponsePayload::Err {
+                            method: Some(WsChannelName::CoinAveragePriceCandles),
+                            code: 0,
+                            message: "No entries found in the requested time interval.".to_string(),
+                        }
+                    };
+
+                    responses.insert(key.clone(), response_payload);
+                }
+            }
+
+            ws_channels.send_individual(responses);
+
+            Some(())
+        } else {
+            None
         }
-
-        if value > max {
-            max = value;
-        }
-
-        sum += value;
+    } else {
+        None
     }
-
-    let avg = sum / count as f64;
-
-    (open, close, min, max, avg)
 }

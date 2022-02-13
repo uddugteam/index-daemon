@@ -1,3 +1,4 @@
+pub mod candles;
 pub mod coin_average_price_historical_snapshot;
 pub mod hepler_functions;
 pub mod jsonrpc_messages;

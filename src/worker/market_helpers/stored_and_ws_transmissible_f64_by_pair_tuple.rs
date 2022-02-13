@@ -1,10 +1,8 @@
 use crate::repository::repositories::RepositoryForF64ByTimestampAndPairTuple;
-use crate::worker::helper_functions::strip_usd;
-use crate::worker::market_helpers::hepler_functions::{prepare_candle_data, send_ws_response_1};
+use crate::worker::market_helpers::hepler_functions::{send_ws_response_1, send_ws_response_2};
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
-use crate::worker::network_helpers::ws_server::ws_channel_response_payload::WsChannelResponsePayload;
 use crate::worker::network_helpers::ws_server::ws_channels::WsChannels;
-use chrono::{DateTime, NaiveDateTime, Utc, MIN_DATETIME};
+use chrono::{DateTime, Utc, MIN_DATETIME};
 use std::collections::HashMap;
 
 pub struct StoredAndWsTransmissibleF64ByPairTuple {
@@ -71,42 +69,13 @@ impl StoredAndWsTransmissibleF64ByPairTuple {
                     );
                 }
                 WsChannelName::CoinAveragePriceCandles => {
-                    if let Some(repository) = &self.repository {
-                        let channels = self.ws_channels.get_channels_by_method(*ws_channel_name);
-                        let mut responses = HashMap::new();
-
-                        for (key, request) in channels {
-                            let to = self.timestamp;
-
-                            let interval = request.get_interval().into_seconds() as i64;
-                            let from = self.timestamp.timestamp() - interval;
-                            let from = NaiveDateTime::from_timestamp(from, 0);
-                            let from = DateTime::from_utc(from, Utc);
-
-                            if let Ok(values) =
-                                repository.read_range((from, pair.clone()), (to, pair.clone()))
-                            {
-                                let (open, close, min, max, avg) = prepare_candle_data(values);
-
-                                if let Some(coin) = strip_usd(&pair) {
-                                    let response_payload =
-                                        WsChannelResponsePayload::CoinAveragePriceCandles {
-                                            coin,
-                                            open,
-                                            close,
-                                            min,
-                                            max,
-                                            avg,
-                                            timestamp: self.timestamp,
-                                        };
-
-                                    responses.insert(key.clone(), response_payload);
-                                }
-                            }
-                        }
-
-                        self.ws_channels.send_individual(responses);
-                    }
+                    send_ws_response_2(
+                        &self.repository,
+                        &mut self.ws_channels,
+                        *ws_channel_name,
+                        &pair,
+                        self.timestamp,
+                    );
                 }
                 _ => unreachable!(),
             }

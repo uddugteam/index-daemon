@@ -1,5 +1,6 @@
 use crate::repository::repositories::RepositoryForF64ByTimestampAndPairTuple;
 use crate::worker::helper_functions::date_time_from_timestamp_sec;
+use crate::worker::network_helpers::ws_server::candles::Candles;
 use crate::worker::network_helpers::ws_server::coin_average_price_historical_snapshot::CoinAveragePriceHistoricalSnapshots;
 use crate::worker::network_helpers::ws_server::hepler_functions::ws_send_response;
 use crate::worker::network_helpers::ws_server::jsonrpc_messages::{JsonRpcId, JsonRpcRequest};
@@ -120,8 +121,15 @@ impl WsServer {
         channel: WsChannelRequest,
         pair_average_price_repository: Option<RepositoryForF64ByTimestampAndPairTuple>,
     ) {
-        match channel {
+        match channel.clone() {
             WsChannelRequest::CoinAveragePriceHistorical {
+                id,
+                coin,
+                interval,
+                from,
+                to,
+            }
+            | WsChannelRequest::CoinAveragePriceCandlesHistorical {
                 id,
                 coin,
                 interval,
@@ -132,19 +140,31 @@ impl WsServer {
                 let from = date_time_from_timestamp_sec(from as i64);
                 let to = date_time_from_timestamp_sec(to as i64);
 
-                if let Some(res) = pair_average_price_repository {
-                    let res = res.read_range((from, pair_tuple.clone()), (to, pair_tuple));
+                if let Some(values) = pair_average_price_repository {
+                    let values = values.read_range((from, pair_tuple.clone()), (to, pair_tuple));
 
-                    match res {
-                        Ok(res) => {
-                            let response = WsChannelResponse {
-                                id,
-                                result: WsChannelResponsePayload::CoinAveragePriceHistorical {
-                                    coin,
-                                    values: CoinAveragePriceHistoricalSnapshots::with_interval(
-                                        res, interval,
-                                    ),
+                    match values {
+                        Ok(values) => {
+                            let values = values.into_iter().map(|(k, v)| (k.0, v)).collect();
+
+                            let response =match channel {
+                                WsChannelRequest::CoinAveragePriceHistorical{..}=>WsChannelResponse {
+                                    id,
+                                    result: WsChannelResponsePayload::CoinAveragePriceHistorical {
+                                        coin,
+                                        values: CoinAveragePriceHistoricalSnapshots::with_interval(
+                                            values, interval,
+                                        ),
+                                    },
                                 },
+                                WsChannelRequest::CoinAveragePriceCandlesHistorical{..}=>WsChannelResponse {
+                                    id,
+                                    result: WsChannelResponsePayload::CoinAveragePriceCandlesHistorical {
+                                        coin,
+                                        values: Candles::calculate(values, interval),
+                                    },
+                                },
+                                _ => unreachable!(),
                             };
                             let _ = ws_send_response(&broadcast_recipient, response, None);
                         }
