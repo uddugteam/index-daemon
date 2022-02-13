@@ -1,7 +1,7 @@
 use crate::repository::repositories::RepositoryForF64ByTimestampAndPairTuple;
 use crate::worker::helper_functions::date_time_from_timestamp_sec;
 use crate::worker::network_helpers::ws_server::candles::Candles;
-use crate::worker::network_helpers::ws_server::coin_average_price_historical_snapshot::CoinAveragePriceHistoricalSnapshots;
+use crate::worker::network_helpers::ws_server::f64_snapshot::F64Snapshots;
 use crate::worker::network_helpers::ws_server::hepler_functions::ws_send_response;
 use crate::worker::network_helpers::ws_server::jsonrpc_messages::{JsonRpcId, JsonRpcRequest};
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
@@ -152,7 +152,7 @@ impl WsServer {
                                     id,
                                     result: WsChannelResponsePayload::CoinAveragePriceHistorical {
                                         coin,
-                                        values: CoinAveragePriceHistoricalSnapshots::with_interval(
+                                        values: F64Snapshots::with_interval(
                                             values, interval,
                                         ),
                                     },

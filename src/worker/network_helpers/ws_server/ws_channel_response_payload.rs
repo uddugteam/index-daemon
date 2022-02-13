@@ -1,5 +1,5 @@
 use crate::worker::network_helpers::ws_server::candles::{Candle, Candles};
-use crate::worker::network_helpers::ws_server::coin_average_price_historical_snapshot::CoinAveragePriceHistoricalSnapshots;
+use crate::worker::network_helpers::ws_server::f64_snapshot::F64Snapshots;
 use crate::worker::network_helpers::ws_server::ser_date_into_timestamp;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
 use chrono::{DateTime, Utc};
@@ -38,7 +38,7 @@ pub enum WsChannelResponsePayload {
     },
     CoinAveragePriceHistorical {
         coin: String,
-        values: CoinAveragePriceHistoricalSnapshots,
+        values: F64Snapshots,
     },
     CoinAveragePriceCandles {
         coin: String,
