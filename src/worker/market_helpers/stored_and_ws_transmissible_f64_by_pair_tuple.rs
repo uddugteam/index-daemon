@@ -4,12 +4,13 @@ use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
 use crate::worker::network_helpers::ws_server::ws_channels::WsChannels;
 use chrono::{DateTime, Utc, MIN_DATETIME};
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
 pub struct StoredAndWsTransmissibleF64ByPairTuple {
     value: HashMap<(String, String), f64>,
     timestamp: DateTime<Utc>,
     repository: Option<RepositoryForF64ByTimestampAndPairTuple>,
-    pub ws_channels: WsChannels,
+    ws_channels: Arc<Mutex<WsChannels>>,
     ws_channel_names: Vec<WsChannelName>,
     market_name: Option<String>,
 }
@@ -19,6 +20,7 @@ impl StoredAndWsTransmissibleF64ByPairTuple {
         repository: Option<RepositoryForF64ByTimestampAndPairTuple>,
         ws_channel_names: Vec<WsChannelName>,
         market_name: Option<String>,
+        ws_channels: Arc<Mutex<WsChannels>>,
     ) -> Self {
         for ws_channel_name in &ws_channel_names {
             if ws_channel_name.is_worker_channel() {
@@ -36,7 +38,7 @@ impl StoredAndWsTransmissibleF64ByPairTuple {
             value: HashMap::new(),
             timestamp: MIN_DATETIME,
             repository,
-            ws_channels: WsChannels::new(),
+            ws_channels,
             ws_channel_names,
             market_name,
         }
@@ -60,7 +62,7 @@ impl StoredAndWsTransmissibleF64ByPairTuple {
                 | WsChannelName::CoinExchangePrice
                 | WsChannelName::CoinExchangeVolume => {
                     send_ws_response_1(
-                        &mut self.ws_channels,
+                        &self.ws_channels,
                         *ws_channel_name,
                         &self.market_name,
                         &pair,
@@ -71,7 +73,7 @@ impl StoredAndWsTransmissibleF64ByPairTuple {
                 WsChannelName::CoinAveragePriceCandles => {
                     send_ws_response_2(
                         &self.repository,
-                        &mut self.ws_channels,
+                        &self.ws_channels,
                         *ws_channel_name,
                         &pair,
                         self.timestamp,

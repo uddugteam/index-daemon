@@ -2,6 +2,12 @@ use crate::worker::network_helpers::ws_server::jsonrpc_messages::{JsonRpcId, Jso
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
 use serde_json::Map;
 
+#[derive(Clone, Copy)]
+pub enum WsChannelAction {
+    Subscribe,
+    Unsubscribe,
+}
+
 #[derive(Deserialize, Debug, Clone, Copy)]
 #[serde(rename_all = "snake_case")]
 pub enum Interval {
@@ -97,6 +103,25 @@ impl WsChannelRequest {
         }
     }
 
+    pub fn get_action(&self) -> WsChannelAction {
+        match self {
+            Self::Unsubscribe { .. } => WsChannelAction::Unsubscribe,
+            _ => WsChannelAction::Subscribe,
+        }
+    }
+
+    pub fn get_exchanges(&self) -> &[String] {
+        match self {
+            Self::CoinExchangePrice { exchanges, .. }
+            | Self::CoinExchangeVolume { exchanges, .. } => exchanges,
+            Self::CoinAveragePrice { .. }
+            | Self::CoinAveragePriceHistorical { .. }
+            | Self::CoinAveragePriceCandles { .. }
+            | Self::CoinAveragePriceCandlesHistorical { .. }
+            | Self::Unsubscribe { .. } => unreachable!(),
+        }
+    }
+
     pub fn get_frequency_ms(&self) -> u64 {
         match self {
             Self::CoinAveragePrice { frequency_ms, .. }
@@ -152,18 +177,6 @@ impl WsChannelRequest {
             | Self::Unsubscribe { .. } => {
                 unreachable!();
             }
-        }
-    }
-
-    pub fn is_channel(&self) -> bool {
-        match self {
-            Self::CoinAveragePrice { .. }
-            | Self::CoinExchangePrice { .. }
-            | Self::CoinExchangeVolume { .. }
-            | Self::CoinAveragePriceCandles { .. }
-            | Self::Unsubscribe { .. } => true,
-            Self::CoinAveragePriceHistorical { .. }
-            | Self::CoinAveragePriceCandlesHistorical { .. } => false,
         }
     }
 

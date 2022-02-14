@@ -3,12 +3,13 @@ use crate::worker::market_helpers::hepler_functions::send_ws_response_1;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
 use crate::worker::network_helpers::ws_server::ws_channels::WsChannels;
 use chrono::{DateTime, Utc, MIN_DATETIME};
+use std::sync::{Arc, Mutex};
 
 pub struct StoredAndWsTransmissibleF64 {
     value: f64,
     timestamp: DateTime<Utc>,
     repository: Option<RepositoryForF64ByTimestamp>,
-    pub ws_channels: WsChannels,
+    ws_channels: Arc<Mutex<WsChannels>>,
     ws_channel_name: WsChannelName,
     market_name: Option<String>,
     pair: (String, String),
@@ -20,6 +21,7 @@ impl StoredAndWsTransmissibleF64 {
         ws_channel_name: WsChannelName,
         market_name: Option<String>,
         pair: (String, String),
+        ws_channels: Arc<Mutex<WsChannels>>,
     ) -> Self {
         if ws_channel_name.is_worker_channel() {
             // Worker's channel
@@ -35,7 +37,7 @@ impl StoredAndWsTransmissibleF64 {
             value: 0.0,
             timestamp: MIN_DATETIME,
             repository,
-            ws_channels: WsChannels::new(),
+            ws_channels,
             ws_channel_name,
             market_name,
             pair,

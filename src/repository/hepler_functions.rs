@@ -9,7 +9,7 @@ pub fn get_all_keys_sled(repository: &Arc<Mutex<vsdbsled::Db>>) -> HashSet<Strin
         .get("keys")
         .map(|v| v.map(|v| str::from_utf8(&v.to_vec()).unwrap().to_string()))
         .unwrap()
-        .unwrap()
+        .unwrap_or_default()
         .split(',')
         .filter(|v| !v.is_empty())
         .map(|v| v.to_string())

@@ -9,186 +9,26 @@ use crate::worker::market_helpers::market::{market_factory, Market};
 use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
 use crate::worker::market_helpers::stored_and_ws_transmissible_f64_by_pair_tuple::StoredAndWsTransmissibleF64ByPairTuple;
-use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
-use crate::worker::network_helpers::ws_server::ws_channel_request::WsChannelRequest;
-use crate::worker::network_helpers::ws_server::ws_channel_response_sender::WsChannelResponseSender;
+use crate::worker::network_helpers::ws_server::ws_channels_holder::WsChannelsHolder;
 use crate::worker::network_helpers::ws_server::ws_server::WsServer;
-use chrono::{DateTime, Utc, MIN_DATETIME};
-use reqwest::blocking::multipart::{Form, Part};
-use reqwest::blocking::Client;
 use std::collections::HashMap;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
-use std::time;
 
 pub struct Worker {
-    arc: Option<Arc<Mutex<Self>>>,
     tx: Sender<JoinHandle<()>>,
     graceful_shutdown: Arc<Mutex<bool>>,
     markets: HashMap<String, Arc<Mutex<dyn Market + Send>>>,
-    market_names_by_ws_channel_key: HashMap<(String, WsChannelName), Vec<String>>,
-    pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
-}
-
-pub fn is_graceful_shutdown(worker: &Arc<Mutex<Worker>>) -> bool {
-    *worker.lock().unwrap().graceful_shutdown.lock().unwrap()
 }
 
 impl Worker {
-    pub fn new(
-        tx: Sender<JoinHandle<()>>,
-        graceful_shutdown: Arc<Mutex<bool>>,
-        pair_average_price_repository: Option<RepositoryForF64ByTimestampAndPairTuple>,
-    ) -> Arc<Mutex<Self>> {
-        let worker = Worker {
-            arc: None,
+    pub fn new(tx: Sender<JoinHandle<()>>, graceful_shutdown: Arc<Mutex<bool>>) -> Self {
+        Self {
             tx,
             graceful_shutdown,
             markets: HashMap::new(),
-            market_names_by_ws_channel_key: HashMap::new(),
-            pair_average_price: StoredAndWsTransmissibleF64ByPairTuple::new(
-                pair_average_price_repository,
-                vec![
-                    WsChannelName::CoinAveragePrice,
-                    WsChannelName::CoinAveragePriceCandles,
-                ],
-                None,
-            ),
-        };
-
-        let worker = Arc::new(Mutex::new(worker));
-        worker.lock().unwrap().set_arc(Arc::clone(&worker));
-
-        worker
-    }
-
-    fn set_arc(&mut self, arc: Arc<Mutex<Self>>) {
-        self.arc = Some(arc);
-    }
-
-    pub fn add_ws_channel(
-        &mut self,
-        conn_id: String,
-        channel: WsChannelResponseSender,
-    ) -> Result<(), Vec<String>> {
-        match &channel.request {
-            WsChannelRequest::CoinAveragePrice { .. }
-            | WsChannelRequest::CoinAveragePriceCandles { .. } => {
-                // Worker's channel
-
-                self.pair_average_price
-                    .ws_channels
-                    .add_channel(conn_id, channel);
-
-                Ok(())
-            }
-            WsChannelRequest::CoinExchangePrice { exchanges, .. }
-            | WsChannelRequest::CoinExchangeVolume { exchanges, .. } => {
-                // Market's channel
-
-                // Search for unsupported exchanges
-                let errors: Vec<String> = exchanges
-                    .iter()
-                    .filter(|&v| !self.markets.contains_key(v))
-                    .map(|v| format!("Unsupported exchange: {}", v))
-                    .collect();
-
-                if !errors.is_empty() {
-                    Err(errors)
-                } else {
-                    let key = (conn_id.clone(), channel.request.get_method());
-                    self.remove_ws_channel(&key);
-                    self.market_names_by_ws_channel_key
-                        .insert(key, exchanges.clone());
-                    let pairs: Vec<(&str, &str)> = channel
-                        .request
-                        .get_coins()
-                        .iter()
-                        .map(|v| (v.as_str(), "USD"))
-                        .collect();
-
-                    for exchange in exchanges {
-                        for pair_tuple in &pairs {
-                            let pair_string = self
-                                .markets
-                                .get_mut(exchange)
-                                .unwrap()
-                                .lock()
-                                .unwrap()
-                                .make_pair(*pair_tuple);
-
-                            let mut market =
-                                self.markets.get_mut(exchange).unwrap().lock().unwrap();
-
-                            // There we have only supported exchanges, thus we can call `unwrap`
-                            // But coins are not validated, so we need to check if pair exists
-                            let exchange_pair_info = market
-                                .get_spine_mut()
-                                .get_exchange_pairs_mut()
-                                .get_mut(&pair_string);
-
-                            if let Some(exchange_pair_info) = exchange_pair_info {
-                                exchange_pair_info
-                                    .last_trade_price
-                                    .ws_channels
-                                    .add_channel(conn_id.clone(), channel.clone());
-
-                                exchange_pair_info
-                                    .total_volume
-                                    .ws_channels
-                                    .add_channel(conn_id.clone(), channel.clone());
-                            }
-                        }
-                    }
-
-                    Ok(())
-                }
-            }
-            _ => unreachable!(),
         }
-    }
-
-    pub fn remove_ws_channel(&mut self, key: &(String, WsChannelName)) {
-        if let Some(market_names) = self.market_names_by_ws_channel_key.remove(key) {
-            // Market's channel
-
-            for market_name in market_names {
-                let mut market = self.markets.get_mut(&market_name).unwrap().lock().unwrap();
-
-                let exchange_pair_infos =
-                    market.get_spine_mut().get_exchange_pairs_mut().values_mut();
-
-                for exchange_pair_info in exchange_pair_infos {
-                    exchange_pair_info
-                        .last_trade_price
-                        .ws_channels
-                        .remove_channel(key);
-
-                    exchange_pair_info
-                        .total_volume
-                        .ws_channels
-                        .remove_channel(key);
-                }
-            }
-        } else {
-            // Worker's channel
-
-            self.pair_average_price.ws_channels.remove_channel(key);
-        }
-    }
-
-    pub fn recalculate_pair_average_price(&mut self, pair: (String, String), new_price: f64) {
-        let old_avg = self
-            .pair_average_price
-            .get_value(&pair)
-            .unwrap_or(new_price);
-
-        let new_avg = (new_price + old_avg) / 2.0;
-
-        info!("new {}-{} average trade price: {}", pair.0, pair.1, new_avg);
-
-        self.pair_average_price.set_new_value(pair, new_avg);
     }
 
     fn is_graceful_shutdown(&self) -> bool {
@@ -202,13 +42,15 @@ impl Worker {
         channels: Vec<MarketChannels>,
         rest_timeout_sec: u64,
         repositories: Option<RepositoriesByMarketName>,
+        pair_average_price: Arc<Mutex<StoredAndWsTransmissibleF64ByPairTuple>>,
+        ws_channels_holder: &WsChannelsHolder,
     ) {
         let mut repositories = repositories.unwrap_or_default();
 
         for market_name in markets {
-            let worker_2 = Arc::clone(self.arc.as_ref().unwrap());
+            let pair_average_price_2 = Arc::clone(&pair_average_price);
             let market_spine = MarketSpine::new(
-                worker_2,
+                pair_average_price_2,
                 self.tx.clone(),
                 rest_timeout_sec,
                 market_name.to_string(),
@@ -219,6 +61,7 @@ impl Worker {
                 market_spine,
                 exchange_pairs.clone(),
                 repositories.remove(market_name),
+                ws_channels_holder,
             );
 
             self.markets.insert(market_name.to_string(), market);
@@ -231,17 +74,16 @@ impl Worker {
         ws_addr: String,
         ws_answer_timeout_ms: u64,
         pair_average_price_repository: Option<RepositoryForF64ByTimestampAndPairTuple>,
+        ws_channels_holder: WsChannelsHolder,
         graceful_shutdown: Arc<Mutex<bool>>,
     ) {
         if ws {
-            let worker = Arc::clone(self.arc.as_ref().unwrap());
-
             let thread_name = "fn: start_ws".to_string();
             let thread = thread::Builder::new()
                 .name(thread_name)
                 .spawn(move || {
                     let ws_server = WsServer {
-                        worker,
+                        ws_channels_holder,
                         ws_addr,
                         ws_answer_timeout_ms,
                         pair_average_price_repository,
@@ -258,7 +100,9 @@ impl Worker {
         &mut self,
         config: ConfigScheme,
         market_repositories: Option<RepositoriesByMarketName>,
+        pair_average_price: Arc<Mutex<StoredAndWsTransmissibleF64ByPairTuple>>,
         pair_average_price_repository: Option<RepositoryForF64ByTimestampAndPairTuple>,
+        ws_channels_holder: WsChannelsHolder,
     ) {
         let ConfigScheme { market, service } = config;
         let MarketConfig {
@@ -284,12 +128,15 @@ impl Worker {
             channels,
             rest_timeout_sec,
             market_repositories,
+            pair_average_price,
+            &ws_channels_holder,
         );
         self.start_ws(
             ws,
             ws_addr,
             ws_answer_timeout_ms,
             pair_average_price_repository,
+            ws_channels_holder,
             self.graceful_shutdown.clone(),
         );
 
@@ -412,40 +259,6 @@ pub mod test {
         let markets = vec!["not_existing_market"];
 
         test_configure(markets, config.exchange_pairs, config.channels);
-    }
-
-    #[test]
-    fn test_recalculate_pair_average_price() {
-        let (worker, _, _) = make_worker();
-
-        let coins = ["BTC", "ETH"];
-        let prices = [100.0, 200.0];
-
-        for coin in coins {
-            for new_price in prices {
-                let pair = (coin.to_string(), "USD".to_string());
-                let expected_curr_price = if new_price.eq(&100.0) {
-                    100.0
-                } else if new_price.eq(&200.0) {
-                    150.0
-                } else {
-                    panic!("Test: Wrong price in loop.")
-                };
-
-                worker
-                    .lock()
-                    .unwrap()
-                    .recalculate_pair_average_price(pair.clone(), new_price);
-
-                let real_curr_price_field = worker
-                    .lock()
-                    .unwrap()
-                    .pair_average_price
-                    .get_value(&pair)
-                    .unwrap();
-                assert!(expected_curr_price.eq(&real_curr_price_field));
-            }
-        }
     }
 
     /// TODO: Add tests for WsServer

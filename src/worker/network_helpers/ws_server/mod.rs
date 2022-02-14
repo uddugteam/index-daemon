@@ -9,4 +9,5 @@ pub mod ws_channel_response;
 pub mod ws_channel_response_payload;
 pub mod ws_channel_response_sender;
 pub mod ws_channels;
+pub mod ws_channels_holder;
 pub mod ws_server;

@@ -1,15 +1,20 @@
 use crate::repository::repositories::RepositoryForF64ByTimestampAndPairTuple;
+use crate::worker::defaults::get_pair_average_price_dummy_pair;
 use crate::worker::helper_functions::date_time_from_timestamp_sec;
 use crate::worker::network_helpers::ws_server::candles::Candles;
 use crate::worker::network_helpers::ws_server::f64_snapshot::F64Snapshots;
 use crate::worker::network_helpers::ws_server::hepler_functions::ws_send_response;
 use crate::worker::network_helpers::ws_server::jsonrpc_messages::{JsonRpcId, JsonRpcRequest};
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
-use crate::worker::network_helpers::ws_server::ws_channel_request::WsChannelRequest;
+use crate::worker::network_helpers::ws_server::ws_channel_request::{
+    WsChannelAction, WsChannelRequest,
+};
 use crate::worker::network_helpers::ws_server::ws_channel_response::WsChannelResponse;
 use crate::worker::network_helpers::ws_server::ws_channel_response_payload::WsChannelResponsePayload;
 use crate::worker::network_helpers::ws_server::ws_channel_response_sender::WsChannelResponseSender;
-use crate::worker::worker::Worker;
+use crate::worker::network_helpers::ws_server::ws_channels_holder::{
+    WsChannelsHolder, WsChannelsHolderKey,
+};
 use async_std::{
     net::{TcpListener, TcpStream},
     task,
@@ -30,7 +35,7 @@ const JSONRPC_ERROR_INVALID_REQUEST: i64 = -32600;
 const JSONRPC_ERROR_INVALID_PARAMS: i64 = -32602;
 
 pub struct WsServer {
-    pub worker: Arc<Mutex<Worker>>,
+    pub ws_channels_holder: WsChannelsHolder,
     pub ws_addr: String,
     pub ws_answer_timeout_ms: u64,
     pub pair_average_price_repository: Option<RepositoryForF64ByTimestampAndPairTuple>,
@@ -68,50 +73,151 @@ impl WsServer {
         let _ = ws_send_response(broadcast_recipient, response, None);
     }
 
-    /// Function adds new channel to worker or removes existing channel from worker (depends on `channel`)
+    fn perform_action(
+        action: WsChannelAction,
+        ws_channels_holder: &mut WsChannelsHolder,
+        broadcast_recipient: &Tx,
+        conn_id: String,
+        channel: WsChannelRequest,
+        ws_answer_timeout_ms: u64,
+        key: WsChannelsHolderKey,
+        error_msg: String,
+    ) {
+        let sub_id = channel.get_id();
+        let method = channel.get_method();
+
+        if let Some(ws_channels) = ws_channels_holder.get_mut(&key) {
+            match action {
+                WsChannelAction::Subscribe => {
+                    let response_sender = WsChannelResponseSender::new(
+                        broadcast_recipient.clone(),
+                        channel,
+                        ws_answer_timeout_ms,
+                    );
+
+                    ws_channels
+                        .lock()
+                        .unwrap()
+                        .add_channel(conn_id, response_sender);
+                }
+                WsChannelAction::Unsubscribe => {
+                    let key = (conn_id, method);
+
+                    ws_channels.lock().unwrap().remove_channel(&key);
+                }
+            }
+        } else {
+            Self::send_error(
+                broadcast_recipient,
+                sub_id,
+                Some(method),
+                JSONRPC_ERROR_INVALID_PARAMS,
+                error_msg,
+            );
+        }
+    }
+
+    fn perform_action_on_worker_channel(
+        ws_channels_holder: &mut WsChannelsHolder,
+        broadcast_recipient: &Tx,
+        conn_id: String,
+        channel: WsChannelRequest,
+        ws_answer_timeout_ms: u64,
+    ) {
+        let market_value = channel.get_method().get_market_value();
+        let pair = get_pair_average_price_dummy_pair();
+        let key = ("worker".to_string(), market_value, pair);
+
+        let action = channel.get_action();
+        let error_msg = match action {
+            WsChannelAction::Subscribe => "Parameter value is wrong: coin.",
+            WsChannelAction::Unsubscribe => "Subscription not found.",
+        }
+        .to_string();
+
+        Self::perform_action(
+            action,
+            ws_channels_holder,
+            broadcast_recipient,
+            conn_id,
+            channel,
+            ws_answer_timeout_ms,
+            key,
+            error_msg,
+        );
+    }
+
+    fn perform_action_on_market_channel(
+        ws_channels_holder: &mut WsChannelsHolder,
+        broadcast_recipient: &Tx,
+        conn_id: String,
+        channel: WsChannelRequest,
+        ws_answer_timeout_ms: u64,
+    ) {
+        let exchanges = channel.get_exchanges();
+        let market_value = channel.get_method().get_market_value();
+        let pairs: Vec<(String, String)> = channel
+            .get_coins()
+            .iter()
+            .map(|v| (v.to_string(), "USD".to_string()))
+            .collect();
+
+        let action = channel.get_action();
+        let error_msg = match action {
+            WsChannelAction::Subscribe => "One of two parameters is wrong: exchange, coin.",
+            WsChannelAction::Unsubscribe => "Subscription not found.",
+        }
+        .to_string();
+
+        for exchange in exchanges {
+            for pair in pairs.clone() {
+                let key = (exchange.to_string(), market_value, pair);
+
+                Self::perform_action(
+                    action,
+                    ws_channels_holder,
+                    broadcast_recipient,
+                    conn_id.clone(),
+                    channel.clone(),
+                    ws_answer_timeout_ms,
+                    key,
+                    error_msg.to_string(),
+                );
+
+                // To prevent DDoS attack on a client
+                thread::sleep(time::Duration::from_millis(100));
+            }
+        }
+    }
+
+    /// Function adds new channel or removes existing channel (depends on `channel`)
     fn add_new_channel(
-        worker: Arc<Mutex<Worker>>,
+        mut ws_channels_holder: WsChannelsHolder,
         broadcast_recipient: Tx,
         conn_id: String,
         channel: WsChannelRequest,
         ws_answer_timeout_ms: u64,
     ) {
-        if !matches!(channel, WsChannelRequest::Unsubscribe { .. }) {
-            // Subscribe
+        if channel.get_method().is_worker_channel() {
+            // Worker's channel
 
-            let sub_id = channel.get_id();
-            let method = channel.get_method();
-            let response_sender = WsChannelResponseSender::new(
-                broadcast_recipient.clone(),
+            Self::perform_action_on_worker_channel(
+                &mut ws_channels_holder,
+                &broadcast_recipient,
+                conn_id,
                 channel,
                 ws_answer_timeout_ms,
             );
-
-            let add_ws_channel_result = worker
-                .lock()
-                .unwrap()
-                .add_ws_channel(conn_id, response_sender);
-
-            if let Err(errors) = add_ws_channel_result {
-                for error in errors {
-                    Self::send_error(
-                        &broadcast_recipient,
-                        sub_id.clone(),
-                        Some(method),
-                        JSONRPC_ERROR_INVALID_PARAMS,
-                        error,
-                    );
-
-                    // To prevent DDoS attack on a client
-                    thread::sleep(time::Duration::from_millis(100));
-                }
-            }
         } else {
-            // Unsubscribe
+            // Market's channel
 
-            let method = channel.get_method();
-
-            worker.lock().unwrap().remove_ws_channel(&(conn_id, method));
+            Self::perform_action_on_market_channel(
+                &mut ws_channels_holder,
+                &broadcast_recipient,
+                conn_id,
+                channel,
+                ws_answer_timeout_ms,
+            );
         }
     }
 
@@ -183,7 +289,7 @@ impl WsServer {
     /// -- -- if request is `channel`, call `Self::add_new_channel`
     /// -- else - send error response (call `Self::send_error`)
     fn process_ws_channel_request(
-        worker: Arc<Mutex<Worker>>,
+        ws_channels_holder: WsChannelsHolder,
         client_addr: &SocketAddr,
         broadcast_recipient: Tx,
         conn_id: String,
@@ -195,7 +301,7 @@ impl WsServer {
     ) {
         match request {
             Ok(channel) => {
-                if channel.is_channel() {
+                if channel.get_method().is_channel() {
                     // It's a channel
 
                     info!(
@@ -204,7 +310,7 @@ impl WsServer {
                     );
 
                     Self::add_new_channel(
-                        worker,
+                        ws_channels_holder,
                         broadcast_recipient,
                         conn_id,
                         channel,
@@ -233,7 +339,7 @@ impl WsServer {
     /// Function parses request, then calls `Self::process_ws_channel_request` in a separate thread
     fn process_jsonrpc_request(
         request: String,
-        worker: &Arc<Mutex<Worker>>,
+        ws_channels_holder: &WsChannelsHolder,
         peer_map: &PeerMap,
         client_addr: SocketAddr,
         conn_id: &str,
@@ -251,7 +357,7 @@ impl WsServer {
                     let request = Self::parse_ws_channel_request(request);
 
                     let conn_id_2 = conn_id.to_string();
-                    let worker_2 = Arc::clone(worker);
+                    let ws_channels_holder_2 = ws_channels_holder.clone();
                     let pair_average_price_repository_2 = pair_average_price_repository.clone();
 
                     let thread_name = format!(
@@ -262,7 +368,7 @@ impl WsServer {
                         .name(thread_name)
                         .spawn(move || {
                             Self::process_ws_channel_request(
-                                worker_2,
+                                ws_channels_holder_2,
                                 &client_addr,
                                 broadcast_recipient,
                                 conn_id_2,
@@ -293,7 +399,7 @@ impl WsServer {
     /// Function handles one connection - function is executing until client is disconnected.
     /// Function listens for requests and process them (calls `Self::process_jsonrpc_request`)
     async fn handle_connection(
-        worker: Arc<Mutex<Worker>>,
+        ws_channels_holder: WsChannelsHolder,
         peer_map: PeerMap,
         raw_stream: TcpStream,
         client_addr: SocketAddr,
@@ -319,7 +425,7 @@ impl WsServer {
                 let broadcast_incoming = incoming.try_for_each(|request| {
                     Self::process_jsonrpc_request(
                         request.to_string(),
-                        &worker,
+                        &ws_channels_holder,
                         &peer_map,
                         client_addr,
                         &conn_id,
@@ -365,7 +471,7 @@ impl WsServer {
             let conn_id = Uuid::new_v4().to_string();
 
             let _ = task::spawn(Self::handle_connection(
-                Arc::clone(&self.worker),
+                self.ws_channels_holder.clone(),
                 state.clone(),
                 stream,
                 client_addr,

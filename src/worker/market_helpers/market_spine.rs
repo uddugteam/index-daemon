@@ -4,7 +4,8 @@ use crate::worker::market_helpers::exchange_pair::ExchangePair;
 use crate::worker::market_helpers::exchange_pair_info::ExchangePairInfo;
 use crate::worker::market_helpers::market::Market;
 use crate::worker::market_helpers::market_channels::MarketChannels;
-use crate::worker::worker::{self, Worker};
+use crate::worker::market_helpers::stored_and_ws_transmissible_f64_by_pair_tuple::StoredAndWsTransmissibleF64ByPairTuple;
+use crate::worker::network_helpers::ws_server::ws_channels_holder::WsChannelsHolder;
 use std::collections::HashMap;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
@@ -13,7 +14,7 @@ use std::thread::{self, JoinHandle};
 pub const EPS: f64 = 0.00001;
 
 pub struct MarketSpine {
-    worker: Arc<Mutex<Worker>>,
+    pair_average_price: Arc<Mutex<StoredAndWsTransmissibleF64ByPairTuple>>,
     pub arc: Option<Arc<Mutex<dyn Market + Send>>>,
     pub tx: Sender<JoinHandle<()>>,
     pub rest_timeout_sec: u64,
@@ -28,7 +29,7 @@ pub struct MarketSpine {
 }
 impl MarketSpine {
     pub fn new(
-        worker: Arc<Mutex<Worker>>,
+        pair_average_price: Arc<Mutex<StoredAndWsTransmissibleF64ByPairTuple>>,
         tx: Sender<JoinHandle<()>>,
         rest_timeout_sec: u64,
         name: String,
@@ -55,7 +56,7 @@ impl MarketSpine {
         };
 
         Self {
-            worker,
+            pair_average_price,
             arc: None,
             tx,
             rest_timeout_sec,
@@ -104,10 +105,16 @@ impl MarketSpine {
         pair_string: String,
         exchange_pair: ExchangePair,
         repositories: Option<RepositoriesByMarketValue>,
+        ws_channels_holder: &WsChannelsHolder,
     ) {
         self.exchange_pairs.insert(
             pair_string.clone(),
-            ExchangePairInfo::new(repositories, self.name.clone(), exchange_pair.pair.clone()),
+            ExchangePairInfo::new(
+                repositories,
+                ws_channels_holder,
+                self.name.clone(),
+                exchange_pair.pair.clone(),
+            ),
         );
         self.conversions
             .insert(pair_string.clone(), exchange_pair.conversion);
@@ -155,7 +162,7 @@ impl MarketSpine {
     }
 
     fn recalculate_pair_average_price(&self, pair: (String, String), new_price: f64) {
-        let worker = Arc::clone(&self.worker);
+        let pair_average_price_2 = Arc::clone(&self.pair_average_price);
 
         let thread_name = format!(
             "fn: recalculate_pair_average_price, market: {}, pair: {:?}",
@@ -164,14 +171,15 @@ impl MarketSpine {
         let thread = thread::Builder::new()
             .name(thread_name)
             .spawn(move || {
-                if worker::is_graceful_shutdown(&worker) {
-                    return;
-                }
+                if let Ok(mut pair_average_price) = pair_average_price_2.lock() {
+                    let old_avg = pair_average_price.get_value(&pair).unwrap_or(new_price);
 
-                worker
-                    .lock()
-                    .unwrap()
-                    .recalculate_pair_average_price(pair, new_price);
+                    let new_avg = (new_price + old_avg) / 2.0;
+
+                    info!("new {}-{} average trade price: {}", pair.0, pair.1, new_avg);
+
+                    pair_average_price.set_new_value(pair, new_avg);
+                }
             })
             .unwrap();
         self.tx.send(thread).unwrap();
@@ -304,23 +312,5 @@ pub mod test {
         );
 
         assert_eq!(spine.get_pairs().get(&pair_string).unwrap(), &pair_tuple);
-    }
-
-    #[test]
-    #[timeout(1000)]
-    fn test_recalculate_pair_average_price() {
-        let market_name = "binance";
-        let pair = ("ABC".to_string(), "DEF".to_string());
-        let new_price = 100.0;
-
-        let (spine, rx) = make_spine(Some(market_name));
-
-        let thread_names = vec![format!(
-            "fn: recalculate_pair_average_price, market: {}, pair: {:?}",
-            market_name, pair,
-        )];
-
-        spine.recalculate_pair_average_price(pair, new_price);
-        check_threads(thread_names, rx);
     }
 }

@@ -4,6 +4,7 @@ use crate::repository::f64_by_timestamp_and_pair_tuple_sled::{
 };
 use crate::repository::f64_by_timestamp_sled::F64ByTimestampSled;
 use crate::repository::repository::Repository;
+use crate::worker::market_helpers::market_value::MarketValue;
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -11,7 +12,7 @@ use std::sync::{Arc, Mutex};
 pub type RepositoryForF64ByTimestampAndPairTuple =
     Box<dyn Repository<TimestampAndPairTuple, f64> + Send>;
 pub type RepositoryForF64ByTimestamp = Box<dyn Repository<DateTime<Utc>, f64> + Send>;
-pub type RepositoriesByMarketValue = HashMap<String, RepositoryForF64ByTimestamp>;
+pub type RepositoriesByMarketValue = HashMap<MarketValue, RepositoryForF64ByTimestamp>;
 pub type RepositoriesByPairTuple = HashMap<(String, String), RepositoriesByMarketValue>;
 pub type RepositoriesByMarketName = HashMap<String, RepositoriesByPairTuple>;
 
@@ -67,7 +68,7 @@ impl Repositories {
         tree: Arc<Mutex<vsdbsled::Db>>,
     ) -> RepositoryForF64ByTimestampAndPairTuple {
         Box::new(F64ByTimestampAndPairTupleSled::new(
-            "worker__pair_average_price".to_string(),
+            "worker__".to_string() + &MarketValue::PairAveragePrice.to_string(),
             Arc::clone(&tree),
             config.service.historical_storage_frequency_ms,
         ))
@@ -80,7 +81,10 @@ impl Repositories {
         let market_config = &config.market;
         let service_config = &config.service;
 
-        let market_values = ["pair_price", "pair_volume"];
+        let market_values = [
+            MarketValue::PairExchangePrice,
+            MarketValue::PairExchangeVolume,
+        ];
         let mut hash_map = HashMap::new();
         for market_name in &market_config.markets {
             let hash_map = hash_map
@@ -94,8 +98,12 @@ impl Repositories {
 
                 for market_value in market_values {
                     let pair = format!("{}_{}", exchange_pair.pair.0, exchange_pair.pair.1);
-                    let entity_name =
-                        format!("market__{}__{}__{}", market_name, market_value, pair);
+                    let entity_name = format!(
+                        "market__{}__{}__{}",
+                        market_name,
+                        market_value.to_string(),
+                        pair
+                    );
 
                     let repository: RepositoryForF64ByTimestamp =
                         Box::new(F64ByTimestampSled::new(
@@ -104,7 +112,7 @@ impl Repositories {
                             service_config.historical_storage_frequency_ms,
                         ));
 
-                    hash_map.insert(market_value.to_string(), repository);
+                    hash_map.insert(market_value, repository);
                 }
             }
         }

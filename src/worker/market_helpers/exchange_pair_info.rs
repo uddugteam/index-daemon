@@ -1,7 +1,10 @@
 use crate::repository::repositories::RepositoriesByMarketValue;
+use crate::worker::market_helpers::market_value::MarketValue;
 use crate::worker::market_helpers::stored_and_ws_transmissible_f64::StoredAndWsTransmissibleF64;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
+use crate::worker::network_helpers::ws_server::ws_channels_holder::WsChannelsHolder;
 use chrono::{DateTime, Utc, MIN_DATETIME};
+use std::sync::Arc;
 
 pub struct ExchangePairInfo {
     pub last_trade_price: StoredAndWsTransmissibleF64,
@@ -15,6 +18,7 @@ pub struct ExchangePairInfo {
 impl ExchangePairInfo {
     pub fn new(
         repositories: Option<RepositoriesByMarketValue>,
+        ws_channels_holder: &WsChannelsHolder,
         market_name: String,
         pair: (String, String),
     ) -> Self {
@@ -22,17 +26,31 @@ impl ExchangePairInfo {
 
         ExchangePairInfo {
             last_trade_price: StoredAndWsTransmissibleF64::new(
-                repositories.remove("pair_price"),
+                repositories.remove(&MarketValue::PairExchangePrice),
                 WsChannelName::CoinExchangePrice,
                 Some(market_name.clone()),
                 pair.clone(),
+                Arc::clone(
+                    ws_channels_holder
+                        .get(&(
+                            market_name.clone(),
+                            MarketValue::PairExchangePrice,
+                            pair.clone(),
+                        ))
+                        .unwrap(),
+                ),
             ),
             last_trade_volume: 0.0,
             total_volume: StoredAndWsTransmissibleF64::new(
-                repositories.remove("pair_volume"),
+                repositories.remove(&MarketValue::PairExchangeVolume),
                 WsChannelName::CoinExchangeVolume,
-                Some(market_name),
-                pair,
+                Some(market_name.clone()),
+                pair.clone(),
+                Arc::clone(
+                    ws_channels_holder
+                        .get(&(market_name, MarketValue::PairExchangeVolume, pair))
+                        .unwrap(),
+                ),
             ),
             total_ask: 0.0,
             total_bid: 0.0,
