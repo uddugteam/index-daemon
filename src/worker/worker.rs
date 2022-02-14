@@ -29,8 +29,6 @@ pub struct Worker {
     markets: HashMap<String, Arc<Mutex<dyn Market + Send>>>,
     market_names_by_ws_channel_key: HashMap<(String, WsChannelName), Vec<String>>,
     pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
-    capitalization: HashMap<String, f64>,
-    last_capitalization_refresh: DateTime<Utc>,
 }
 
 pub fn is_graceful_shutdown(worker: &Arc<Mutex<Worker>>) -> bool {
@@ -57,8 +55,6 @@ impl Worker {
                 ],
                 None,
             ),
-            capitalization: HashMap::new(),
-            last_capitalization_refresh: MIN_DATETIME,
         };
 
         let worker = Arc::new(Mutex::new(worker));
@@ -195,88 +191,6 @@ impl Worker {
         self.pair_average_price.set_new_value(pair, new_avg);
     }
 
-    fn refresh_capitalization_thread(&self) {
-        let worker = Arc::clone(self.arc.as_ref().unwrap());
-        let thread_name = "fn: refresh_capitalization".to_string();
-        let thread = thread::Builder::new()
-            .name(thread_name)
-            .spawn(move || loop {
-                if is_graceful_shutdown(&worker) {
-                    return;
-                }
-
-                if Self::refresh_capitalization(Arc::clone(&worker)).is_some() {
-                    // if success
-                    break;
-                } else {
-                    // if error
-                    thread::sleep(time::Duration::from_millis(10000));
-                }
-            })
-            .unwrap();
-        self.tx.send(thread).unwrap();
-    }
-
-    fn refresh_capitalization(worker: Arc<Mutex<Self>>) -> Option<()> {
-        let response = Client::new()
-            .get("https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest")
-            .header("Accepts", "application/json")
-            .header("X-CMC_PRO_API_KEY", "388b6445-3e65-4b86-913e-f0534596068b")
-            .multipart(
-                Form::new()
-                    .part("start", Part::text("1"))
-                    .part("limit", Part::text("10"))
-                    .part("convert", Part::text("USD")),
-            )
-            .send();
-
-        match response {
-            Ok(response) => match response.text() {
-                Ok(response) => match serde_json::from_str(&response) {
-                    Ok(json) => {
-                        // This line is needed for type annotation
-                        let json: serde_json::Value = json;
-
-                        let json_object = json.as_object()?;
-                        let coins = json_object.get("data")?.as_array()?;
-
-                        for coin in coins.iter().map(|j| j.as_object().unwrap()) {
-                            let mut curr = coin.get("symbol")?.as_str()?;
-                            if curr == "MIOTA" {
-                                curr = "IOT";
-                            }
-
-                            let total_supply = coin.get("total_supply")?.as_f64()?;
-
-                            worker
-                                .lock()
-                                .unwrap()
-                                .capitalization
-                                .insert(curr.to_string(), total_supply);
-                        }
-
-                        worker.lock().unwrap().last_capitalization_refresh = Utc::now();
-                        return Some(());
-                    }
-                    Err(e) => {
-                        error!("Coinmarketcap.com: Failed to parse json. Error: {}", e)
-                    }
-                },
-                Err(e) => error!(
-                    "Coinmarketcap.com: Failed to get message text. Error: {}",
-                    e
-                ),
-            },
-            Err(e) => error!("Coinmarketcap.com: Failed to connect. Error: {}", e),
-        }
-
-        None
-    }
-
-    fn get_last_capitalization_refresh(&self) -> DateTime<Utc> {
-        self.last_capitalization_refresh
-    }
-
     fn is_graceful_shutdown(&self) -> bool {
         *self.graceful_shutdown.lock().unwrap()
     }
@@ -378,8 +292,6 @@ impl Worker {
             pair_average_price_repository,
             self.graceful_shutdown.clone(),
         );
-
-        self.refresh_capitalization_thread();
 
         for market in self.markets.values().cloned() {
             if self.is_graceful_shutdown() {
@@ -536,23 +448,6 @@ pub mod test {
         }
     }
 
-    fn inner_test_refresh_capitalization(worker: Arc<Mutex<Worker>>) {
-        let now = Utc::now();
-        let last_capitalization_refresh = worker.lock().unwrap().get_last_capitalization_refresh();
-        assert!(now - last_capitalization_refresh <= Duration::milliseconds(5000));
-    }
-
-    // #[test]
-    /// TODO: Rework (make test independent of coinmarketcap.com)
-    fn test_refresh_capitalization() {
-        let (worker, _, _) = make_worker();
-        let result = Worker::refresh_capitalization(Arc::clone(&worker));
-
-        assert!(result.is_some());
-
-        inner_test_refresh_capitalization(worker);
-    }
-
     /// TODO: Add tests for WsServer
     fn inner_test_start(config: ConfigScheme) {
         // To prevent DDoS attack on exchanges
@@ -561,7 +456,6 @@ pub mod test {
         let (worker, _, rx) = make_worker();
 
         let mut thread_names = Vec::new();
-        thread_names.push("fn: refresh_capitalization".to_string());
         for market in &config.market.markets {
             let thread_name = format!("fn: perform, market: {}", market);
             thread_names.push(thread_name);
