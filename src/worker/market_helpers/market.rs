@@ -375,9 +375,7 @@ pub trait Market {
             volume,
         );
 
-        let conversion_coef: f64 = self.get_spine().get_conversion_coef(&pair);
-        self.get_spine_mut()
-            .set_total_volume(&pair, volume * conversion_coef);
+        self.get_spine_mut().set_total_volume(&pair, volume);
     }
 
     fn parse_last_trade_json(&mut self, pair: String, json: serde_json::Value) -> Option<()>;
@@ -397,11 +395,10 @@ pub trait Market {
             last_trade_price,
         );
 
-        let conversion_coef: f64 = self.get_spine().get_conversion_coef(&pair);
         self.get_spine_mut()
             .set_last_trade_volume(&pair, last_trade_volume);
         self.get_spine_mut()
-            .set_last_trade_price(&pair, last_trade_price * conversion_coef);
+            .set_last_trade_price(&pair, last_trade_price);
     }
 
     fn parse_depth_json(&mut self, pair: String, json: serde_json::Value) -> Option<()>;
@@ -423,7 +420,6 @@ pub trait Market {
         for (price, size) in bids {
             bid_sum += size * price;
         }
-        bid_sum *= self.get_spine().get_conversion_coef(&pair);
         self.get_spine_mut().set_total_bid(&pair, bid_sum);
 
         info!(

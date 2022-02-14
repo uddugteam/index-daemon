@@ -91,10 +91,6 @@ impl MarketSpine {
         &self.pairs
     }
 
-    pub fn get_conversions(&self) -> &HashMap<String, ConversionType> {
-        &self.conversions
-    }
-
     pub fn get_exchange_pairs(&self) -> &HashMap<String, ExchangePairInfo> {
         &self.exchange_pairs
     }
@@ -127,20 +123,6 @@ impl MarketSpine {
         self.unmask_pairs.get(a).map(|s| s.as_ref()).unwrap_or(a)
     }
 
-    /// TODO: Implement
-    /// Cannot be implemented, because it depends on https://api.icex.ch/api/coins/ which is not working
-    pub fn get_conversion_coef(&self, pair: &str) -> f64 {
-        let conversion = *self.get_conversions().get(pair).unwrap();
-
-        let _currency = match conversion {
-            ConversionType::None => Some(self.get_pairs().get(pair).unwrap().1.clone()),
-            ConversionType::Crypto => Some(self.get_pairs().get(pair).unwrap().0.clone()),
-            _ => None,
-        };
-
-        1.0
-    }
-
     pub fn get_total_volume(&self, pair: &str) -> f64 {
         if self.exchange_pairs.contains_key(pair) {
             self.exchange_pairs
@@ -168,33 +150,8 @@ impl MarketSpine {
                     .unwrap()
                     .total_volume
                     .set_new_value(value);
-
-                self.update_market_pair(pair, "totalValues", false);
-
-                let pair_tuple = self.pairs.get(pair).unwrap();
-                self.recalculate_total_volume(pair_tuple.0.clone());
             }
         }
-    }
-
-    fn recalculate_total_volume(&self, currency: String) {
-        let worker = Arc::clone(&self.worker);
-
-        let thread_name = format!(
-            "fn: recalculate_total_volume, market: {}, currency: {}",
-            self.name, currency,
-        );
-        let thread = thread::Builder::new()
-            .name(thread_name)
-            .spawn(move || {
-                if worker::is_graceful_shutdown(&worker) {
-                    return;
-                }
-
-                worker.lock().unwrap().recalculate_total_volume(currency);
-            })
-            .unwrap();
-        self.tx.send(thread).unwrap();
     }
 
     fn recalculate_pair_average_price(&self, pair: (String, String), new_price: f64) {
@@ -220,9 +177,6 @@ impl MarketSpine {
         self.tx.send(thread).unwrap();
     }
 
-    // TODO: Implement
-    pub fn update_market_pair(&mut self, _pair: &str, _scope: &str, _price_changed: bool) {}
-
     pub fn set_last_trade_volume(&mut self, pair: &str, value: f64) {
         if value != 0.0 {
             let old_value: f64 = self
@@ -236,8 +190,6 @@ impl MarketSpine {
                     .get_mut(pair)
                     .unwrap()
                     .set_last_trade_volume(value);
-
-                self.update_market_pair(pair, "lastTrade", false);
             }
         }
     }
@@ -274,8 +226,6 @@ impl MarketSpine {
 
         let pair_tuple = self.pairs.get(pair).unwrap().clone();
         self.recalculate_pair_average_price(pair_tuple, value);
-
-        self.update_market_pair(pair, "lastTrade", false);
     }
 
     pub fn set_total_ask(&mut self, pair: &str, value: f64) {
@@ -286,8 +236,6 @@ impl MarketSpine {
                 .get_mut(pair)
                 .unwrap()
                 .set_total_ask(value);
-
-            self.update_market_pair(pair, "totalValues", false);
         }
     }
 
@@ -299,8 +247,6 @@ impl MarketSpine {
                 .get_mut(pair)
                 .unwrap()
                 .set_total_bid(value);
-
-            self.update_market_pair(pair, "totalValues", false);
         }
     }
 }
@@ -358,23 +304,6 @@ pub mod test {
         );
 
         assert_eq!(spine.get_pairs().get(&pair_string).unwrap(), &pair_tuple);
-    }
-
-    #[test]
-    #[timeout(1000)]
-    fn test_recalculate_total_volume() {
-        let market_name = "binance";
-        let currency = "ABC".to_string();
-
-        let (spine, rx) = make_spine(Some(market_name));
-
-        let thread_names = vec![format!(
-            "fn: recalculate_total_volume, market: {}, currency: {}",
-            market_name, currency,
-        )];
-
-        spine.recalculate_total_volume(currency);
-        check_threads(thread_names, rx);
     }
 
     #[test]

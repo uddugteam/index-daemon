@@ -182,9 +182,6 @@ impl Worker {
         }
     }
 
-    // TODO: Implement
-    pub fn recalculate_total_volume(&self, _currency: String) {}
-
     pub fn recalculate_pair_average_price(&mut self, pair: (String, String), new_price: f64) {
         let old_avg = self
             .pair_average_price
