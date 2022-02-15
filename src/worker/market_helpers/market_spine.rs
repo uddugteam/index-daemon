@@ -5,7 +5,7 @@ use crate::worker::market_helpers::exchange_pair_info::ExchangePairInfo;
 use crate::worker::market_helpers::market::Market;
 use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::market_helpers::pair_average_price::PairAveragePriceType;
-use crate::worker::network_helpers::ws_server::ws_channels_holder::WsChannelsHolder;
+use crate::worker::network_helpers::ws_server::ws_channels_holder::WsChannelsHolderHashMap;
 use std::collections::HashMap;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
@@ -105,7 +105,7 @@ impl MarketSpine {
         pair_string: String,
         exchange_pair: ExchangePair,
         repositories: Option<RepositoriesByMarketValue>,
-        ws_channels_holder: &WsChannelsHolder,
+        ws_channels_holder: &WsChannelsHolderHashMap,
     ) {
         self.exchange_pairs.insert(
             pair_string.clone(),

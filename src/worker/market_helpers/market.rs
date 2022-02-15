@@ -17,7 +17,7 @@ use crate::worker::markets::kucoin::Kucoin;
 use crate::worker::markets::okcoin::Okcoin;
 use crate::worker::markets::poloniex::Poloniex;
 use crate::worker::network_helpers::ws_client::WsClient;
-use crate::worker::network_helpers::ws_server::ws_channels_holder::WsChannelsHolder;
+use crate::worker::network_helpers::ws_server::ws_channels_holder::WsChannelsHolderHashMap;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -27,7 +27,7 @@ pub fn market_factory(
     mut spine: MarketSpine,
     exchange_pairs: Vec<ExchangePair>,
     repositories: Option<RepositoriesByPairTuple>,
-    ws_channels_holder: &WsChannelsHolder,
+    ws_channels_holder: &WsChannelsHolderHashMap,
 ) -> Arc<Mutex<dyn Market + Send>> {
     let mut repositories = repositories.unwrap_or_default();
 
@@ -295,7 +295,7 @@ pub trait Market {
         &mut self,
         exchange_pair: ExchangePair,
         repositories: Option<RepositoriesByMarketValue>,
-        ws_channels_holder: &WsChannelsHolder,
+        ws_channels_holder: &WsChannelsHolderHashMap,
     ) {
         let pair_string = self.make_pair(get_pair_ref(&exchange_pair.pair));
         self.get_spine_mut().add_exchange_pair(

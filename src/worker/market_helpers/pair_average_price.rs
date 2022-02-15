@@ -3,7 +3,7 @@ use crate::repository::repositories::RepositoryForF64ByTimestamp;
 use crate::worker::market_helpers::market_value::MarketValue;
 use crate::worker::market_helpers::stored_and_ws_transmissible_f64::StoredAndWsTransmissibleF64;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
-use crate::worker::network_helpers::ws_server::ws_channels_holder::WsChannelsHolder;
+use crate::worker::network_helpers::ws_server::ws_channels_holder::WsChannelsHolderHashMap;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
@@ -12,7 +12,7 @@ pub type PairAveragePriceType = HashMap<(String, String), Arc<Mutex<StoredAndWsT
 pub fn make_pair_average_price(
     market_config: &MarketConfig,
     repository: Option<RepositoryForF64ByTimestamp>,
-    ws_channels_holder: &WsChannelsHolder,
+    ws_channels_holder: &WsChannelsHolderHashMap,
 ) -> PairAveragePriceType {
     let mut hash_map = HashMap::new();
 

@@ -2,7 +2,7 @@ use crate::repository::repositories::RepositoriesByMarketValue;
 use crate::worker::market_helpers::market_value::MarketValue;
 use crate::worker::market_helpers::stored_and_ws_transmissible_f64::StoredAndWsTransmissibleF64;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
-use crate::worker::network_helpers::ws_server::ws_channels_holder::WsChannelsHolder;
+use crate::worker::network_helpers::ws_server::ws_channels_holder::WsChannelsHolderHashMap;
 use chrono::{DateTime, Utc, MIN_DATETIME};
 use std::sync::Arc;
 
@@ -18,7 +18,7 @@ pub struct ExchangePairInfo {
 impl ExchangePairInfo {
     pub fn new(
         repositories: Option<RepositoriesByMarketValue>,
-        ws_channels_holder: &WsChannelsHolder,
+        ws_channels_holder: &WsChannelsHolderHashMap,
         market_name: String,
         pair: (String, String),
     ) -> Self {

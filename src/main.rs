@@ -2,7 +2,7 @@ use crate::config_scheme::config_scheme::ConfigScheme;
 use crate::graceful_shutdown::start_graceful_shutdown_listener;
 use crate::repository::repositories::Repositories;
 use crate::worker::market_helpers::pair_average_price::make_pair_average_price;
-use crate::worker::network_helpers::ws_server::ws_channels_holder::make_ws_channels_holder;
+use crate::worker::network_helpers::ws_server::ws_channels_holder::WsChannelsHolder;
 use crate::worker::worker::Worker;
 use std::sync::mpsc;
 
@@ -24,7 +24,7 @@ fn main() {
     let (pair_average_price_repository, market_repositories) =
         Repositories::optionize_fields(Repositories::new(&config));
 
-    let ws_channels_holder = make_ws_channels_holder(&config.market);
+    let ws_channels_holder = WsChannelsHolder::make_hashmap(&config.market);
 
     let pair_average_price = make_pair_average_price(
         &config.market,

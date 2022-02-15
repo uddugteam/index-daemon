@@ -7,7 +7,9 @@ use crate::worker::market_helpers::market::{market_factory, Market};
 use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
 use crate::worker::market_helpers::pair_average_price::PairAveragePriceType;
-use crate::worker::network_helpers::ws_server::ws_channels_holder::WsChannelsHolder;
+use crate::worker::network_helpers::ws_server::ws_channels_holder::{
+    WsChannelsHolder, WsChannelsHolderHashMap,
+};
 use crate::worker::network_helpers::ws_server::ws_server::WsServer;
 use std::collections::HashMap;
 use std::sync::mpsc::Sender;
@@ -41,7 +43,7 @@ impl Worker {
         rest_timeout_sec: u64,
         repositories: Option<RepositoriesByMarketName>,
         pair_average_price: PairAveragePriceType,
-        ws_channels_holder: &WsChannelsHolder,
+        ws_channels_holder: &WsChannelsHolderHashMap,
     ) {
         let mut repositories = repositories.unwrap_or_default();
 
@@ -72,10 +74,12 @@ impl Worker {
         ws_addr: String,
         ws_answer_timeout_ms: u64,
         pair_average_price_repository: Option<RepositoryForF64ByTimestamp>,
-        ws_channels_holder: WsChannelsHolder,
+        ws_channels_holder: WsChannelsHolderHashMap,
         graceful_shutdown: Arc<Mutex<bool>>,
     ) {
         if ws {
+            let ws_channels_holder = WsChannelsHolder::new(ws_channels_holder);
+
             let thread_name = "fn: start_ws".to_string();
             let thread = thread::Builder::new()
                 .name(thread_name)
@@ -100,7 +104,7 @@ impl Worker {
         market_repositories: Option<RepositoriesByMarketName>,
         pair_average_price: PairAveragePriceType,
         pair_average_price_repository: Option<RepositoryForF64ByTimestamp>,
-        ws_channels_holder: WsChannelsHolder,
+        ws_channels_holder: WsChannelsHolderHashMap,
     ) {
         let ConfigScheme { market, service } = config;
         let MarketConfig {
