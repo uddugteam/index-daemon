@@ -72,8 +72,7 @@ impl WsServer {
         let _ = ws_send_response(broadcast_recipient, response, None);
     }
 
-    fn perform_action(
-        action: WsChannelAction,
+    fn subscribe_stage_2(
         ws_channels_holder: &mut WsChannelsHolder,
         broadcast_recipient: &Tx,
         conn_id: String,
@@ -85,26 +84,14 @@ impl WsServer {
         let sub_id = channel.get_id();
         let method = channel.get_method();
 
-        if let Some(ws_channels) = ws_channels_holder.get_mut(&key) {
-            match action {
-                WsChannelAction::Subscribe => {
-                    let response_sender = WsChannelResponseSender::new(
-                        broadcast_recipient.clone(),
-                        channel,
-                        ws_answer_timeout_ms,
-                    );
+        if ws_channels_holder.contains_key(&key) {
+            let response_sender = WsChannelResponseSender::new(
+                broadcast_recipient.clone(),
+                channel,
+                ws_answer_timeout_ms,
+            );
 
-                    ws_channels
-                        .lock()
-                        .unwrap()
-                        .add_channel(conn_id, response_sender);
-                }
-                WsChannelAction::Unsubscribe => {
-                    let key = (conn_id, method);
-
-                    ws_channels.lock().unwrap().remove_channel(&key);
-                }
-            }
+            ws_channels_holder.add(&key, (conn_id, response_sender));
         } else {
             Self::send_error(
                 broadcast_recipient,
@@ -116,10 +103,9 @@ impl WsServer {
         }
     }
 
-    /// Function adds new channel or removes existing channel (depends on `channel`)
-    fn add_new_channel(
-        mut ws_channels_holder: WsChannelsHolder,
-        broadcast_recipient: Tx,
+    fn subscribe_stage_1(
+        ws_channels_holder: &mut WsChannelsHolder,
+        broadcast_recipient: &Tx,
         conn_id: String,
         channel: WsChannelRequest,
         ws_answer_timeout_ms: u64,
@@ -143,21 +129,15 @@ impl WsServer {
             .map(|v| (v.to_string(), "USD".to_string()))
             .collect();
 
-        let action = channel.get_action();
-        let error_msg = match action {
-            WsChannelAction::Subscribe => error_msg,
-            WsChannelAction::Unsubscribe => "Subscription not found.",
-        }
-        .to_string();
+        Self::unsubscribe(ws_channels_holder, conn_id.clone(), channel.clone());
 
         for exchange in exchanges {
             for pair in pairs.clone() {
                 let key = (exchange.to_string(), market_value, pair);
 
-                Self::perform_action(
-                    action,
-                    &mut ws_channels_holder,
-                    &broadcast_recipient,
+                Self::subscribe_stage_2(
+                    ws_channels_holder,
+                    broadcast_recipient,
                     conn_id.clone(),
                     channel.clone(),
                     ws_answer_timeout_ms,
@@ -167,6 +147,41 @@ impl WsServer {
 
                 // To prevent DDoS attack on a client
                 thread::sleep(time::Duration::from_millis(100));
+            }
+        }
+    }
+
+    fn unsubscribe(
+        ws_channels_holder: &mut WsChannelsHolder,
+        conn_id: String,
+        channel: WsChannelRequest,
+    ) {
+        let method = channel.get_method();
+        let key = (conn_id, method);
+
+        ws_channels_holder.remove(&key);
+    }
+
+    /// Function adds new channel or removes existing channel (depends on `channel`)
+    fn process_channel_action_request(
+        mut ws_channels_holder: WsChannelsHolder,
+        broadcast_recipient: Tx,
+        conn_id: String,
+        channel: WsChannelRequest,
+        ws_answer_timeout_ms: u64,
+    ) {
+        match channel.get_action() {
+            WsChannelAction::Subscribe => {
+                Self::subscribe_stage_1(
+                    &mut ws_channels_holder,
+                    &broadcast_recipient,
+                    conn_id,
+                    channel,
+                    ws_answer_timeout_ms,
+                );
+            }
+            WsChannelAction::Unsubscribe => {
+                Self::unsubscribe(&mut ws_channels_holder, conn_id, channel);
             }
         }
     }
@@ -235,7 +250,7 @@ impl WsServer {
     /// -- check whether request is `Ok`
     /// -- if request is `Ok` then:
     /// -- -- if request is `request`, call `Self::do_response`
-    /// -- -- if request is `channel`, call `Self::add_new_channel`
+    /// -- -- if request is `channel`, call `Self::process_channel_action_request`
     /// -- else - send error response (call `Self::send_error`)
     fn process_ws_channel_request(
         ws_channels_holder: WsChannelsHolder,
@@ -258,7 +273,7 @@ impl WsServer {
                         client_addr, channel
                     );
 
-                    Self::add_new_channel(
+                    Self::process_channel_action_request(
                         ws_channels_holder,
                         broadcast_recipient,
                         conn_id,
