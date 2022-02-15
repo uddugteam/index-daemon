@@ -11,10 +11,6 @@ pub const COINS: [&str; 2] = ["BTC", "ETH"];
 //     "AMP", "NEO", "BAT", "KCS", "OKB", "CHZ", "DASH", "COMP", "NEXO", "XEM", "TUSD", "YFI",
 // ];
 
-pub fn get_pair_average_price_dummy_pair() -> (String, String) {
-    ("dummy".to_string(), "dummy".to_string())
-}
-
 pub const POLONIEX_EXCHANGE_PAIRS: [(&str, (&str, &str)); 456] = [
     ("336", ("BNB", "BTC")),
     ("462", ("BTC", "AAVE")),

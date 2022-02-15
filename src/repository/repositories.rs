@@ -1,7 +1,4 @@
 use crate::config_scheme::config_scheme::ConfigScheme;
-use crate::repository::f64_by_timestamp_and_pair_tuple_sled::{
-    F64ByTimestampAndPairTupleSled, TimestampAndPairTuple,
-};
 use crate::repository::f64_by_timestamp_sled::F64ByTimestampSled;
 use crate::repository::repository::Repository;
 use crate::worker::market_helpers::market_value::MarketValue;
@@ -9,15 +6,13 @@ use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-pub type RepositoryForF64ByTimestampAndPairTuple =
-    Box<dyn Repository<TimestampAndPairTuple, f64> + Send>;
 pub type RepositoryForF64ByTimestamp = Box<dyn Repository<DateTime<Utc>, f64> + Send>;
 pub type RepositoriesByMarketValue = HashMap<MarketValue, RepositoryForF64ByTimestamp>;
 pub type RepositoriesByPairTuple = HashMap<(String, String), RepositoriesByMarketValue>;
 pub type RepositoriesByMarketName = HashMap<String, RepositoriesByPairTuple>;
 
 pub struct Repositories {
-    pub pair_average_price: RepositoryForF64ByTimestampAndPairTuple,
+    pub pair_average_price: RepositoryForF64ByTimestamp,
     pub market_repositories: RepositoriesByMarketName,
 }
 
@@ -51,7 +46,7 @@ impl Repositories {
     pub fn optionize_fields(
         config: Option<Self>,
     ) -> (
-        Option<RepositoryForF64ByTimestampAndPairTuple>,
+        Option<RepositoryForF64ByTimestamp>,
         Option<RepositoriesByMarketName>,
     ) {
         match config {
@@ -66,8 +61,8 @@ impl Repositories {
     fn make_pair_average_price_sled(
         config: &ConfigScheme,
         tree: Arc<Mutex<vsdbsled::Db>>,
-    ) -> RepositoryForF64ByTimestampAndPairTuple {
-        Box::new(F64ByTimestampAndPairTupleSled::new(
+    ) -> RepositoryForF64ByTimestamp {
+        Box::new(F64ByTimestampSled::new(
             "worker__".to_string() + &MarketValue::PairAveragePrice.to_string(),
             Arc::clone(&tree),
             config.service.historical_storage_frequency_ms,

@@ -1,14 +1,12 @@
 use crate::config_scheme::config_scheme::ConfigScheme;
 use crate::config_scheme::market_config::MarketConfig;
 use crate::config_scheme::service_config::ServiceConfig;
-use crate::repository::repositories::{
-    RepositoriesByMarketName, RepositoryForF64ByTimestampAndPairTuple,
-};
+use crate::repository::repositories::{RepositoriesByMarketName, RepositoryForF64ByTimestamp};
 use crate::worker::market_helpers::exchange_pair::ExchangePair;
 use crate::worker::market_helpers::market::{market_factory, Market};
 use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
-use crate::worker::market_helpers::stored_and_ws_transmissible_f64_by_pair_tuple::StoredAndWsTransmissibleF64ByPairTuple;
+use crate::worker::market_helpers::pair_average_price::PairAveragePriceType;
 use crate::worker::network_helpers::ws_server::ws_channels_holder::WsChannelsHolder;
 use crate::worker::network_helpers::ws_server::ws_server::WsServer;
 use std::collections::HashMap;
@@ -42,13 +40,13 @@ impl Worker {
         channels: Vec<MarketChannels>,
         rest_timeout_sec: u64,
         repositories: Option<RepositoriesByMarketName>,
-        pair_average_price: Arc<Mutex<StoredAndWsTransmissibleF64ByPairTuple>>,
+        pair_average_price: PairAveragePriceType,
         ws_channels_holder: &WsChannelsHolder,
     ) {
         let mut repositories = repositories.unwrap_or_default();
 
         for market_name in markets {
-            let pair_average_price_2 = Arc::clone(&pair_average_price);
+            let pair_average_price_2 = pair_average_price.clone();
             let market_spine = MarketSpine::new(
                 pair_average_price_2,
                 self.tx.clone(),
@@ -73,7 +71,7 @@ impl Worker {
         ws: bool,
         ws_addr: String,
         ws_answer_timeout_ms: u64,
-        pair_average_price_repository: Option<RepositoryForF64ByTimestampAndPairTuple>,
+        pair_average_price_repository: Option<RepositoryForF64ByTimestamp>,
         ws_channels_holder: WsChannelsHolder,
         graceful_shutdown: Arc<Mutex<bool>>,
     ) {
@@ -100,8 +98,8 @@ impl Worker {
         &mut self,
         config: ConfigScheme,
         market_repositories: Option<RepositoriesByMarketName>,
-        pair_average_price: Arc<Mutex<StoredAndWsTransmissibleF64ByPairTuple>>,
-        pair_average_price_repository: Option<RepositoryForF64ByTimestampAndPairTuple>,
+        pair_average_price: PairAveragePriceType,
+        pair_average_price_repository: Option<RepositoryForF64ByTimestamp>,
         ws_channels_holder: WsChannelsHolder,
     ) {
         let ConfigScheme { market, service } = config;

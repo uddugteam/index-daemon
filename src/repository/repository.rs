@@ -1,4 +1,4 @@
-use crate::repository::f64_by_timestamp_and_pair_tuple_sled::TimestampAndPairTuple;
+use chrono::{DateTime, Utc};
 use dyn_clone::{clone_trait_object, DynClone};
 use std::collections::HashMap;
 
@@ -9,7 +9,7 @@ pub trait Repository<T, U>: DynClone {
     fn delete(&mut self, primary: T);
 }
 
-clone_trait_object!(Repository<TimestampAndPairTuple, f64>);
+clone_trait_object!(Repository<DateTime<Utc>, f64>);
 
 pub trait RepositoryKeyless<U: Clone> {
     fn read(&self) -> U;

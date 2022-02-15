@@ -27,7 +27,7 @@ impl ExchangePairInfo {
         ExchangePairInfo {
             last_trade_price: StoredAndWsTransmissibleF64::new(
                 repositories.remove(&MarketValue::PairExchangePrice),
-                WsChannelName::CoinExchangePrice,
+                vec![WsChannelName::CoinExchangePrice],
                 Some(market_name.clone()),
                 pair.clone(),
                 Arc::clone(
@@ -43,7 +43,7 @@ impl ExchangePairInfo {
             last_trade_volume: 0.0,
             total_volume: StoredAndWsTransmissibleF64::new(
                 repositories.remove(&MarketValue::PairExchangeVolume),
-                WsChannelName::CoinExchangeVolume,
+                vec![WsChannelName::CoinExchangeVolume],
                 Some(market_name.clone()),
                 pair.clone(),
                 Arc::clone(

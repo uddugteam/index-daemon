@@ -1,5 +1,4 @@
-use crate::repository::repositories::RepositoryForF64ByTimestampAndPairTuple;
-use crate::worker::defaults::get_pair_average_price_dummy_pair;
+use crate::repository::repositories::RepositoryForF64ByTimestamp;
 use crate::worker::helper_functions::date_time_from_timestamp_sec;
 use crate::worker::network_helpers::ws_server::candles::Candles;
 use crate::worker::network_helpers::ws_server::f64_snapshot::F64Snapshots;
@@ -38,7 +37,7 @@ pub struct WsServer {
     pub ws_channels_holder: WsChannelsHolder,
     pub ws_addr: String,
     pub ws_answer_timeout_ms: u64,
-    pub pair_average_price_repository: Option<RepositoryForF64ByTimestampAndPairTuple>,
+    pub pair_average_price_repository: Option<RepositoryForF64ByTimestamp>,
     pub graceful_shutdown: Arc<Mutex<bool>>,
 }
 
@@ -117,44 +116,26 @@ impl WsServer {
         }
     }
 
-    fn perform_action_on_worker_channel(
-        ws_channels_holder: &mut WsChannelsHolder,
-        broadcast_recipient: &Tx,
+    /// Function adds new channel or removes existing channel (depends on `channel`)
+    fn add_new_channel(
+        mut ws_channels_holder: WsChannelsHolder,
+        broadcast_recipient: Tx,
         conn_id: String,
         channel: WsChannelRequest,
         ws_answer_timeout_ms: u64,
     ) {
-        let market_value = channel.get_method().get_market_value();
-        let pair = get_pair_average_price_dummy_pair();
-        let key = ("worker".to_string(), market_value, pair);
+        let (exchanges, error_msg) = if channel.get_method().is_worker_channel() {
+            (
+                vec!["worker".to_string()],
+                "Parameter value is wrong: coin.",
+            )
+        } else {
+            (
+                channel.get_exchanges().to_vec(),
+                "One of two parameters is wrong: exchange, coin.",
+            )
+        };
 
-        let action = channel.get_action();
-        let error_msg = match action {
-            WsChannelAction::Subscribe => "Parameter value is wrong: coin.",
-            WsChannelAction::Unsubscribe => "Subscription not found.",
-        }
-        .to_string();
-
-        Self::perform_action(
-            action,
-            ws_channels_holder,
-            broadcast_recipient,
-            conn_id,
-            channel,
-            ws_answer_timeout_ms,
-            key,
-            error_msg,
-        );
-    }
-
-    fn perform_action_on_market_channel(
-        ws_channels_holder: &mut WsChannelsHolder,
-        broadcast_recipient: &Tx,
-        conn_id: String,
-        channel: WsChannelRequest,
-        ws_answer_timeout_ms: u64,
-    ) {
-        let exchanges = channel.get_exchanges();
         let market_value = channel.get_method().get_market_value();
         let pairs: Vec<(String, String)> = channel
             .get_coins()
@@ -164,7 +145,7 @@ impl WsServer {
 
         let action = channel.get_action();
         let error_msg = match action {
-            WsChannelAction::Subscribe => "One of two parameters is wrong: exchange, coin.",
+            WsChannelAction::Subscribe => error_msg,
             WsChannelAction::Unsubscribe => "Subscription not found.",
         }
         .to_string();
@@ -175,8 +156,8 @@ impl WsServer {
 
                 Self::perform_action(
                     action,
-                    ws_channels_holder,
-                    broadcast_recipient,
+                    &mut ws_channels_holder,
+                    &broadcast_recipient,
                     conn_id.clone(),
                     channel.clone(),
                     ws_answer_timeout_ms,
@@ -190,42 +171,11 @@ impl WsServer {
         }
     }
 
-    /// Function adds new channel or removes existing channel (depends on `channel`)
-    fn add_new_channel(
-        mut ws_channels_holder: WsChannelsHolder,
-        broadcast_recipient: Tx,
-        conn_id: String,
-        channel: WsChannelRequest,
-        ws_answer_timeout_ms: u64,
-    ) {
-        if channel.get_method().is_worker_channel() {
-            // Worker's channel
-
-            Self::perform_action_on_worker_channel(
-                &mut ws_channels_holder,
-                &broadcast_recipient,
-                conn_id,
-                channel,
-                ws_answer_timeout_ms,
-            );
-        } else {
-            // Market's channel
-
-            Self::perform_action_on_market_channel(
-                &mut ws_channels_holder,
-                &broadcast_recipient,
-                conn_id,
-                channel,
-                ws_answer_timeout_ms,
-            );
-        }
-    }
-
     /// Prepares response data and sends to recipient
     fn do_response(
         broadcast_recipient: Tx,
         channel: WsChannelRequest,
-        pair_average_price_repository: Option<RepositoryForF64ByTimestampAndPairTuple>,
+        pair_average_price_repository: Option<RepositoryForF64ByTimestamp>,
     ) {
         match channel.clone() {
             WsChannelRequest::CoinAveragePriceHistorical {
@@ -242,16 +192,15 @@ impl WsServer {
                 from,
                 to,
             } => {
-                let pair_tuple = (coin.to_string(), "USD".to_string());
                 let from = date_time_from_timestamp_sec(from as i64);
                 let to = date_time_from_timestamp_sec(to as i64);
 
                 if let Some(values) = pair_average_price_repository {
-                    let values = values.read_range((from, pair_tuple.clone()), (to, pair_tuple));
+                    let values = values.read_range(from, to);
 
                     match values {
                         Ok(values) => {
-                            let values = values.into_iter().map(|(k, v)| (k.0, v)).collect();
+                            let values = values.into_iter().map(|(k, v)| (k, v)).collect();
 
                             let response =match channel {
                                 WsChannelRequest::CoinAveragePriceHistorical{..}=>WsChannelResponse {
@@ -297,7 +246,7 @@ impl WsServer {
         method: WsChannelName,
         request: Result<WsChannelRequest, String>,
         ws_answer_timeout_ms: u64,
-        pair_average_price_repository: Option<RepositoryForF64ByTimestampAndPairTuple>,
+        pair_average_price_repository: Option<RepositoryForF64ByTimestamp>,
     ) {
         match request {
             Ok(channel) => {
@@ -344,7 +293,7 @@ impl WsServer {
         client_addr: SocketAddr,
         conn_id: &str,
         ws_answer_timeout_ms: u64,
-        pair_average_price_repository: &mut Option<RepositoryForF64ByTimestampAndPairTuple>,
+        pair_average_price_repository: &mut Option<RepositoryForF64ByTimestamp>,
         _graceful_shutdown: &Arc<Mutex<bool>>,
     ) {
         let peers = peer_map.lock().unwrap();
@@ -405,7 +354,7 @@ impl WsServer {
         client_addr: SocketAddr,
         conn_id: String,
         ws_answer_timeout_ms: u64,
-        mut pair_average_price_repository: Option<RepositoryForF64ByTimestampAndPairTuple>,
+        mut pair_average_price_repository: Option<RepositoryForF64ByTimestamp>,
         graceful_shutdown: Arc<Mutex<bool>>,
     ) {
         match async_tungstenite::accept_async(raw_stream).await {

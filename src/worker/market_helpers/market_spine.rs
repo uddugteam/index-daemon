@@ -4,7 +4,7 @@ use crate::worker::market_helpers::exchange_pair::ExchangePair;
 use crate::worker::market_helpers::exchange_pair_info::ExchangePairInfo;
 use crate::worker::market_helpers::market::Market;
 use crate::worker::market_helpers::market_channels::MarketChannels;
-use crate::worker::market_helpers::stored_and_ws_transmissible_f64_by_pair_tuple::StoredAndWsTransmissibleF64ByPairTuple;
+use crate::worker::market_helpers::pair_average_price::PairAveragePriceType;
 use crate::worker::network_helpers::ws_server::ws_channels_holder::WsChannelsHolder;
 use std::collections::HashMap;
 use std::sync::mpsc::Sender;
@@ -14,7 +14,7 @@ use std::thread::{self, JoinHandle};
 pub const EPS: f64 = 0.00001;
 
 pub struct MarketSpine {
-    pair_average_price: Arc<Mutex<StoredAndWsTransmissibleF64ByPairTuple>>,
+    pair_average_price: PairAveragePriceType,
     pub arc: Option<Arc<Mutex<dyn Market + Send>>>,
     pub tx: Sender<JoinHandle<()>>,
     pub rest_timeout_sec: u64,
@@ -29,7 +29,7 @@ pub struct MarketSpine {
 }
 impl MarketSpine {
     pub fn new(
-        pair_average_price: Arc<Mutex<StoredAndWsTransmissibleF64ByPairTuple>>,
+        pair_average_price: PairAveragePriceType,
         tx: Sender<JoinHandle<()>>,
         rest_timeout_sec: u64,
         name: String,
@@ -162,7 +162,7 @@ impl MarketSpine {
     }
 
     fn recalculate_pair_average_price(&self, pair: (String, String), new_price: f64) {
-        let pair_average_price_2 = Arc::clone(&self.pair_average_price);
+        let pair_average_price_2 = Arc::clone(self.pair_average_price.get(&pair).unwrap());
 
         let thread_name = format!(
             "fn: recalculate_pair_average_price, market: {}, pair: {:?}",
@@ -171,14 +171,14 @@ impl MarketSpine {
         let thread = thread::Builder::new()
             .name(thread_name)
             .spawn(move || {
-                if let Ok(mut pair_average_price) = pair_average_price_2.lock() {
-                    let old_avg = pair_average_price.get_value(&pair).unwrap_or(new_price);
+                if let Ok(mut pair_average_price_2) = pair_average_price_2.lock() {
+                    let old_avg = pair_average_price_2.get_value();
 
                     let new_avg = (new_price + old_avg) / 2.0;
 
                     info!("new {}-{} average trade price: {}", pair.0, pair.1, new_avg);
 
-                    pair_average_price.set_new_value(pair, new_avg);
+                    pair_average_price_2.set_new_value(new_avg);
                 }
             })
             .unwrap();

@@ -1,4 +1,4 @@
-use crate::repository::repositories::RepositoryForF64ByTimestampAndPairTuple;
+use crate::repository::repositories::RepositoryForF64ByTimestamp;
 use crate::worker::helper_functions::{date_time_from_timestamp_sec, strip_usd};
 use crate::worker::network_helpers::ws_server::candles::Candle;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
@@ -49,7 +49,7 @@ pub fn send_ws_response_1(
 }
 
 pub fn send_ws_response_2(
-    repository: &Option<RepositoryForF64ByTimestampAndPairTuple>,
+    repository: &Option<RepositoryForF64ByTimestamp>,
     ws_channels: &Arc<Mutex<WsChannels>>,
     ws_channel_name: WsChannelName,
     pair: &(String, String),
@@ -68,11 +68,9 @@ pub fn send_ws_response_2(
                     let from = timestamp.timestamp() - interval;
                     let from = date_time_from_timestamp_sec(from);
 
-                    if let Ok(values) =
-                        repository.read_range((from, pair.clone()), (to, pair.clone()))
-                    {
+                    if let Ok(values) = repository.read_range(from, to) {
                         let values: Vec<(DateTime<Utc>, f64)> =
-                            values.into_iter().map(|(k, v)| (k.0, v)).collect();
+                            values.into_iter().map(|(k, v)| (k, v)).collect();
 
                         let response_payload = if !values.is_empty() {
                             WsChannelResponsePayload::CoinAveragePriceCandles {
