@@ -14,26 +14,31 @@ impl Candles {
 
         let interval = interval.into_seconds() as i64;
 
-        let mut last_to = values[0].0 + interval;
-        let mut chunks = Vec::new();
-        chunks.push(Vec::new());
-        values.into_iter().for_each(|(t, v)| {
-            if t < last_to {
-                let t = date_time_from_timestamp_sec(t);
-                chunks.last_mut().unwrap().push((t, v));
-            } else {
-                chunks.push(Vec::new());
-                last_to += interval;
-            }
-        });
-        let candles = chunks
-            .into_iter()
-            .filter(|v| !v.is_empty())
-            .map(|v| {
-                let t = v.last().unwrap().0;
-                Candle::calculate(v, t).unwrap()
-            })
-            .collect();
+        let candles = if !values.is_empty() {
+            let mut last_to = values[0].0 + interval;
+            let mut chunks = Vec::new();
+            chunks.push(Vec::new());
+            values.into_iter().for_each(|(t, v)| {
+                if t < last_to {
+                    let t = date_time_from_timestamp_sec(t);
+                    chunks.last_mut().unwrap().push((t, v));
+                } else {
+                    chunks.push(Vec::new());
+                    last_to += interval;
+                }
+            });
+
+            chunks
+                .into_iter()
+                .filter(|v| !v.is_empty())
+                .map(|v| {
+                    let t = v.last().unwrap().0;
+                    Candle::calculate(v, t).unwrap()
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
 
         Self(candles)
     }
