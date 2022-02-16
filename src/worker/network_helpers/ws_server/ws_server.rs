@@ -1,19 +1,21 @@
 use crate::repository::repositories::RepositoryForF64ByTimestamp;
 use crate::worker::helper_functions::date_time_from_timestamp_sec;
 use crate::worker::network_helpers::ws_server::candles::Candles;
+use crate::worker::network_helpers::ws_server::channels::ws_channel_action::WsChannelAction;
+use crate::worker::network_helpers::ws_server::channels::ws_channel_subscription_request::WsChannelSubscriptionRequest;
+use crate::worker::network_helpers::ws_server::channels::ws_channel_unsubscribe::WsChannelUnsubscribe;
 use crate::worker::network_helpers::ws_server::f64_snapshot::F64Snapshots;
 use crate::worker::network_helpers::ws_server::hepler_functions::ws_send_response;
 use crate::worker::network_helpers::ws_server::jsonrpc_messages::{JsonRpcId, JsonRpcRequest};
+use crate::worker::network_helpers::ws_server::requests::ws_method_request::WsMethodRequest;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
-use crate::worker::network_helpers::ws_server::ws_channel_request::{
-    WsChannelAction, WsChannelRequest,
-};
 use crate::worker::network_helpers::ws_server::ws_channel_response::WsChannelResponse;
 use crate::worker::network_helpers::ws_server::ws_channel_response_payload::WsChannelResponsePayload;
 use crate::worker::network_helpers::ws_server::ws_channel_response_sender::WsChannelResponseSender;
 use crate::worker::network_helpers::ws_server::ws_channels_holder::{
     WsChannelsHolder, WsChannelsHolderKey,
 };
+use crate::worker::network_helpers::ws_server::ws_request::WsRequest;
 use async_std::{
     net::{TcpListener, TcpStream},
     task,
@@ -50,7 +52,7 @@ impl WsServer {
         serde_json::from_str(request)
     }
 
-    fn parse_ws_channel_request(request: JsonRpcRequest) -> Result<WsChannelRequest, String> {
+    fn parse_ws_request(request: JsonRpcRequest) -> Result<WsRequest, String> {
         request.try_into()
     }
 
@@ -76,18 +78,18 @@ impl WsServer {
         ws_channels_holder: &mut WsChannelsHolder,
         broadcast_recipient: &Tx,
         conn_id: String,
-        channel: WsChannelRequest,
+        request: WsChannelSubscriptionRequest,
         ws_answer_timeout_ms: u64,
         key: WsChannelsHolderKey,
         error_msg: String,
     ) {
-        let sub_id = channel.get_id();
-        let method = channel.get_method();
+        let sub_id = request.get_id();
+        let method = request.get_method();
 
         if ws_channels_holder.contains_key(&key) {
             let response_sender = WsChannelResponseSender::new(
                 broadcast_recipient.clone(),
-                channel,
+                request,
                 ws_answer_timeout_ms,
             );
 
@@ -107,29 +109,28 @@ impl WsServer {
         ws_channels_holder: &mut WsChannelsHolder,
         broadcast_recipient: &Tx,
         conn_id: String,
-        channel: WsChannelRequest,
+        request: WsChannelSubscriptionRequest,
         ws_answer_timeout_ms: u64,
     ) {
-        let (exchanges, error_msg) = if channel.get_method().is_worker_channel() {
-            (
+        let (exchanges, error_msg) = match &request {
+            WsChannelSubscriptionRequest::WorkerChannels(..) => (
                 vec!["worker".to_string()],
                 "Parameter value is wrong: coin.",
-            )
-        } else {
-            (
-                channel.get_exchanges().to_vec(),
+            ),
+            WsChannelSubscriptionRequest::MarketChannels(request) => (
+                request.get_exchanges().to_vec(),
                 "One of two parameters is wrong: exchange, coin.",
-            )
+            ),
         };
 
-        let market_value = channel.get_method().get_market_value();
-        let pairs: Vec<(String, String)> = channel
+        let market_value = request.get_method().get_market_value();
+        let pairs: Vec<(String, String)> = request
             .get_coins()
             .iter()
             .map(|v| (v.to_string(), "USD".to_string()))
             .collect();
 
-        Self::unsubscribe(ws_channels_holder, conn_id.clone(), channel.clone());
+        Self::unsubscribe(ws_channels_holder, conn_id.clone(), request.clone().into());
 
         for exchange in exchanges {
             for pair in pairs.clone() {
@@ -139,7 +140,7 @@ impl WsServer {
                     ws_channels_holder,
                     broadcast_recipient,
                     conn_id.clone(),
-                    channel.clone(),
+                    request.clone(),
                     ws_answer_timeout_ms,
                     key,
                     error_msg.to_string(),
@@ -154,34 +155,34 @@ impl WsServer {
     fn unsubscribe(
         ws_channels_holder: &mut WsChannelsHolder,
         conn_id: String,
-        channel: WsChannelRequest,
+        request: WsChannelUnsubscribe,
     ) {
-        let method = channel.get_method();
+        let method = request.method;
         let key = (conn_id, method);
 
         ws_channels_holder.remove(&key);
     }
 
-    /// Function adds new channel or removes existing channel (depends on `channel`)
+    /// Function adds new channel or removes existing channel (depends on `action`)
     fn process_channel_action_request(
         mut ws_channels_holder: WsChannelsHolder,
         broadcast_recipient: Tx,
         conn_id: String,
-        channel: WsChannelRequest,
+        action: WsChannelAction,
         ws_answer_timeout_ms: u64,
     ) {
-        match channel.get_action() {
-            WsChannelAction::Subscribe => {
+        match action {
+            WsChannelAction::Subscribe(request) => {
                 Self::subscribe_stage_1(
                     &mut ws_channels_holder,
                     &broadcast_recipient,
                     conn_id,
-                    channel,
+                    request,
                     ws_answer_timeout_ms,
                 );
             }
-            WsChannelAction::Unsubscribe => {
-                Self::unsubscribe(&mut ws_channels_holder, conn_id, channel);
+            WsChannelAction::Unsubscribe(request) => {
+                Self::unsubscribe(&mut ws_channels_holder, conn_id, request);
             }
         }
     }
@@ -189,18 +190,18 @@ impl WsServer {
     /// Prepares response data and sends to recipient
     fn do_response(
         broadcast_recipient: Tx,
-        channel: WsChannelRequest,
+        request: WsMethodRequest,
         pair_average_price_repository: Option<RepositoryForF64ByTimestamp>,
     ) {
-        match channel.clone() {
-            WsChannelRequest::CoinAveragePriceHistorical {
+        match request.clone() {
+            WsMethodRequest::CoinAveragePriceHistorical {
                 id,
                 coin,
                 interval,
                 from,
                 to,
             }
-            | WsChannelRequest::CoinAveragePriceCandlesHistorical {
+            | WsMethodRequest::CoinAveragePriceCandlesHistorical {
                 id,
                 coin,
                 interval,
@@ -217,8 +218,8 @@ impl WsServer {
                         Ok(values) => {
                             let values = values.into_iter().map(|(k, v)| (k, v)).collect();
 
-                            let response =match channel {
-                                WsChannelRequest::CoinAveragePriceHistorical{..}=>WsChannelResponse {
+                            let response =match request {
+                                WsMethodRequest::CoinAveragePriceHistorical{..}=>WsChannelResponse {
                                     id,
                                     result: WsChannelResponsePayload::CoinAveragePriceHistorical {
                                         coin,
@@ -227,14 +228,13 @@ impl WsServer {
                                         ),
                                     },
                                 },
-                                WsChannelRequest::CoinAveragePriceCandlesHistorical{..}=>WsChannelResponse {
+                                WsMethodRequest::CoinAveragePriceCandlesHistorical{..}=>WsChannelResponse {
                                     id,
                                     result: WsChannelResponsePayload::CoinAveragePriceCandlesHistorical {
                                         coin,
                                         values: Candles::calculate(values, interval),
                                     },
                                 },
-                                _ => unreachable!(),
                             };
                             let _ = ws_send_response(&broadcast_recipient, response, None);
                         }
@@ -242,7 +242,6 @@ impl WsServer {
                     }
                 }
             }
-            _ => unreachable!(),
         }
     }
 
@@ -259,35 +258,32 @@ impl WsServer {
         conn_id: String,
         sub_id: Option<JsonRpcId>,
         method: WsChannelName,
-        request: Result<WsChannelRequest, String>,
+        request: Result<WsRequest, String>,
         ws_answer_timeout_ms: u64,
         pair_average_price_repository: Option<RepositoryForF64ByTimestamp>,
     ) {
         match request {
-            Ok(channel) => {
-                if channel.get_method().is_channel() {
-                    // It's a channel
-
+            Ok(request) => match request {
+                WsRequest::Channel(request) => {
                     info!(
                         "Client with addr: {} subscribed to: {:?}",
-                        client_addr, channel
+                        client_addr, request
                     );
 
                     Self::process_channel_action_request(
                         ws_channels_holder,
                         broadcast_recipient,
                         conn_id,
-                        channel,
+                        request,
                         ws_answer_timeout_ms,
                     );
-                } else {
-                    // It's not a channel. It's just a request
-
-                    info!("Client with addr: {} requested: {:?}", client_addr, channel);
-
-                    Self::do_response(broadcast_recipient, channel, pair_average_price_repository);
                 }
-            }
+                WsRequest::Method(request) => {
+                    info!("Client with addr: {} requested: {:?}", client_addr, request);
+
+                    Self::do_response(broadcast_recipient, request, pair_average_price_repository);
+                }
+            },
             Err(e) => {
                 Self::send_error(
                     &broadcast_recipient,
@@ -318,7 +314,7 @@ impl WsServer {
                 Ok(request) => {
                     let sub_id = request.id.clone();
                     let method = request.method;
-                    let request = Self::parse_ws_channel_request(request);
+                    let request = Self::parse_ws_request(request);
 
                     let conn_id_2 = conn_id.to_string();
                     let ws_channels_holder_2 = ws_channels_holder.clone();

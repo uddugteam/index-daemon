@@ -1,5 +1,5 @@
+use crate::worker::network_helpers::ws_server::channels::ws_channel_subscription_request::WsChannelSubscriptionRequest;
 use crate::worker::network_helpers::ws_server::hepler_functions::ws_send_response;
-use crate::worker::network_helpers::ws_server::ws_channel_request::WsChannelRequest;
 use crate::worker::network_helpers::ws_server::ws_channel_response::WsChannelResponse;
 use crate::worker::network_helpers::ws_server::ws_channel_response_payload::WsChannelResponsePayload;
 use async_tungstenite::tungstenite::protocol::Message;
@@ -12,14 +12,14 @@ type Tx = UnboundedSender<Message>;
 #[derive(Clone)]
 pub struct WsChannelResponseSender {
     broadcast_recipient: Tx,
-    pub request: WsChannelRequest,
+    pub request: WsChannelSubscriptionRequest,
     last_send_timestamp: DateTime<Utc>,
 }
 
 impl WsChannelResponseSender {
     pub fn new(
         broadcast_recipient: Tx,
-        mut request: WsChannelRequest,
+        mut request: WsChannelSubscriptionRequest,
         ws_answer_timeout_ms: u64,
     ) -> Self {
         let frequency_ms = request.get_frequency_ms();

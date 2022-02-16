@@ -1,6 +1,6 @@
 use crate::worker::network_helpers::ws_server::hepler_functions::thin_by_interval;
+use crate::worker::network_helpers::ws_server::interval::Interval;
 use crate::worker::network_helpers::ws_server::ser_date_into_timestamp;
-use crate::worker::network_helpers::ws_server::ws_channel_request::Interval;
 use chrono::{DateTime, Utc};
 
 #[derive(Serialize, Clone)]

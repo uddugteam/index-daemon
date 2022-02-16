@@ -1,5 +1,5 @@
+use crate::worker::network_helpers::ws_server::interval::Interval;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
-use crate::worker::network_helpers::ws_server::ws_channel_request::Interval;
 use crate::worker::network_helpers::ws_server::ws_channel_response::WsChannelResponse;
 use async_tungstenite::tungstenite::protocol::Message;
 use chrono::{DateTime, Utc, MAX_DATETIME};

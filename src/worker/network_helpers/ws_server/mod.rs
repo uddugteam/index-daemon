@@ -1,13 +1,16 @@
 pub mod candles;
+pub mod channels;
 pub mod f64_snapshot;
 pub mod hepler_functions;
+pub mod interval;
 pub mod jsonrpc_messages;
+pub mod requests;
 pub mod ser_date_into_timestamp;
 pub mod ws_channel_name;
-pub mod ws_channel_request;
 pub mod ws_channel_response;
 pub mod ws_channel_response_payload;
 pub mod ws_channel_response_sender;
 pub mod ws_channels;
 pub mod ws_channels_holder;
+pub mod ws_request;
 pub mod ws_server;
