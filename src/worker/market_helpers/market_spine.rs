@@ -92,6 +92,10 @@ impl MarketSpine {
         &self.pairs
     }
 
+    pub fn get_conversions(&self) -> &HashMap<String, ConversionType> {
+        &self.conversions
+    }
+
     pub fn get_exchange_pairs(&self) -> &HashMap<String, ExchangePairInfo> {
         &self.exchange_pairs
     }
@@ -261,12 +265,15 @@ impl MarketSpine {
 
 #[cfg(test)]
 pub mod test {
+    use crate::config_scheme::config_scheme::ConfigScheme;
     use crate::config_scheme::market_config::MarketConfig;
+    use crate::config_scheme::repositories_prepared::RepositoriesPrepared;
     use crate::worker::market_helpers::conversion_type::ConversionType;
     use crate::worker::market_helpers::exchange_pair::ExchangePair;
     use crate::worker::market_helpers::market_spine::MarketSpine;
     use crate::worker::worker::test::{check_threads, make_worker};
     use ntest::timeout;
+    use std::collections::HashMap;
     use std::sync::mpsc::Receiver;
     use std::sync::{Arc, Mutex};
     use std::thread::JoinHandle;
@@ -276,13 +283,20 @@ pub mod test {
         let (worker, tx, rx) = make_worker();
         let graceful_shutdown = Arc::new(Mutex::new(false));
 
-        let config = MarketConfig::default();
+        let config = ConfigScheme::default();
+        let RepositoriesPrepared {
+            pair_average_price_repository,
+            market_repositories,
+            ws_channels_holder,
+            pair_average_price,
+        } = RepositoriesPrepared::make(&config);
+
         let spine = MarketSpine::new(
-            worker,
+            pair_average_price,
             tx,
             1,
             market_name,
-            config.channels,
+            config.market.channels,
             graceful_shutdown,
         );
 
@@ -292,8 +306,7 @@ pub mod test {
     #[test]
     fn test_add_exchange_pair() {
         let (mut spine, _) = make_spine(None);
-
-        let pair_string = "some_pair_string".to_string();
+        let market_name = spine.name.clone();
 
         let pair_tuple = ("some_coin_1".to_string(), "some_coin_2".to_string());
         let conversion_type = ConversionType::Crypto;
@@ -302,7 +315,29 @@ pub mod test {
             conversion: conversion_type,
         };
 
-        spine.add_exchange_pair(pair_string.clone(), exchange_pair, None);
+        let mut config = ConfigScheme::default();
+        config.market.exchange_pairs = vec![exchange_pair.clone()];
+
+        let RepositoriesPrepared {
+            pair_average_price_repository,
+            market_repositories,
+            ws_channels_holder,
+            pair_average_price,
+        } = RepositoriesPrepared::make(&config);
+
+        let pair_string = "some_pair_string".to_string();
+
+        spine.add_exchange_pair(
+            pair_string.clone(),
+            exchange_pair.clone(),
+            market_repositories.map(|mut v| {
+                v.remove(&market_name)
+                    .unwrap()
+                    .remove(&exchange_pair.pair)
+                    .unwrap()
+            }),
+            &ws_channels_holder,
+        );
 
         assert!(spine.get_exchange_pairs().get(&pair_string).is_some());
 

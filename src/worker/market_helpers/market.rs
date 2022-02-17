@@ -442,15 +442,21 @@ pub trait Market {
 
 #[cfg(test)]
 mod test {
+    use crate::config_scheme::config_scheme::ConfigScheme;
     use crate::config_scheme::market_config::MarketConfig;
+    use crate::config_scheme::repositories_prepared::RepositoriesPrepared;
+    use crate::repository::repositories::Repositories;
     use crate::worker::helper_functions::get_pair_ref;
     use crate::worker::market_helpers::conversion_type::ConversionType;
     use crate::worker::market_helpers::exchange_pair::ExchangePair;
     use crate::worker::market_helpers::market::{market_factory, update, Market};
     use crate::worker::market_helpers::market_channels::MarketChannels;
     use crate::worker::market_helpers::market_spine::test::make_spine;
+    use crate::worker::market_helpers::pair_average_price::make_pair_average_price;
+    use crate::worker::network_helpers::ws_server::ws_channels_holder::WsChannelsHolder;
     use crate::worker::worker::test::check_threads;
     use ntest::timeout;
+    use std::collections::HashMap;
     use std::sync::mpsc::Receiver;
     use std::sync::{Arc, Mutex};
     use std::thread::JoinHandle;
@@ -458,10 +464,23 @@ mod test {
     fn make_market(
         market_name: Option<&str>,
     ) -> (Arc<Mutex<dyn Market + Send>>, Receiver<JoinHandle<()>>) {
-        let config = MarketConfig::default();
+        let config = ConfigScheme::default();
+
+        let RepositoriesPrepared {
+            pair_average_price_repository,
+            market_repositories,
+            ws_channels_holder,
+            pair_average_price,
+        } = RepositoriesPrepared::make(&config);
 
         let (market_spine, rx) = make_spine(market_name);
-        let market = market_factory(market_spine, config.exchange_pairs, None);
+        let market_name = market_spine.name.clone();
+        let market = market_factory(
+            market_spine,
+            config.market.exchange_pairs,
+            market_repositories.map(|mut v| v.remove(&market_name).unwrap()),
+            &ws_channels_holder,
+        );
 
         (market, rx)
     }
@@ -469,6 +488,7 @@ mod test {
     #[test]
     fn test_add_exchange_pair() {
         let (market, _) = make_market(None);
+        let market_name = market.lock().unwrap().get_spine().name.clone();
 
         let pair_tuple = ("some_coin_1".to_string(), "some_coin_2".to_string());
         let conversion_type = ConversionType::Crypto;
@@ -477,15 +497,31 @@ mod test {
             conversion: conversion_type,
         };
 
+        let mut config = ConfigScheme::default();
+        config.market.exchange_pairs = vec![exchange_pair.clone()];
+
+        let RepositoriesPrepared {
+            pair_average_price_repository,
+            market_repositories,
+            ws_channels_holder,
+            pair_average_price,
+        } = RepositoriesPrepared::make(&config);
+
         let pair_string = market
             .lock()
             .unwrap()
             .make_pair(get_pair_ref(&exchange_pair.pair));
 
-        market
-            .lock()
-            .unwrap()
-            .add_exchange_pair(exchange_pair, None);
+        market.lock().unwrap().add_exchange_pair(
+            exchange_pair.clone(),
+            market_repositories.map(|mut v| {
+                v.remove(&market_name)
+                    .unwrap()
+                    .remove(&exchange_pair.pair)
+                    .unwrap()
+            }),
+            &ws_channels_holder,
+        );
 
         assert!(market
             .lock()

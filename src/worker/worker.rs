@@ -167,6 +167,7 @@ pub mod test {
     use crate::config_scheme::config_scheme::ConfigScheme;
     use crate::config_scheme::helper_functions::make_exchange_pairs;
     use crate::config_scheme::market_config::MarketConfig;
+    use crate::config_scheme::repositories_prepared::RepositoriesPrepared;
     use crate::config_scheme::service_config::ServiceConfig;
     use crate::worker::market_helpers::exchange_pair::ExchangePair;
     use crate::worker::market_helpers::market_channels::MarketChannels;
@@ -176,20 +177,17 @@ pub mod test {
     use chrono::{Duration, Utc};
     use ntest::timeout;
     use serial_test::serial;
+    use std::collections::HashMap;
     use std::sync::mpsc::{Receiver, Sender};
     use std::sync::{mpsc, Arc, Mutex};
     use std::thread;
     use std::thread::JoinHandle;
     use std::time;
 
-    pub fn make_worker() -> (
-        Arc<Mutex<Worker>>,
-        Sender<JoinHandle<()>>,
-        Receiver<JoinHandle<()>>,
-    ) {
+    pub fn make_worker() -> (Worker, Sender<JoinHandle<()>>, Receiver<JoinHandle<()>>) {
         let (tx, rx) = mpsc::channel();
         let graceful_shutdown = Arc::new(Mutex::new(false));
-        let worker = Worker::new(tx.clone(), graceful_shutdown, None);
+        let worker = Worker::new(tx.clone(), graceful_shutdown);
 
         (worker, tx, rx)
     }
@@ -209,27 +207,37 @@ pub mod test {
         }
     }
 
-    #[test]
-    fn test_new() {
-        let (worker, _, _) = make_worker();
-
-        assert!(worker.lock().unwrap().arc.is_some());
-    }
-
     fn test_configure(
         markets: Vec<&str>,
         exchange_pairs: Vec<ExchangePair>,
         channels: Vec<MarketChannels>,
     ) {
-        let (worker, _, _) = make_worker();
-        worker
-            .lock()
-            .unwrap()
-            .configure(markets.clone(), exchange_pairs, channels, 1, None);
+        let (mut worker, _, _) = make_worker();
 
-        assert_eq!(markets.len(), worker.lock().unwrap().markets.len());
+        let mut config = ConfigScheme::default();
+        config.market.markets = markets.iter().map(|v| v.to_string()).collect();
+        config.market.exchange_pairs = exchange_pairs.clone();
 
-        for (market_name_key, market) in &worker.lock().unwrap().markets {
+        let RepositoriesPrepared {
+            pair_average_price_repository,
+            market_repositories,
+            ws_channels_holder,
+            pair_average_price,
+        } = RepositoriesPrepared::make(&config);
+
+        worker.configure(
+            markets.clone(),
+            exchange_pairs,
+            channels,
+            1,
+            market_repositories,
+            pair_average_price,
+            &ws_channels_holder,
+        );
+
+        assert_eq!(markets.len(), worker.markets.len());
+
+        for (market_name_key, market) in &worker.markets {
             let market_name = market.lock().unwrap().get_spine().name.clone();
             assert_eq!(market_name_key, &market_name);
             assert!(markets.contains(&market_name.as_str()));
@@ -268,7 +276,7 @@ pub mod test {
         // To prevent DDoS attack on exchanges
         thread::sleep(time::Duration::from_millis(3000));
 
-        let (worker, _, rx) = make_worker();
+        let (mut worker, _, rx) = make_worker();
 
         let mut thread_names = Vec::new();
         for market in &config.market.markets {
@@ -276,7 +284,20 @@ pub mod test {
             thread_names.push(thread_name);
         }
 
-        worker.lock().unwrap().start(config, None, None);
+        let RepositoriesPrepared {
+            pair_average_price_repository,
+            market_repositories,
+            ws_channels_holder,
+            pair_average_price,
+        } = RepositoriesPrepared::make(&config);
+
+        worker.start(
+            config,
+            market_repositories,
+            pair_average_price,
+            pair_average_price_repository,
+            ws_channels_holder,
+        );
         check_threads(thread_names, rx);
     }
 
@@ -322,15 +343,12 @@ pub mod test {
         inner_test_start(config);
     }
 
-    pub fn check_worker_subscriptions(
-        worker: &Arc<Mutex<Worker>>,
-        subscriptions: Vec<(String, WsChannelName, Vec<String>)>,
-    ) {
-        check_subscriptions(
-            &worker.lock().unwrap().pair_average_price.ws_channels,
-            &subscriptions,
-        );
-    }
+    // pub fn check_worker_subscriptions(
+    //     worker: &Worker,
+    //     subscriptions: Vec<(String, WsChannelName, Vec<String>)>,
+    // ) {
+    //     check_subscriptions(&worker.pair_average_price.ws_channels, &subscriptions);
+    // }
 
     // pub fn check_market_subscriptions(
     //     worker: &Arc<Mutex<Worker>>,

@@ -1,10 +1,13 @@
 mod ws_client_for_testing;
 
 use crate::config_scheme::config_scheme::ConfigScheme;
+use crate::config_scheme::repositories_prepared::RepositoriesPrepared;
+use crate::repository::repositories::Repositories;
 use crate::test::ws_server::ws_client_for_testing::WsClientForTesting;
 use crate::worker::market_helpers::market_channels::MarketChannels;
+use crate::worker::market_helpers::pair_average_price::make_pair_average_price;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
-use crate::worker::worker::test::check_worker_subscriptions;
+use crate::worker::network_helpers::ws_server::ws_channels_holder::WsChannelsHolder;
 use crate::worker::worker::Worker;
 use serde_json::json;
 use std::collections::HashMap;
@@ -20,7 +23,7 @@ fn start_application(
     ws_addr: &str,
 ) -> (
     Receiver<JoinHandle<()>>,
-    Arc<Mutex<Worker>>,
+    Worker,
     (Sender<String>, Receiver<String>),
 ) {
     // To prevent DDoS attack on exchanges
@@ -33,9 +36,22 @@ fn start_application(
     config.service.ws_addr = ws_addr.to_string();
     config.market.channels = vec![MarketChannels::Trades];
 
+    let RepositoriesPrepared {
+        pair_average_price_repository,
+        market_repositories,
+        ws_channels_holder,
+        pair_average_price,
+    } = RepositoriesPrepared::make(&config);
+
     let (tx, rx) = mpsc::channel();
-    let worker = Worker::new(tx, graceful_shutdown, None);
-    worker.lock().unwrap().start(config, None, None);
+    let mut worker = Worker::new(tx, graceful_shutdown);
+    worker.start(
+        config,
+        market_repositories,
+        pair_average_price,
+        pair_average_price_repository,
+        ws_channels_holder,
+    );
 
     // Give Websocket server time to start
     thread::sleep(time::Duration::from_millis(1000));
@@ -172,65 +188,65 @@ fn check_incoming_messages(
 
 // #[test]
 // #[serial]
-/// TODO: Fix (not always working on github)
-fn test_worker_add_ws_channel() {
-    let ws_addr = "127.0.0.1:8001";
-    let (_rx, worker, (incoming_msg_tx, _incoming_msg_rx)) = start_application(ws_addr);
-
-    let sub_id = Uuid::new_v4().to_string();
-    let method = WsChannelName::CoinAveragePrice;
-    let coins = ["BTC".to_string(), "ETH".to_string()].to_vec();
-    let request = make_request(&sub_id, method, &coins, None);
-
-    ws_connect_and_subscribe(ws_addr, vec![request], incoming_msg_tx);
-    check_worker_subscriptions(&worker, vec![(sub_id, method, coins)]);
-}
-
-// #[test]
-// #[serial]
-/// TODO: Fix (not always working on github)
-fn test_worker_resub_ws_channel() {
-    let ws_addr = "127.0.0.1:8002";
-    let (_rx, worker, (incoming_msg_tx, _incoming_msg_rx)) = start_application(ws_addr);
-
-    let mut requests = Vec::new();
-
-    let sub_id = Uuid::new_v4().to_string();
-    let method = WsChannelName::CoinAveragePrice;
-    let coins = ["BTC".to_string(), "ETH".to_string()].to_vec();
-    let request = make_request(&sub_id, method, &coins, None);
-    requests.push(request);
-
-    let sub_id = Uuid::new_v4().to_string();
-    let coins = ["BTC".to_string()].to_vec();
-    let request = make_request(&sub_id, method, &coins, None);
-    requests.push(request);
-
-    ws_connect_and_subscribe(ws_addr, requests, incoming_msg_tx);
-    check_worker_subscriptions(&worker, vec![(sub_id, method, coins)]);
-}
+// /// TODO: Fix (not always working on github)
+// fn test_worker_add_ws_channel() {
+//     let ws_addr = "127.0.0.1:8001";
+//     let (_rx, worker, (incoming_msg_tx, _incoming_msg_rx)) = start_application(ws_addr);
+//
+//     let sub_id = Uuid::new_v4().to_string();
+//     let method = WsChannelName::CoinAveragePrice;
+//     let coins = ["BTC".to_string(), "ETH".to_string()].to_vec();
+//     let request = make_request(&sub_id, method, &coins, None);
+//
+//     ws_connect_and_subscribe(ws_addr, vec![request], incoming_msg_tx);
+//     check_worker_subscriptions(&worker, vec![(sub_id, method, coins)]);
+// }
 
 // #[test]
 // #[serial]
-/// TODO: Fix (not always working on github)
-fn test_worker_unsub_ws_channel() {
-    let ws_addr = "127.0.0.1:8003";
-    let (_rx, worker, (incoming_msg_tx, _incoming_msg_rx)) = start_application(ws_addr);
+// /// TODO: Fix (not always working on github)
+// fn test_worker_resub_ws_channel() {
+//     let ws_addr = "127.0.0.1:8002";
+//     let (_rx, worker, (incoming_msg_tx, _incoming_msg_rx)) = start_application(ws_addr);
+//
+//     let mut requests = Vec::new();
+//
+//     let sub_id = Uuid::new_v4().to_string();
+//     let method = WsChannelName::CoinAveragePrice;
+//     let coins = ["BTC".to_string(), "ETH".to_string()].to_vec();
+//     let request = make_request(&sub_id, method, &coins, None);
+//     requests.push(request);
+//
+//     let sub_id = Uuid::new_v4().to_string();
+//     let coins = ["BTC".to_string()].to_vec();
+//     let request = make_request(&sub_id, method, &coins, None);
+//     requests.push(request);
+//
+//     ws_connect_and_subscribe(ws_addr, requests, incoming_msg_tx);
+//     check_worker_subscriptions(&worker, vec![(sub_id, method, coins)]);
+// }
 
-    let mut requests = Vec::new();
-
-    let sub_id = Uuid::new_v4().to_string();
-    let method = WsChannelName::CoinAveragePrice;
-    let coins = ["BTC".to_string(), "ETH".to_string()].to_vec();
-    let request = make_request(&sub_id, method, &coins, None);
-    requests.push(request);
-
-    let request = make_unsub_request(method);
-    requests.push(request);
-
-    ws_connect_and_subscribe(ws_addr, requests, incoming_msg_tx);
-    check_worker_subscriptions(&worker, Vec::new());
-}
+// #[test]
+// #[serial]
+// /// TODO: Fix (not always working on github)
+// fn test_worker_unsub_ws_channel() {
+//     let ws_addr = "127.0.0.1:8003";
+//     let (_rx, worker, (incoming_msg_tx, _incoming_msg_rx)) = start_application(ws_addr);
+//
+//     let mut requests = Vec::new();
+//
+//     let sub_id = Uuid::new_v4().to_string();
+//     let method = WsChannelName::CoinAveragePrice;
+//     let coins = ["BTC".to_string(), "ETH".to_string()].to_vec();
+//     let request = make_request(&sub_id, method, &coins, None);
+//     requests.push(request);
+//
+//     let request = make_unsub_request(method);
+//     requests.push(request);
+//
+//     ws_connect_and_subscribe(ws_addr, requests, incoming_msg_tx);
+//     check_worker_subscriptions(&worker, Vec::new());
+// }
 
 // #[test]
 // #[serial]
