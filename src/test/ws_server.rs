@@ -2,12 +2,9 @@ mod ws_client_for_testing;
 
 use crate::config_scheme::config_scheme::ConfigScheme;
 use crate::config_scheme::repositories_prepared::RepositoriesPrepared;
-use crate::repository::repositories::Repositories;
 use crate::test::ws_server::ws_client_for_testing::WsClientForTesting;
 use crate::worker::market_helpers::market_channels::MarketChannels;
-use crate::worker::market_helpers::pair_average_price::make_pair_average_price;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
-use crate::worker::network_helpers::ws_server::ws_channels_holder::WsChannelsHolder;
 use crate::worker::worker::Worker;
 use serde_json::json;
 use std::collections::HashMap;

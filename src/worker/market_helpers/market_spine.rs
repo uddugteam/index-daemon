@@ -266,28 +266,25 @@ impl MarketSpine {
 #[cfg(test)]
 pub mod test {
     use crate::config_scheme::config_scheme::ConfigScheme;
-    use crate::config_scheme::market_config::MarketConfig;
     use crate::config_scheme::repositories_prepared::RepositoriesPrepared;
     use crate::worker::market_helpers::conversion_type::ConversionType;
     use crate::worker::market_helpers::exchange_pair::ExchangePair;
     use crate::worker::market_helpers::market_spine::MarketSpine;
-    use crate::worker::worker::test::{check_threads, make_worker};
-    use ntest::timeout;
-    use std::collections::HashMap;
+    use crate::worker::worker::test::make_worker;
     use std::sync::mpsc::Receiver;
     use std::sync::{Arc, Mutex};
     use std::thread::JoinHandle;
 
     pub fn make_spine(market_name: Option<&str>) -> (MarketSpine, Receiver<JoinHandle<()>>) {
         let market_name = market_name.unwrap_or("binance").to_string();
-        let (worker, tx, rx) = make_worker();
+        let (_worker, tx, rx) = make_worker();
         let graceful_shutdown = Arc::new(Mutex::new(false));
 
         let config = ConfigScheme::default();
         let RepositoriesPrepared {
-            pair_average_price_repository,
-            market_repositories,
-            ws_channels_holder,
+            pair_average_price_repository: _,
+            market_repositories: _,
+            ws_channels_holder: _,
             pair_average_price,
         } = RepositoriesPrepared::make(&config);
 
@@ -319,10 +316,10 @@ pub mod test {
         config.market.exchange_pairs = vec![exchange_pair.clone()];
 
         let RepositoriesPrepared {
-            pair_average_price_repository,
+            pair_average_price_repository: _,
             market_repositories,
             ws_channels_holder,
-            pair_average_price,
+            pair_average_price: _,
         } = RepositoriesPrepared::make(&config);
 
         let pair_string = "some_pair_string".to_string();

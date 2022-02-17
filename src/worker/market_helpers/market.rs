@@ -445,18 +445,14 @@ mod test {
     use crate::config_scheme::config_scheme::ConfigScheme;
     use crate::config_scheme::market_config::MarketConfig;
     use crate::config_scheme::repositories_prepared::RepositoriesPrepared;
-    use crate::repository::repositories::Repositories;
     use crate::worker::helper_functions::get_pair_ref;
     use crate::worker::market_helpers::conversion_type::ConversionType;
     use crate::worker::market_helpers::exchange_pair::ExchangePair;
     use crate::worker::market_helpers::market::{market_factory, update, Market};
     use crate::worker::market_helpers::market_channels::MarketChannels;
     use crate::worker::market_helpers::market_spine::test::make_spine;
-    use crate::worker::market_helpers::pair_average_price::make_pair_average_price;
-    use crate::worker::network_helpers::ws_server::ws_channels_holder::WsChannelsHolder;
     use crate::worker::worker::test::check_threads;
     use ntest::timeout;
-    use std::collections::HashMap;
     use std::sync::mpsc::Receiver;
     use std::sync::{Arc, Mutex};
     use std::thread::JoinHandle;
@@ -467,10 +463,10 @@ mod test {
         let config = ConfigScheme::default();
 
         let RepositoriesPrepared {
-            pair_average_price_repository,
+            pair_average_price_repository: _,
             market_repositories,
             ws_channels_holder,
-            pair_average_price,
+            pair_average_price: _,
         } = RepositoriesPrepared::make(&config);
 
         let (market_spine, rx) = make_spine(market_name);
@@ -501,10 +497,10 @@ mod test {
         config.market.exchange_pairs = vec![exchange_pair.clone()];
 
         let RepositoriesPrepared {
-            pair_average_price_repository,
+            pair_average_price_repository: _,
             market_repositories,
             ws_channels_holder,
-            pair_average_price,
+            pair_average_price: _,
         } = RepositoriesPrepared::make(&config);
 
         let pair_string = market

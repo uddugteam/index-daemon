@@ -20,7 +20,7 @@ impl MarketChannels {
     pub fn get_exchanges(&self) -> &[String] {
         match self {
             MarketChannels::CoinExchangePrice { exchanges, .. }
-            | MarketChannels::CoinExchangeVolume { exchanges, .. } => &exchanges,
+            | MarketChannels::CoinExchangeVolume { exchanges, .. } => exchanges,
         }
     }
 }

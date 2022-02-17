@@ -27,11 +27,11 @@ impl WsChannelSubscriptionRequest {
         match self {
             Self::WorkerChannels(channel) => match channel {
                 WorkerChannels::CoinAveragePrice { coins, .. }
-                | WorkerChannels::CoinAveragePriceCandles { coins, .. } => &coins,
+                | WorkerChannels::CoinAveragePriceCandles { coins, .. } => coins,
             },
             Self::MarketChannels(channel) => match channel {
                 MarketChannels::CoinExchangePrice { coins, .. }
-                | MarketChannels::CoinExchangeVolume { coins, .. } => &coins,
+                | MarketChannels::CoinExchangeVolume { coins, .. } => coins,
             },
         }
     }

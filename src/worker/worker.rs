@@ -171,13 +171,9 @@ pub mod test {
     use crate::config_scheme::service_config::ServiceConfig;
     use crate::worker::market_helpers::exchange_pair::ExchangePair;
     use crate::worker::market_helpers::market_channels::MarketChannels;
-    use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
-    use crate::worker::network_helpers::ws_server::ws_channels::test::check_subscriptions;
     use crate::worker::worker::Worker;
-    use chrono::{Duration, Utc};
     use ntest::timeout;
     use serial_test::serial;
-    use std::collections::HashMap;
     use std::sync::mpsc::{Receiver, Sender};
     use std::sync::{mpsc, Arc, Mutex};
     use std::thread;
@@ -219,7 +215,7 @@ pub mod test {
         config.market.exchange_pairs = exchange_pairs.clone();
 
         let RepositoriesPrepared {
-            pair_average_price_repository,
+            pair_average_price_repository: _,
             market_repositories,
             ws_channels_holder,
             pair_average_price,
