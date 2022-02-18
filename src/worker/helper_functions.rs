@@ -22,7 +22,3 @@ pub fn date_time_from_timestamp_sec(timestamp_sec: u64) -> DateTime<Utc> {
 
     DateTime::from_utc(naive, Utc)
 }
-
-pub fn date_time_from_timestamp_millis(timestamp_millis: u64) -> DateTime<Utc> {
-    date_time_from_timestamp_sec(timestamp_millis / 1000)
-}

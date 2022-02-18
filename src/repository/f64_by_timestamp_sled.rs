@@ -1,6 +1,6 @@
 use crate::repository::hepler_functions::get_all_keys_sled;
 use crate::repository::repository::Repository;
-use crate::worker::helper_functions::date_time_from_timestamp_millis;
+use crate::worker::helper_functions::date_time_from_timestamp_sec;
 use chrono::{DateTime, Utc, MIN_DATETIME};
 use std::collections::{HashMap, HashSet};
 use std::str;
@@ -60,12 +60,16 @@ impl F64ByTimestampSled {
         self.set_keys(keys);
     }
 
+    fn date_time_from_timestamp_millis(timestamp_millis: u64) -> DateTime<Utc> {
+        date_time_from_timestamp_sec(timestamp_millis / 1000)
+    }
+
     fn parse_primary_from_ivec(key: vsdbsled::IVec) -> DateTime<Utc> {
         let key = str::from_utf8(&key.to_vec()).unwrap().to_string();
 
         let parts: Vec<&str> = key.rsplit("__").collect();
 
-        date_time_from_timestamp_millis(parts.first().unwrap().parse().unwrap())
+        Self::date_time_from_timestamp_millis(parts.first().unwrap().parse().unwrap())
     }
 }
 
