@@ -72,7 +72,7 @@ pub fn send_ws_response_2(
                                 WorkerChannels::CoinAveragePriceCandles { interval, .. } => {
                                     let interval = interval.into_seconds() as i64;
                                     let from = timestamp.timestamp() - interval;
-                                    let from = date_time_from_timestamp_sec(from);
+                                    let from = date_time_from_timestamp_sec(from as u64);
 
                                     if let Ok(values) = repository.read_range(from, to) {
                                         let values: Vec<(DateTime<Utc>, f64)> =

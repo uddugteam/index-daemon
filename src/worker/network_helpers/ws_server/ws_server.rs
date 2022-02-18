@@ -208,8 +208,8 @@ impl WsServer {
                 from,
                 to,
             } => {
-                let from = date_time_from_timestamp_sec(from as i64);
-                let to = date_time_from_timestamp_sec(to as i64);
+                let from = date_time_from_timestamp_sec(from);
+                let to = date_time_from_timestamp_sec(to);
 
                 if let Some(values) = pair_average_price_repository {
                     let values = values.read_range(from, to);

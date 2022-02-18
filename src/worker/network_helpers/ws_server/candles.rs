@@ -20,7 +20,7 @@ impl Candles {
             chunks.push(Vec::new());
             values.into_iter().for_each(|(t, v)| {
                 if t < last_to {
-                    let t = date_time_from_timestamp_sec(t);
+                    let t = date_time_from_timestamp_sec(t as u64);
                     chunks.last_mut().unwrap().push((t, v));
                 } else {
                     chunks.push(Vec::new());
