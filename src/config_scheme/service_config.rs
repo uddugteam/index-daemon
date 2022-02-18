@@ -3,6 +3,7 @@ use crate::config_scheme::helper_functions::{
     get_default_storage, set_log_level,
 };
 use crate::config_scheme::storage::Storage;
+use clap::ArgMatches;
 
 pub struct ServiceConfig {
     pub rest_timeout_sec: u64,
@@ -14,9 +15,9 @@ pub struct ServiceConfig {
 }
 
 impl ServiceConfig {
-    pub fn new() -> Self {
+    pub fn new(matches: &ArgMatches) -> Self {
         let default = Self::default();
-        let service_config = get_config_from_config_files("service_config");
+        let service_config = get_config_from_config_files(matches, "service_config");
 
         set_log_level(&service_config);
 

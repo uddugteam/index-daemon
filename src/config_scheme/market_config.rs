@@ -4,6 +4,7 @@ use crate::config_scheme::helper_functions::{
 };
 use crate::worker::market_helpers::exchange_pair::ExchangePair;
 use crate::worker::market_helpers::market_channels::MarketChannels;
+use clap::ArgMatches;
 
 pub struct MarketConfig {
     pub markets: Vec<String>,
@@ -11,9 +12,9 @@ pub struct MarketConfig {
     pub channels: Vec<MarketChannels>,
 }
 impl MarketConfig {
-    pub fn new() -> Self {
+    pub fn new(matches: &ArgMatches) -> Self {
         let default = Self::default();
-        let market_config = get_config_from_config_files("market_config");
+        let market_config = get_config_from_config_files(matches, "market_config");
 
         let markets = get_param_value_as_vec_of_string(&market_config, "exchanges")
             .unwrap_or(default.markets);

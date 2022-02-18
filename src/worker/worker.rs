@@ -107,7 +107,9 @@ impl Worker {
             pair_average_price,
         } = RepositoriesPrepared::make(&config);
 
-        let ConfigScheme { market, service } = config;
+        let ConfigScheme {
+            market, service, ..
+        } = config;
         let MarketConfig {
             markets,
             exchange_pairs,
