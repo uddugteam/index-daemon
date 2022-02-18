@@ -91,10 +91,16 @@ impl ServiceConfig {
                 "Got unexpected config. service_config: \"storage\" or \"historical_storage_frequency_ms\". These configs are allowed only if historical=1"
             );
         }
-        let storage = service_config
-            .get_str("storage")
-            .map(|v| Storage::from_str(&v))
-            .ok();
+        let storage = if historical {
+            Some(
+                service_config
+                    .get_str("storage")
+                    .map(|v| Storage::from_str(&v))
+                    .unwrap_or_default(),
+            )
+        } else {
+            None
+        };
         let historical_storage_frequency_ms = service_config
             .get_str("historical_storage_frequency_ms")
             .map(|v| v.parse().unwrap())
