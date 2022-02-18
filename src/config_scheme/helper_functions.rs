@@ -1,3 +1,4 @@
+use crate::config_scheme::storage::Storage;
 use crate::worker::defaults::{COINS, FIATS, MARKETS};
 use crate::worker::market_helpers::conversion_type::ConversionType;
 use crate::worker::market_helpers::exchange_pair::ExchangePair;
@@ -86,6 +87,18 @@ pub fn get_default_host() -> String {
 
 pub fn get_default_port() -> String {
     "8080".to_string()
+}
+
+pub fn get_default_historical() -> bool {
+    false
+}
+
+pub fn get_default_storage(historical: bool) -> Option<Storage> {
+    if historical {
+        Some(Storage::default())
+    } else {
+        None
+    }
 }
 
 pub fn make_exchange_pairs(coins: Vec<String>, fiats: Option<Vec<&str>>) -> Vec<ExchangePair> {

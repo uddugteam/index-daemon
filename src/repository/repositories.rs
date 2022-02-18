@@ -1,4 +1,5 @@
 use crate::config_scheme::config_scheme::ConfigScheme;
+use crate::config_scheme::storage::Storage;
 use crate::repository::f64_by_timestamp_sled::F64ByTimestampSled;
 use crate::repository::repository::Repository;
 use crate::worker::market_helpers::market_value::MarketValue;
@@ -20,26 +21,20 @@ impl Repositories {
     pub fn new(config: &ConfigScheme) -> Option<Self> {
         let service_config = &config.service;
 
-        if service_config.historical {
-            match service_config.storage.as_str() {
-                "sled" => {
-                    let tree = Arc::new(Mutex::new(vsdbsled::open("db").expect("Open db error.")));
-
-                    Some(Self {
-                        pair_average_price: Self::make_pair_average_price_sled(
-                            config,
-                            Arc::clone(&tree),
-                        ),
-                        market_repositories: Self::make_market_repositories_sled(
-                            config,
-                            Arc::clone(&tree),
-                        ),
-                    })
-                }
-                other_storage => panic!("Got wrong storage name: {}", other_storage),
-            }
-        } else {
-            None
+        match &service_config.storage {
+            Some(storage) => match storage {
+                Storage::Sled(tree) => Some(Self {
+                    pair_average_price: Self::make_pair_average_price_sled(
+                        config,
+                        Arc::clone(tree),
+                    ),
+                    market_repositories: Self::make_market_repositories_sled(
+                        config,
+                        Arc::clone(tree),
+                    ),
+                }),
+            },
+            None => None,
         }
     }
 

@@ -118,7 +118,6 @@ impl Worker {
             ws,
             ws_addr,
             ws_answer_timeout_ms,
-            historical: _,
             storage: _,
             historical_storage_frequency_ms: _,
         } = service;

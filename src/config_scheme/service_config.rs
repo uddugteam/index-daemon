@@ -1,16 +1,18 @@
 use crate::config_scheme::helper_functions::{
-    get_config_from_config_files, get_default_host, get_default_port, set_log_level,
+    get_config_from_config_files, get_default_historical, get_default_host, get_default_port,
+    get_default_storage, set_log_level,
 };
+use crate::config_scheme::storage::Storage;
 
 pub struct ServiceConfig {
     pub rest_timeout_sec: u64,
     pub ws: bool,
     pub ws_addr: String,
     pub ws_answer_timeout_ms: u64,
-    pub historical: bool,
-    pub storage: String,
+    pub storage: Option<Storage>,
     pub historical_storage_frequency_ms: u64,
 }
+
 impl ServiceConfig {
     pub fn new() -> Self {
         let default = Self::default();
@@ -76,7 +78,7 @@ impl ServiceConfig {
                 );
             }
         } else {
-            default.historical
+            get_default_historical()
         };
         if !historical
             && (service_config.get_str("storage").is_ok()
@@ -88,7 +90,10 @@ impl ServiceConfig {
                 "Got unexpected config. service_config: \"storage\" or \"historical_storage_frequency_ms\". These configs are allowed only if historical=1"
             );
         }
-        let storage = service_config.get_str("storage").unwrap_or(default.storage);
+        let storage = service_config
+            .get_str("storage")
+            .map(|v| Storage::from_str(&v))
+            .ok();
         let historical_storage_frequency_ms = service_config
             .get_str("historical_storage_frequency_ms")
             .map(|v| v.parse().unwrap())
@@ -104,12 +109,12 @@ impl ServiceConfig {
             ws,
             ws_addr,
             ws_answer_timeout_ms,
-            historical,
             storage,
             historical_storage_frequency_ms,
         }
     }
 }
+
 impl Default for ServiceConfig {
     fn default() -> Self {
         Self {
@@ -117,8 +122,7 @@ impl Default for ServiceConfig {
             ws: false,
             ws_addr: get_default_host() + ":" + &get_default_port(),
             ws_answer_timeout_ms: 100,
-            historical: false,
-            storage: "sled".to_string(),
+            storage: get_default_storage(get_default_historical()),
             historical_storage_frequency_ms: 20,
         }
     }
