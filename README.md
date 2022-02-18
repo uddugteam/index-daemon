@@ -8,8 +8,11 @@ All configs are optional.
 
 ### CLI params
 
+You can get cli params description by calling program with "-h" cli param.
+
 - **service_config** - path to service config file. Supports _yaml_ and _toml_
 - **market_config** - path to market config file. Supports _yaml_ and _toml_
+- **fill_historical** - fill historical data. Params: timestamp (contains comma-separated "from" and "to", "to" is optional), coins (uppercase comma-separated)
 
 ### Configs
 

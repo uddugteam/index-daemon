@@ -38,6 +38,12 @@ impl ConfigScheme {
                     .help("Market config file path")
                     .value_hint(ValueHint::FilePath),
             )
+            .arg(
+                Arg::new("fill_historical")
+                    .long("fill_historical")
+                    .value_names(&["TIMESTAMP", "COINS"])
+                    .help("Fill historical data. Params: timestamp (contains comma-separated \"from\" and \"to\", \"to\" is optional), coins (uppercase comma-separated)."),
+            )
             .get_matches()
     }
 }

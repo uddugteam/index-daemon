@@ -53,7 +53,7 @@ impl Repositories {
         }
     }
 
-    fn make_pair_average_price_sled(
+    pub fn make_pair_average_price_sled(
         config: &ConfigScheme,
         tree: Arc<Mutex<vsdbsled::Db>>,
     ) -> RepositoryForF64ByTimestamp {
