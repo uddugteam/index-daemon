@@ -170,7 +170,6 @@ pub mod test {
     use crate::config_scheme::helper_functions::make_exchange_pairs;
     use crate::config_scheme::market_config::MarketConfig;
     use crate::config_scheme::repositories_prepared::RepositoriesPrepared;
-    use crate::config_scheme::service_config::ServiceConfig;
     use crate::worker::market_helpers::exchange_pair::ExchangePair;
     use crate::worker::market_helpers::market_channels::MarketChannels;
     use crate::worker::worker::Worker;
@@ -312,7 +311,7 @@ pub mod test {
                 exchange_pairs,
                 channels,
             },
-            service: ServiceConfig::default(),
+            ..ConfigScheme::default()
         };
 
         inner_test_start(config);
