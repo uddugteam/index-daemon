@@ -2,7 +2,7 @@ use crate::worker::defaults::{COINS, FIATS, MARKETS};
 use crate::worker::market_helpers::conversion_type::ConversionType;
 use crate::worker::market_helpers::exchange_pair::ExchangePair;
 use crate::worker::market_helpers::market_channels::MarketChannels;
-use clap::{App, Arg};
+use clap::{App, Arg, ValueHint};
 use env_logger::Builder;
 
 pub fn get_config_file_path(key: &str) -> Option<String> {
@@ -13,21 +13,21 @@ pub fn get_config_file_path(key: &str) -> Option<String> {
                 .long("service_config")
                 .value_name("PATH")
                 .help("Service config file path")
-                .takes_value(true),
+                .value_hint(ValueHint::FilePath),
         )
         .arg(
             Arg::new("market_config")
                 .long("market_config")
                 .value_name("PATH")
                 .help("Market config file path")
-                .takes_value(true),
+                .value_hint(ValueHint::FilePath),
         )
         .get_matches();
 
     matches.value_of(key).map(|v| v.to_string())
 }
 
-pub fn get_config(key: &str) -> config::Config {
+pub fn get_config_from_config_files(key: &str) -> config::Config {
     let mut config = config::Config::default();
 
     if let Some(path) = get_config_file_path(key) {

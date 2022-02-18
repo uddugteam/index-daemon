@@ -1,5 +1,5 @@
 use crate::config_scheme::helper_functions::{
-    get_config, get_default_host, get_default_port, set_log_level,
+    get_config_from_config_files, get_default_host, get_default_port, set_log_level,
 };
 
 pub struct ServiceConfig {
@@ -14,7 +14,7 @@ pub struct ServiceConfig {
 impl ServiceConfig {
     pub fn new() -> Self {
         let default = Self::default();
-        let service_config = get_config("service_config");
+        let service_config = get_config_from_config_files("service_config");
 
         set_log_level(&service_config);
 
