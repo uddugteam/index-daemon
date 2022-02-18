@@ -1,5 +1,6 @@
 use crate::config_scheme::config_scheme::ConfigScheme;
 use crate::config_scheme::market_config::MarketConfig;
+use crate::config_scheme::repositories_prepared::RepositoriesPrepared;
 use crate::config_scheme::service_config::ServiceConfig;
 use crate::repository::repositories::{RepositoriesByMarketName, RepositoryForF64ByTimestamp};
 use crate::worker::market_helpers::exchange_pair::ExchangePair;
@@ -98,14 +99,14 @@ impl Worker {
         }
     }
 
-    pub fn start(
-        &mut self,
-        config: ConfigScheme,
-        market_repositories: Option<RepositoriesByMarketName>,
-        pair_average_price: PairAveragePriceType,
-        pair_average_price_repository: Option<RepositoryForF64ByTimestamp>,
-        ws_channels_holder: WsChannelsHolderHashMap,
-    ) {
+    pub fn start(&mut self, config: ConfigScheme) {
+        let RepositoriesPrepared {
+            pair_average_price_repository,
+            market_repositories,
+            ws_channels_holder,
+            pair_average_price,
+        } = RepositoriesPrepared::make(&config);
+
         let ConfigScheme { market, service } = config;
         let MarketConfig {
             markets,
@@ -280,20 +281,7 @@ pub mod test {
             thread_names.push(thread_name);
         }
 
-        let RepositoriesPrepared {
-            pair_average_price_repository,
-            market_repositories,
-            ws_channels_holder,
-            pair_average_price,
-        } = RepositoriesPrepared::make(&config);
-
-        worker.start(
-            config,
-            market_repositories,
-            pair_average_price,
-            pair_average_price_repository,
-            ws_channels_holder,
-        );
+        worker.start(config);
         check_threads(thread_names, rx);
     }
 

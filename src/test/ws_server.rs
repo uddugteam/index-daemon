@@ -1,7 +1,6 @@
 mod ws_client_for_testing;
 
 use crate::config_scheme::config_scheme::ConfigScheme;
-use crate::config_scheme::repositories_prepared::RepositoriesPrepared;
 use crate::test::ws_server::ws_client_for_testing::WsClientForTesting;
 use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
@@ -33,22 +32,9 @@ fn start_application(
     config.service.ws_addr = ws_addr.to_string();
     config.market.channels = vec![MarketChannels::Trades];
 
-    let RepositoriesPrepared {
-        pair_average_price_repository,
-        market_repositories,
-        ws_channels_holder,
-        pair_average_price,
-    } = RepositoriesPrepared::make(&config);
-
     let (tx, rx) = mpsc::channel();
     let mut worker = Worker::new(tx, graceful_shutdown);
-    worker.start(
-        config,
-        market_repositories,
-        pair_average_price,
-        pair_average_price_repository,
-        ws_channels_holder,
-    );
+    worker.start(config);
 
     // Give Websocket server time to start
     thread::sleep(time::Duration::from_millis(1000));
