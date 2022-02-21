@@ -6,6 +6,7 @@ use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
 use crate::worker::worker::Worker;
 use serde_json::json;
+use serial_test::serial;
 use std::collections::HashMap;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{mpsc, Arc, Mutex};
@@ -160,20 +161,21 @@ fn check_incoming_messages(
             }
         }
 
-        // 120 seconds = 2 minutes
-        if start.elapsed().as_secs() > 120 {
-            panic!("Allocated time (2 minutes) is over.");
+        let minutes = 4;
+        if start.elapsed().as_secs() > minutes * 60 {
+            panic!("Allocated time ({} minutes) is over.", minutes);
         }
 
         thread::sleep(time::Duration::from_millis(100));
     }
 }
 
-// #[test]
-// #[serial]
+#[test]
+#[ignore]
+#[serial]
 /// TODO: Fix (not always working on github)
 fn test_ws_channels_response() {
-    let ws_addr = "127.0.0.1:8007";
+    let ws_addr = "127.0.0.1:8000";
     let (_rx, _worker, (incoming_msg_tx, incoming_msg_rx)) = start_application(ws_addr);
 
     let mut requests = Vec::new();
