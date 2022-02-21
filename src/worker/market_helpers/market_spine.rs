@@ -141,6 +141,7 @@ impl MarketSpine {
                 .unwrap()
                 .total_volume
                 .get_value()
+                .unwrap_or(0.0)
         } else {
             0.0
         }
@@ -153,7 +154,8 @@ impl MarketSpine {
                 .get(pair)
                 .unwrap()
                 .total_volume
-                .get_value();
+                .get_value()
+                .unwrap_or(0.0);
 
             if (old_value - value).abs() > EPS {
                 self.exchange_pairs
@@ -176,7 +178,7 @@ impl MarketSpine {
             .name(thread_name)
             .spawn(move || {
                 if let Ok(mut pair_average_price_2) = pair_average_price_2.lock() {
-                    let old_avg = pair_average_price_2.get_value();
+                    let old_avg = pair_average_price_2.get_value().unwrap_or(new_price);
 
                     let new_avg = (new_price + old_avg) / 2.0;
 
@@ -212,7 +214,8 @@ impl MarketSpine {
             .get(pair)
             .unwrap()
             .last_trade_price
-            .get_value();
+            .get_value()
+            .unwrap_or(0.0);
 
         // If new value is a Real price
         if value <= 0.0 {

@@ -6,7 +6,7 @@ use chrono::{DateTime, Utc, MIN_DATETIME};
 use std::sync::{Arc, Mutex};
 
 pub struct StoredAndWsTransmissibleF64 {
-    value: f64,
+    value: Option<f64>,
     timestamp: DateTime<Utc>,
     repository: Option<RepositoryForF64ByTimestamp>,
     ws_channels: Arc<Mutex<WsChannels>>,
@@ -36,7 +36,7 @@ impl StoredAndWsTransmissibleF64 {
         }
 
         Self {
-            value: 0.0,
+            value: None,
             timestamp: MIN_DATETIME,
             repository,
             ws_channels,
@@ -46,12 +46,12 @@ impl StoredAndWsTransmissibleF64 {
         }
     }
 
-    pub fn get_value(&self) -> f64 {
+    pub fn get_value(&self) -> Option<f64> {
         self.value
     }
 
     pub fn set_new_value(&mut self, new_value: f64) {
-        self.value = new_value;
+        self.value = Some(new_value);
         self.timestamp = Utc::now();
 
         if let Some(repository) = &mut self.repository {
