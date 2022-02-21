@@ -326,38 +326,4 @@ pub mod test {
 
         inner_test_start(config);
     }
-
-    // pub fn check_worker_subscriptions(
-    //     worker: &Worker,
-    //     subscriptions: Vec<(String, WsChannelName, Vec<String>)>,
-    // ) {
-    //     check_subscriptions(&worker.pair_average_price.ws_channels, &subscriptions);
-    // }
-
-    // pub fn check_market_subscriptions(
-    //     worker: &Arc<Mutex<Worker>>,
-    //     subscriptions: Vec<(String, WsChannelName, Vec<String>, Vec<String>)>,
-    // ) {
-    //     let mut subscriptions_new = HashMap::new();
-    //     for (sub_id, method, coins, exchanges) in subscriptions {
-    //         for exchange in exchanges {
-    //             let new_sub = (sub_id.clone(), method.clone(), coins.clone());
-    //             subscriptions_new
-    //                 .entry(exchange)
-    //                 .or_insert(Vec::new())
-    //                 .push(new_sub);
-    //         }
-    //     }
-    //
-    //     for (market_name, market) in worker.lock().unwrap().markets.clone() {
-    //         if let Some(subscriptions) = subscriptions_new.get(&market_name) {
-    //             check_subscriptions(
-    //                 &market.lock().unwrap().get_spine().ws_channels,
-    //                 subscriptions,
-    //             );
-    //         } else {
-    //             check_subscriptions(&market.lock().unwrap().get_spine().ws_channels, &Vec::new());
-    //         }
-    //     }
-    // }
 }
