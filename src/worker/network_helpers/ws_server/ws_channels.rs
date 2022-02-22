@@ -117,7 +117,7 @@ impl WsChannels {
 
 #[cfg(test)]
 pub mod test {
-    use crate::worker::network_helpers::ws_server::jsonrpc_messages::JsonRpcId;
+    use crate::worker::network_helpers::ws_server::jsonrpc_request::JsonRpcId;
     use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
     use crate::worker::network_helpers::ws_server::ws_channels::WsChannels;
 

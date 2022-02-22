@@ -3,7 +3,7 @@ pub mod channels;
 pub mod f64_snapshot;
 pub mod hepler_functions;
 pub mod interval;
-pub mod jsonrpc_messages;
+pub mod jsonrpc_request;
 pub mod requests;
 pub mod ser_date_into_timestamp;
 pub mod ws_channel_name;

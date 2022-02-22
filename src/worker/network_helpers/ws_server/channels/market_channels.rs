@@ -1,4 +1,4 @@
-use crate::worker::network_helpers::ws_server::jsonrpc_messages::JsonRpcId;
+use crate::worker::network_helpers::ws_server::jsonrpc_request::JsonRpcId;
 
 #[derive(Debug, Clone)]
 pub enum MarketChannels {

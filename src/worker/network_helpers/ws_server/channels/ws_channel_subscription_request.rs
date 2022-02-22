@@ -1,6 +1,6 @@
 use crate::worker::network_helpers::ws_server::channels::market_channels::MarketChannels;
 use crate::worker::network_helpers::ws_server::channels::worker_channels::WorkerChannels;
-use crate::worker::network_helpers::ws_server::jsonrpc_messages::JsonRpcId;
+use crate::worker::network_helpers::ws_server::jsonrpc_request::JsonRpcId;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
 
 #[derive(Debug, Clone)]

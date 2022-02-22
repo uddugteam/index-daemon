@@ -6,7 +6,7 @@ use crate::worker::network_helpers::ws_server::channels::ws_channel_subscription
 use crate::worker::network_helpers::ws_server::channels::ws_channel_unsubscribe::WsChannelUnsubscribe;
 use crate::worker::network_helpers::ws_server::f64_snapshot::F64Snapshots;
 use crate::worker::network_helpers::ws_server::hepler_functions::ws_send_response;
-use crate::worker::network_helpers::ws_server::jsonrpc_messages::{JsonRpcId, JsonRpcRequest};
+use crate::worker::network_helpers::ws_server::jsonrpc_request::{JsonRpcId, JsonRpcRequest};
 use crate::worker::network_helpers::ws_server::requests::ws_method_request::WsMethodRequest;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
 use crate::worker::network_helpers::ws_server::ws_channel_response::WsChannelResponse;

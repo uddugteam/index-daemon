@@ -3,7 +3,7 @@ use crate::worker::network_helpers::ws_server::channels::worker_channels::Worker
 use crate::worker::network_helpers::ws_server::channels::ws_channel_action::WsChannelAction;
 use crate::worker::network_helpers::ws_server::channels::ws_channel_subscription_request::WsChannelSubscriptionRequest;
 use crate::worker::network_helpers::ws_server::channels::ws_channel_unsubscribe::WsChannelUnsubscribe;
-use crate::worker::network_helpers::ws_server::jsonrpc_messages::JsonRpcRequest;
+use crate::worker::network_helpers::ws_server::jsonrpc_request::JsonRpcRequest;
 use crate::worker::network_helpers::ws_server::requests::ws_method_request::WsMethodRequest;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
 use serde_json::Map;
