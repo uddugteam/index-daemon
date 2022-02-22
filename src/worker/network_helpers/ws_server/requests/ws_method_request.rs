@@ -8,13 +8,13 @@ pub enum WsMethodRequest {
         coin: String,
         interval: Interval,
         from: u64,
-        to: u64,
+        to: Option<u64>,
     },
     CoinAveragePriceCandlesHistorical {
         id: Option<JsonRpcId>,
         coin: String,
         interval: Interval,
         from: u64,
-        to: u64,
+        to: Option<u64>,
     },
 }

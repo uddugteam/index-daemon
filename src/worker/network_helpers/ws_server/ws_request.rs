@@ -111,7 +111,7 @@ impl TryFrom<JsonRpcRequest> for WsRequest {
                 let coin = object.get("coin").ok_or(e)?.as_str().ok_or(e)?.to_string();
                 let interval = interval??;
                 let from = Self::parse_u64(object, "from").ok_or(e)?;
-                let to = Self::parse_u64(object, "to").ok_or(e)?;
+                let to = Self::parse_u64(object, "to").ok_or(e).ok();
 
                 let res = match request.method {
                     WsChannelName::CoinAveragePriceHistorical => {

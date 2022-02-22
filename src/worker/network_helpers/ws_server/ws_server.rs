@@ -21,6 +21,7 @@ use async_std::{
     task,
 };
 use async_tungstenite::tungstenite::protocol::Message;
+use chrono::Utc;
 use futures::{
     channel::mpsc::{unbounded, UnboundedSender},
     future, pin_mut,
@@ -209,7 +210,9 @@ impl WsServer {
                 to,
             } => {
                 let from = date_time_from_timestamp_sec(from);
-                let to = date_time_from_timestamp_sec(to);
+                let to = to
+                    .map(date_time_from_timestamp_sec)
+                    .unwrap_or_else(Utc::now);
 
                 if let Some(values) = pair_average_price_repository {
                     let values = values.read_range(from, to);
