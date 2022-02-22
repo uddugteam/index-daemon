@@ -1,4 +1,4 @@
-use crate::repository::repositories::RepositoriesByMarketValue;
+use crate::repository::repositories::MarketRepositoriesByMarketValue;
 use crate::worker::market_helpers::market_value::MarketValue;
 use crate::worker::market_helpers::stored_and_ws_transmissible_f64::StoredAndWsTransmissibleF64;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
@@ -17,7 +17,7 @@ pub struct ExchangePairInfo {
 
 impl ExchangePairInfo {
     pub fn new(
-        repositories: Option<RepositoriesByMarketValue>,
+        repositories: Option<MarketRepositoriesByMarketValue>,
         ws_channels_holder: &WsChannelsHolderHashMap,
         market_name: String,
         pair: (String, String),

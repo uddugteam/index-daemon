@@ -1,4 +1,6 @@
-use crate::repository::repositories::{RepositoriesByMarketValue, RepositoriesByPairTuple};
+use crate::repository::repositories::{
+    MarketRepositoriesByMarketValue, MarketRepositoriesByPairTuple,
+};
 use crate::worker::helper_functions::get_pair_ref;
 use crate::worker::market_helpers::exchange_pair::ExchangePair;
 use crate::worker::market_helpers::market_channels::MarketChannels;
@@ -26,7 +28,7 @@ use std::time;
 pub fn market_factory(
     mut spine: MarketSpine,
     exchange_pairs: Vec<ExchangePair>,
-    repositories: Option<RepositoriesByPairTuple>,
+    repositories: Option<MarketRepositoriesByPairTuple>,
     ws_channels_holder: &WsChannelsHolderHashMap,
 ) -> Arc<Mutex<dyn Market + Send>> {
     let mut repositories = repositories.unwrap_or_default();
@@ -294,7 +296,7 @@ pub trait Market {
     fn add_exchange_pair(
         &mut self,
         exchange_pair: ExchangePair,
-        repositories: Option<RepositoriesByMarketValue>,
+        repositories: Option<MarketRepositoriesByMarketValue>,
         ws_channels_holder: &WsChannelsHolderHashMap,
     ) {
         let pair_string = self.make_pair(get_pair_ref(&exchange_pair.pair));

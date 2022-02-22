@@ -8,13 +8,14 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 pub type RepositoryForF64ByTimestamp = Box<dyn Repository<DateTime<Utc>, f64> + Send>;
-pub type RepositoriesByMarketValue = HashMap<MarketValue, RepositoryForF64ByTimestamp>;
-pub type RepositoriesByPairTuple = HashMap<(String, String), RepositoriesByMarketValue>;
-pub type RepositoriesByMarketName = HashMap<String, RepositoriesByPairTuple>;
+pub type WorkerRepositoriesByPairTuple = HashMap<(String, String), RepositoryForF64ByTimestamp>;
+pub type MarketRepositoriesByMarketValue = HashMap<MarketValue, RepositoryForF64ByTimestamp>;
+pub type MarketRepositoriesByPairTuple = HashMap<(String, String), MarketRepositoriesByMarketValue>;
+pub type MarketRepositoriesByMarketName = HashMap<String, MarketRepositoriesByPairTuple>;
 
 pub struct Repositories {
-    pub pair_average_price: RepositoryForF64ByTimestamp,
-    pub market_repositories: RepositoriesByMarketName,
+    pub pair_average_price: WorkerRepositoriesByPairTuple,
+    pub market_repositories: MarketRepositoriesByMarketName,
 }
 
 impl Repositories {
@@ -41,8 +42,8 @@ impl Repositories {
     pub fn optionize_fields(
         config: Option<Self>,
     ) -> (
-        Option<RepositoryForF64ByTimestamp>,
-        Option<RepositoriesByMarketName>,
+        Option<WorkerRepositoriesByPairTuple>,
+        Option<MarketRepositoriesByMarketName>,
     ) {
         match config {
             Some(config) => (
@@ -56,18 +57,35 @@ impl Repositories {
     pub fn make_pair_average_price_sled(
         config: &ConfigScheme,
         tree: Arc<Mutex<vsdbsled::Db>>,
-    ) -> RepositoryForF64ByTimestamp {
-        Box::new(F64ByTimestampSled::new(
-            "worker__".to_string() + &MarketValue::PairAveragePrice.to_string(),
-            Arc::clone(&tree),
-            config.service.historical_storage_frequency_ms,
-        ))
+    ) -> WorkerRepositoriesByPairTuple {
+        let market_config = &config.market;
+        let service_config = &config.service;
+
+        let mut hash_map = HashMap::new();
+        for exchange_pair in &market_config.exchange_pairs {
+            let pair = format!("{}_{}", exchange_pair.pair.0, exchange_pair.pair.1);
+            let entity_name = format!(
+                "worker__{}__{}",
+                MarketValue::PairAveragePrice.to_string(),
+                pair
+            );
+
+            let repository: RepositoryForF64ByTimestamp = Box::new(F64ByTimestampSled::new(
+                entity_name,
+                Arc::clone(&tree),
+                service_config.historical_storage_frequency_ms,
+            ));
+
+            hash_map.insert(exchange_pair.pair.clone(), repository);
+        }
+
+        hash_map
     }
 
     fn make_market_repositories_sled(
         config: &ConfigScheme,
         tree: Arc<Mutex<vsdbsled::Db>>,
-    ) -> RepositoriesByMarketName {
+    ) -> MarketRepositoriesByMarketName {
         let market_config = &config.market;
         let service_config = &config.service;
 

@@ -1,5 +1,5 @@
 use crate::config_scheme::market_config::MarketConfig;
-use crate::repository::repositories::RepositoryForF64ByTimestamp;
+use crate::repository::repositories::WorkerRepositoriesByPairTuple;
 use crate::worker::market_helpers::market_value::MarketValue;
 use crate::worker::market_helpers::stored_and_ws_transmissible_f64::StoredAndWsTransmissibleF64;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
@@ -11,7 +11,7 @@ pub type PairAveragePriceType = HashMap<(String, String), Arc<Mutex<StoredAndWsT
 
 pub fn make_pair_average_price(
     market_config: &MarketConfig,
-    repository: Option<RepositoryForF64ByTimestamp>,
+    mut repository: Option<WorkerRepositoriesByPairTuple>,
     ws_channels_holder: &WsChannelsHolderHashMap,
 ) -> PairAveragePriceType {
     let mut hash_map = HashMap::new();
@@ -26,7 +26,9 @@ pub fn make_pair_average_price(
         let ws_channels = ws_channels_holder.get(&key).unwrap();
 
         let pair_average_price = Arc::new(Mutex::new(StoredAndWsTransmissibleF64::new(
-            repository.clone(),
+            repository
+                .as_mut()
+                .map(|v| v.remove(&exchange_pair.pair).unwrap()),
             vec![
                 WsChannelName::CoinAveragePrice,
                 WsChannelName::CoinAveragePriceCandles,

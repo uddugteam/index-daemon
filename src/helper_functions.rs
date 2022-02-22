@@ -1,6 +1,8 @@
 use crate::config_scheme::config_scheme::ConfigScheme;
 use crate::config_scheme::storage::Storage;
-use crate::repository::repositories::{Repositories, RepositoryForF64ByTimestamp};
+use crate::repository::repositories::{
+    Repositories, RepositoryForF64ByTimestamp, WorkerRepositoriesByPairTuple,
+};
 use crate::worker::helper_functions::date_time_from_timestamp_sec;
 use chrono::{DateTime, Utc};
 use clap::ArgMatches;
@@ -76,7 +78,7 @@ fn get_daily_prices(
     Some(prices)
 }
 
-fn make_repository(config: &ConfigScheme) -> RepositoryForF64ByTimestamp {
+fn make_repositories(config: &ConfigScheme) -> WorkerRepositoriesByPairTuple {
     match config.service.storage.as_ref().unwrap() {
         Storage::Sled(tree) => Repositories::make_pair_average_price_sled(config, Arc::clone(tree)),
     }
@@ -110,14 +112,15 @@ pub fn fill_historical_data(config: &ConfigScheme) {
             let coins: Vec<String> = coins.split(',').map(|v| v.to_string()).collect();
             assert!(!coins.is_empty());
 
-            let repository = make_repository(config);
+            let mut repositories = make_repositories(config);
 
             let mut threads = Vec::new();
             for coin in coins {
+                let pair_tuple = (coin.to_string(), "USD".to_string());
                 let prices = get_daily_prices(&coin, timestamp_to, day_count).unwrap();
-                let repository_2 = repository.clone();
+                let repository = repositories.remove(&pair_tuple).unwrap();
 
-                let thread = thread::spawn(move || fill_storage(repository_2, prices, coin));
+                let thread = thread::spawn(move || fill_storage(repository, prices, coin));
                 threads.push(thread);
 
                 // To prevent DDoS attack on cryptocompare.com

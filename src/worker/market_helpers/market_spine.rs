@@ -1,4 +1,4 @@
-use crate::repository::repositories::RepositoriesByMarketValue;
+use crate::repository::repositories::MarketRepositoriesByMarketValue;
 use crate::worker::market_helpers::conversion_type::ConversionType;
 use crate::worker::market_helpers::exchange_pair::ExchangePair;
 use crate::worker::market_helpers::exchange_pair_info::ExchangePairInfo;
@@ -108,7 +108,7 @@ impl MarketSpine {
         &mut self,
         pair_string: String,
         exchange_pair: ExchangePair,
-        repositories: Option<RepositoriesByMarketValue>,
+        repositories: Option<MarketRepositoriesByMarketValue>,
         ws_channels_holder: &WsChannelsHolderHashMap,
     ) {
         self.exchange_pairs.insert(
