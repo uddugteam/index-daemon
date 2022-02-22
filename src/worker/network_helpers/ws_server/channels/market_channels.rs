@@ -6,13 +6,13 @@ pub enum MarketChannels {
         id: Option<JsonRpcId>,
         coins: Vec<String>,
         exchanges: Vec<String>,
-        frequency_ms: u64,
+        frequency_ms: Option<u64>,
     },
     CoinExchangeVolume {
         id: Option<JsonRpcId>,
         coins: Vec<String>,
         exchanges: Vec<String>,
-        frequency_ms: u64,
+        frequency_ms: Option<u64>,
     },
 }
 

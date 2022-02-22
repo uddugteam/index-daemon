@@ -22,7 +22,7 @@ impl WsChannelResponseSender {
         mut request: WsChannelSubscriptionRequest,
         ws_answer_timeout_ms: u64,
     ) -> Self {
-        let frequency_ms = request.get_frequency_ms();
+        let frequency_ms = request.get_frequency_ms().unwrap_or(ws_answer_timeout_ms);
         let frequency_ms = cmp::max(ws_answer_timeout_ms, frequency_ms);
         request.set_frequency_ms(frequency_ms);
 
@@ -59,18 +59,21 @@ impl WsChannelResponseSender {
         response: WsChannelResponse,
     ) -> Option<Result<(), TrySendError<Message>>> {
         let timestamp = response.result.get_timestamp();
-        let frequency_ms = self.request.get_frequency_ms();
 
-        if (timestamp - self.last_send_timestamp).num_milliseconds() as u64 > frequency_ms {
-            // Enough time passed
-            self.last_send_timestamp = Utc::now();
+        if let Some(frequency_ms) = self.request.get_frequency_ms() {
+            if (timestamp - self.last_send_timestamp).num_milliseconds() as u64 > frequency_ms {
+                // Enough time passed
+                self.last_send_timestamp = Utc::now();
 
-            let send_msg_result = self.send_inner(response);
+                let send_msg_result = self.send_inner(response);
 
-            Some(send_msg_result)
+                Some(send_msg_result)
+            } else {
+                // Too early
+                None
+            }
         } else {
-            // Too early
-            None
+            unreachable!("Request's frequency_ms must be set in fn WsChannelResponseSender::new()")
         }
     }
 }

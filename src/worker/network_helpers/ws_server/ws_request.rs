@@ -37,7 +37,7 @@ impl TryFrom<JsonRpcRequest> for WsRequest {
         let id = request.id.clone();
         let object = request.params.as_object().ok_or(e)?;
         let coins = Self::parse_vec_of_str(object, "coins").ok_or(e);
-        let frequency_ms = Self::parse_u64(object, "frequency_ms").ok_or(e);
+        let frequency_ms = Self::parse_u64(object, "frequency_ms");
         let interval = object
             .get("interval")
             .cloned()
@@ -47,7 +47,6 @@ impl TryFrom<JsonRpcRequest> for WsRequest {
         match request.method {
             WsChannelName::CoinAveragePrice | WsChannelName::CoinAveragePriceCandles => {
                 let coins = coins?;
-                let frequency_ms = frequency_ms?;
 
                 let res = match request.method {
                     WsChannelName::CoinAveragePrice => WorkerChannels::CoinAveragePrice {
@@ -75,7 +74,6 @@ impl TryFrom<JsonRpcRequest> for WsRequest {
             WsChannelName::CoinExchangePrice | WsChannelName::CoinExchangeVolume => {
                 let coins = coins?;
                 let exchanges = Self::parse_vec_of_str(object, "exchanges").ok_or(e)?;
-                let frequency_ms = frequency_ms?;
 
                 let res = match request.method {
                     WsChannelName::CoinExchangePrice => MarketChannels::CoinExchangePrice {
