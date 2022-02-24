@@ -8,19 +8,24 @@ All configs are optional.
 
 ### CLI params
 
+You can get cli params description by calling program with "-h" cli param.
+
 - **service_config** - path to service config file. Supports _yaml_ and _toml_
 - **market_config** - path to market config file. Supports _yaml_ and _toml_
+- **fill_historical** - fill historical data. Params: timestamp (contains comma-separated "from" and "to", "to" is optional), coins (uppercase comma-separated)
 
 ### Configs
 
 #### service_config
 
-- **log_level** - string. Variants: off, error, warn, info, debug, trace.
+- **log_level** - string. Variants: off, error, warn, info, debug, trace. Default: trace.
 - **rest_timeout_sec** - u64. Timeout in seconds between requests to REST API.
 - **ws** - string ("1" - on, default - off). Turn on websocket server.
 - **ws_host** - string (default: 127.0.0.1). Websocket server host.
 - **ws_port** - string (default: 8080). Websocket server port.
 - **ws_answer_timeout_ms** - u64 (min - 100, default - 100). Timeout in ms between websocket answers.
+- **historical** - string ("1" - on, default - off). Turn on historical data storage.
+- **storage** - string. Variants: sled. Default: sled.
 
 #### market_config
 
@@ -112,6 +117,67 @@ subscription request json example:
     "coins": ["BTC", "ETH"],
     "exchanges": ["binance", "coinbase"],
     "frequency_ms": 100
+  }
+}
+```
+
+#### coin_average_price_historical (_not a channel, but a request_)
+
+- **interval** - interval between snapshots. Variants: second, minute, hour, day, week, month.
+- **from** - timestamp from
+- **to** - timestamp to
+
+request json example:
+
+```json
+{
+  "id": "some_id",
+  "jsonrpc": "2.0",
+  "method": "coin_average_price_historical",
+  "params": {
+    "coin": "BTC",
+    "interval": "day",
+    "from": 1643835600,
+    "to": 1644440400
+  }
+}
+```
+
+#### coin_average_price_candles
+
+subscription request json example:
+
+```json
+{
+  "id": "some_id",
+  "jsonrpc": "2.0",
+  "method": "coin_average_price_candles",
+  "params": {
+    "coins": ["BTC", "ETH"],
+    "frequency_ms": 50,
+    "interval": "day"
+  }
+}
+```
+
+#### coin_average_price_candles_historical (_not a channel, but a request_)
+
+- **interval** - interval between snapshots. Variants: second, minute, hour, day, week, month.
+- **from** - timestamp from
+- **to** - timestamp to
+
+request json example:
+
+```json
+{
+  "id": "some_id",
+  "jsonrpc": "2.0",
+  "method": "coin_average_price_candles_historical",
+  "params": {
+    "coin": "BTC",
+    "interval": "day",
+    "from": 1643662800,
+    "to": 1644872400
   }
 }
 ```

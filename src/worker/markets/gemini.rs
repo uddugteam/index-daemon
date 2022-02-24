@@ -1,4 +1,3 @@
-use crate::worker::market_helpers::exchange_pair_info::ExchangePairInfoTrait;
 use reqwest::blocking::Client;
 
 use crate::worker::market_helpers::market::{

@@ -1,17 +1,23 @@
 use crate::config_scheme::helper_functions::{
-    get_config, get_default_host, get_default_port, set_log_level,
+    get_config_from_config_files, get_default_historical, get_default_host, get_default_port,
+    get_default_storage, set_log_level,
 };
+use crate::config_scheme::storage::Storage;
+use clap::ArgMatches;
 
 pub struct ServiceConfig {
     pub rest_timeout_sec: u64,
     pub ws: bool,
     pub ws_addr: String,
     pub ws_answer_timeout_ms: u64,
+    pub storage: Option<Storage>,
+    pub historical_storage_frequency_ms: u64,
 }
+
 impl ServiceConfig {
-    pub fn new() -> Self {
+    pub fn new(matches: &ArgMatches) -> Self {
         let default = Self::default();
-        let service_config = get_config("service_config");
+        let service_config = get_config_from_config_files(matches, "service_config");
 
         set_log_level(&service_config);
 
@@ -63,14 +69,59 @@ impl ServiceConfig {
             );
         }
 
+        let historical = if let Ok(historical) = service_config.get_str("historical") {
+            if historical == "1" {
+                true
+            } else {
+                panic!(
+                    "Got wrong config value. service_config: historical={}",
+                    historical
+                );
+            }
+        } else {
+            get_default_historical()
+        };
+        if !historical
+            && (service_config.get_str("storage").is_ok()
+                || service_config
+                    .get_str("historical_storage_frequency_ms")
+                    .is_ok())
+        {
+            panic!(
+                "Got unexpected config. service_config: \"storage\" or \"historical_storage_frequency_ms\". These configs are allowed only if historical=1"
+            );
+        }
+        let storage = if historical {
+            Some(
+                service_config
+                    .get_str("storage")
+                    .map(|v| Storage::from_str(&v))
+                    .unwrap_or_default(),
+            )
+        } else {
+            None
+        };
+        let historical_storage_frequency_ms = service_config
+            .get_str("historical_storage_frequency_ms")
+            .map(|v| v.parse().unwrap())
+            .unwrap_or(default.historical_storage_frequency_ms);
+        if historical_storage_frequency_ms < 10 {
+            panic!(
+                "Got wrong config value. Value is less than allowed min. service_config: historical_storage_frequency_ms={}",
+                historical_storage_frequency_ms
+            );
+        }
         Self {
             rest_timeout_sec,
             ws,
             ws_addr,
             ws_answer_timeout_ms,
+            storage,
+            historical_storage_frequency_ms,
         }
     }
 }
+
 impl Default for ServiceConfig {
     fn default() -> Self {
         Self {
@@ -78,6 +129,8 @@ impl Default for ServiceConfig {
             ws: false,
             ws_addr: get_default_host() + ":" + &get_default_port(),
             ws_answer_timeout_ms: 100,
+            storage: get_default_storage(get_default_historical()),
+            historical_storage_frequency_ms: 20,
         }
     }
 }

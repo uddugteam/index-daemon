@@ -1,8 +1,7 @@
-use reqwest::blocking::Client;
-
 use crate::worker::market_helpers::market::{depth_helper_v2, Market};
 use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
+use reqwest::blocking::Client;
 
 pub struct Ftx {
     pub spine: MarketSpine,
