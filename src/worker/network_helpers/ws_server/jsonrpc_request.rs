@@ -1,3 +1,5 @@
+use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(untagged)]
 pub enum JsonRpcId {
@@ -9,6 +11,6 @@ pub enum JsonRpcId {
 #[derive(Deserialize)]
 pub struct JsonRpcRequest {
     pub id: Option<JsonRpcId>,
-    pub method: String,
+    pub method: WsChannelName,
     pub params: serde_json::Value,
 }

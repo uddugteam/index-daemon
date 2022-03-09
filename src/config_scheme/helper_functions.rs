@@ -1,35 +1,19 @@
-use crate::worker::defaults::{COINS, MARKETS};
+use crate::config_scheme::storage::Storage;
+use crate::worker::defaults::{COINS, FIATS, MARKETS};
+use crate::worker::market_helpers::conversion_type::ConversionType;
+use crate::worker::market_helpers::exchange_pair::ExchangePair;
 use crate::worker::market_helpers::market_channels::MarketChannels;
-
-use clap::{App, Arg};
+use clap::ArgMatches;
 use env_logger::Builder;
 
-pub fn get_config_file_path(key: &str) -> Option<String> {
-    let matches = App::new("ICEX")
-        .version("1.0")
-        .arg(
-            Arg::new("service_config")
-                .long("service_config")
-                .value_name("PATH")
-                .help("Service config file path")
-                .takes_value(true),
-        )
-        .arg(
-            Arg::new("market_config")
-                .long("market_config")
-                .value_name("PATH")
-                .help("Market config file path")
-                .takes_value(true),
-        )
-        .get_matches();
-
+pub fn get_config_file_path(matches: &ArgMatches, key: &str) -> Option<String> {
     matches.value_of(key).map(|v| v.to_string())
 }
 
-pub fn get_config(key: &str) -> config::Config {
+pub fn get_config_from_config_files(matches: &ArgMatches, key: &str) -> config::Config {
     let mut config = config::Config::default();
 
-    if let Some(path) = get_config_file_path(key) {
+    if let Some(path) = get_config_file_path(matches, key) {
         config.merge(config::File::with_name(&path)).unwrap();
     } else {
         let env_key = "APP__".to_string() + &key.to_uppercase() + "_";
@@ -71,6 +55,10 @@ pub fn get_default_coins() -> Vec<String> {
     COINS.into_iter().map(|v| v.to_string()).collect()
 }
 
+pub fn get_default_exchange_pairs() -> Vec<ExchangePair> {
+    make_exchange_pairs(get_default_coins(), None)
+}
+
 pub fn get_default_channels() -> Vec<MarketChannels> {
     MarketChannels::get_all().to_vec()
 }
@@ -81,4 +69,33 @@ pub fn get_default_host() -> String {
 
 pub fn get_default_port() -> String {
     "8080".to_string()
+}
+
+pub fn get_default_historical() -> bool {
+    false
+}
+
+pub fn get_default_storage(historical: bool) -> Option<Storage> {
+    if historical {
+        Some(Storage::default())
+    } else {
+        None
+    }
+}
+
+pub fn make_exchange_pairs(coins: Vec<String>, fiats: Option<Vec<&str>>) -> Vec<ExchangePair> {
+    let mut exchange_pairs = Vec::new();
+
+    let fiats = fiats.unwrap_or(FIATS.to_vec());
+
+    for coin in coins {
+        for fiat in &fiats {
+            exchange_pairs.push(ExchangePair {
+                pair: (coin.to_string(), fiat.to_string()),
+                conversion: ConversionType::None,
+            });
+        }
+    }
+
+    exchange_pairs
 }

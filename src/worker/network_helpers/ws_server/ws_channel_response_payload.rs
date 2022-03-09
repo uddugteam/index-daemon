@@ -1,16 +1,18 @@
+use crate::worker::network_helpers::ws_server::candles::{Candle, Candles};
+use crate::worker::network_helpers::ws_server::f64_snapshot::F64Snapshots;
 use crate::worker::network_helpers::ws_server::ser_date_into_timestamp;
-
+use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
 use chrono::{DateTime, Utc};
 
 #[derive(Serialize, Clone)]
 #[serde(untagged)]
 pub enum WsChannelResponsePayload {
     SuccSub {
-        method: String,
+        method: WsChannelName,
         message: String,
     },
     Err {
-        method: String,
+        method: Option<WsChannelName>,
         code: i64,
         message: String,
     },
@@ -34,15 +36,35 @@ pub enum WsChannelResponsePayload {
         #[serde(with = "ser_date_into_timestamp")]
         timestamp: DateTime<Utc>,
     },
+    CoinAveragePriceHistorical {
+        coin: String,
+        values: F64Snapshots,
+    },
+    CoinAveragePriceCandles {
+        coin: String,
+        value: Candle,
+    },
+    CoinAveragePriceCandlesHistorical {
+        coin: String,
+        values: Candles,
+    },
 }
 
 impl WsChannelResponsePayload {
-    pub fn get_method(&self) -> String {
+    pub fn get_method(&self) -> Option<WsChannelName> {
         match self {
-            Self::CoinAveragePrice { .. } => "coin_average_price".to_string(),
-            Self::CoinExchangePrice { .. } => "coin_exchange_price".to_string(),
-            Self::CoinExchangeVolume { .. } => "coin_exchange_volume".to_string(),
-            Self::SuccSub { method, .. } | Self::Err { method, .. } => method.to_string(),
+            Self::CoinAveragePrice { .. } => Some(WsChannelName::CoinAveragePrice),
+            Self::CoinExchangePrice { .. } => Some(WsChannelName::CoinExchangePrice),
+            Self::CoinExchangeVolume { .. } => Some(WsChannelName::CoinExchangeVolume),
+            Self::CoinAveragePriceHistorical { .. } => {
+                Some(WsChannelName::CoinAveragePriceHistorical)
+            }
+            Self::CoinAveragePriceCandles { .. } => Some(WsChannelName::CoinAveragePriceCandles),
+            Self::CoinAveragePriceCandlesHistorical { .. } => {
+                Some(WsChannelName::CoinAveragePriceCandlesHistorical)
+            }
+            Self::SuccSub { method, .. } => Some(*method),
+            Self::Err { method, .. } => *method,
         }
     }
 
@@ -50,7 +72,10 @@ impl WsChannelResponsePayload {
         match self {
             Self::CoinAveragePrice { coin, .. }
             | Self::CoinExchangePrice { coin, .. }
-            | Self::CoinExchangeVolume { coin, .. } => coin.to_string(),
+            | Self::CoinExchangeVolume { coin, .. }
+            | Self::CoinAveragePriceHistorical { coin, .. }
+            | Self::CoinAveragePriceCandles { coin, .. }
+            | Self::CoinAveragePriceCandlesHistorical { coin, .. } => coin.to_string(),
             Self::SuccSub { .. } | Self::Err { .. } => {
                 unreachable!()
             }
@@ -62,7 +87,11 @@ impl WsChannelResponsePayload {
             Self::CoinAveragePrice { timestamp, .. }
             | Self::CoinExchangePrice { timestamp, .. }
             | Self::CoinExchangeVolume { timestamp, .. } => *timestamp,
-            Self::SuccSub { .. } | Self::Err { .. } => {
+            Self::CoinAveragePriceCandles { value, .. } => value.timestamp,
+            Self::CoinAveragePriceHistorical { .. }
+            | Self::CoinAveragePriceCandlesHistorical { .. }
+            | Self::SuccSub { .. }
+            | Self::Err { .. } => {
                 unreachable!()
             }
         }

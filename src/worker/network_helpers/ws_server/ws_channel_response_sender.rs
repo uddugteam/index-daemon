@@ -1,5 +1,5 @@
-use crate::worker::helper_functions::add_jsonrpc_version_and_method;
-use crate::worker::network_helpers::ws_server::ws_channel_request::WsChannelRequest;
+use crate::worker::network_helpers::ws_server::channels::ws_channel_subscription_request::WsChannelSubscriptionRequest;
+use crate::worker::network_helpers::ws_server::hepler_functions::ws_send_response;
 use crate::worker::network_helpers::ws_server::ws_channel_response::WsChannelResponse;
 use crate::worker::network_helpers::ws_server::ws_channel_response_payload::WsChannelResponsePayload;
 use async_tungstenite::tungstenite::protocol::Message;
@@ -12,17 +12,17 @@ type Tx = UnboundedSender<Message>;
 #[derive(Clone)]
 pub struct WsChannelResponseSender {
     broadcast_recipient: Tx,
-    pub request: WsChannelRequest,
+    pub request: WsChannelSubscriptionRequest,
     last_send_timestamp: DateTime<Utc>,
 }
 
 impl WsChannelResponseSender {
     pub fn new(
         broadcast_recipient: Tx,
-        mut request: WsChannelRequest,
+        mut request: WsChannelSubscriptionRequest,
         ws_answer_timeout_ms: u64,
     ) -> Self {
-        let frequency_ms = request.get_frequency_ms();
+        let frequency_ms = request.get_frequency_ms().unwrap_or(ws_answer_timeout_ms);
         let frequency_ms = cmp::max(ws_answer_timeout_ms, frequency_ms);
         request.set_frequency_ms(frequency_ms);
 
@@ -34,12 +34,11 @@ impl WsChannelResponseSender {
     }
 
     fn send_inner(&self, response: WsChannelResponse) -> Result<(), TrySendError<Message>> {
-        let mut response = serde_json::to_string(&response).unwrap();
-        add_jsonrpc_version_and_method(&mut response, Some(self.request.get_method()));
-
-        let response = Message::from(response);
-
-        self.broadcast_recipient.unbounded_send(response)
+        ws_send_response(
+            &self.broadcast_recipient,
+            response,
+            Some(self.request.get_method()),
+        )
     }
 
     pub fn send_succ_sub_notif(&self) -> Result<(), TrySendError<Message>> {
@@ -60,18 +59,21 @@ impl WsChannelResponseSender {
         response: WsChannelResponse,
     ) -> Option<Result<(), TrySendError<Message>>> {
         let timestamp = response.result.get_timestamp();
-        let frequency_ms = self.request.get_frequency_ms();
 
-        if (timestamp - self.last_send_timestamp).num_milliseconds() as u64 > frequency_ms {
-            // Enough time passed
-            self.last_send_timestamp = Utc::now();
+        if let Some(frequency_ms) = self.request.get_frequency_ms() {
+            if (timestamp - self.last_send_timestamp).num_milliseconds() as u64 > frequency_ms {
+                // Enough time passed
+                self.last_send_timestamp = Utc::now();
 
-            let send_msg_result = self.send_inner(response);
+                let send_msg_result = self.send_inner(response);
 
-            Some(send_msg_result)
+                Some(send_msg_result)
+            } else {
+                // Too early
+                None
+            }
         } else {
-            // Too early
-            None
+            unreachable!("Request's frequency_ms must be set in fn WsChannelResponseSender::new()")
         }
     }
 }

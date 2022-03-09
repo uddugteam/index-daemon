@@ -70,9 +70,11 @@ impl Poloniex {
     }
 
     fn refresh_pair_prices(&mut self) -> Option<()> {
+        let timestamp = Utc::now();
+
         // Hold 10 seconds between HTTP requests to Poloniex
-        if (Utc::now() - self.last_http_request_timestamp).num_milliseconds() > 10000 {
-            self.last_http_request_timestamp = Utc::now();
+        if (timestamp - self.last_http_request_timestamp).num_milliseconds() > 10000 {
+            self.last_http_request_timestamp = timestamp;
 
             let response = Client::new()
                 .post("https://poloniex.com/public?command=returnTicker")

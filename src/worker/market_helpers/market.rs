@@ -1,6 +1,8 @@
+use crate::repository::repositories::{
+    MarketRepositoriesByMarketValue, MarketRepositoriesByPairTuple,
+};
 use crate::worker::helper_functions::get_pair_ref;
 use crate::worker::market_helpers::exchange_pair::ExchangePair;
-use crate::worker::market_helpers::exchange_pair_info::ExchangePairInfoTrait;
 use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
 use crate::worker::markets::binance::Binance;
@@ -17,7 +19,7 @@ use crate::worker::markets::kucoin::Kucoin;
 use crate::worker::markets::okcoin::Okcoin;
 use crate::worker::markets::poloniex::Poloniex;
 use crate::worker::network_helpers::ws_client::WsClient;
-use chrono::Utc;
+use crate::worker::network_helpers::ws_server::ws_channels_holder::WsChannelsHolderHashMap;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -26,7 +28,11 @@ use std::time;
 pub fn market_factory(
     mut spine: MarketSpine,
     exchange_pairs: Vec<ExchangePair>,
+    repositories: Option<MarketRepositoriesByPairTuple>,
+    ws_channels_holder: &WsChannelsHolderHashMap,
 ) -> Arc<Mutex<dyn Market + Send>> {
+    let mut repositories = repositories.unwrap_or_default();
+
     let mask_pairs = match spine.name.as_ref() {
         "binance" => vec![("IOT", "IOTA"), ("USD", "USDT")],
         "bitfinex" => vec![("DASH", "dsh"), ("QTUM", "QTM")],
@@ -63,7 +69,11 @@ pub fn market_factory(
         .set_arc(Arc::clone(&market));
 
     for exchange_pair in exchange_pairs {
-        market.lock().unwrap().add_exchange_pair(exchange_pair);
+        market.lock().unwrap().add_exchange_pair(
+            exchange_pair.clone(),
+            repositories.remove(&exchange_pair.pair),
+            ws_channels_holder,
+        );
     }
 
     market
@@ -116,10 +126,7 @@ pub fn parse_str_from_json_object<T: FromStr>(
     object.get(key)?.as_str()?.parse().ok()
 }
 
-pub fn parse_str_from_json_array<T: FromStr>(
-    array: &Vec<serde_json::Value>,
-    key: usize,
-) -> Option<T> {
+pub fn parse_str_from_json_array<T: FromStr>(array: &[serde_json::Value], key: usize) -> Option<T> {
     array.get(key)?.as_str()?.parse().ok()
 }
 
@@ -286,10 +293,19 @@ pub trait Market {
         }
     }
 
-    fn add_exchange_pair(&mut self, exchange_pair: ExchangePair) {
+    fn add_exchange_pair(
+        &mut self,
+        exchange_pair: ExchangePair,
+        repositories: Option<MarketRepositoriesByMarketValue>,
+        ws_channels_holder: &WsChannelsHolderHashMap,
+    ) {
         let pair_string = self.make_pair(get_pair_ref(&exchange_pair.pair));
-        self.get_spine_mut()
-            .add_exchange_pair(pair_string, exchange_pair);
+        self.get_spine_mut().add_exchange_pair(
+            pair_string,
+            exchange_pair,
+            repositories,
+            ws_channels_holder,
+        );
     }
 
     fn get_total_volume(&self, first_currency: &str, second_currency: &str) -> f64 {
@@ -369,9 +385,7 @@ pub trait Market {
             volume,
         );
 
-        let conversion_coef: f64 = self.get_spine().get_conversion_coef(&pair);
-        self.get_spine_mut()
-            .set_total_volume(&pair, volume * conversion_coef);
+        self.get_spine_mut().set_total_volume(&pair, volume);
     }
 
     fn parse_last_trade_json(&mut self, pair: String, json: serde_json::Value) -> Option<()>;
@@ -391,11 +405,10 @@ pub trait Market {
             last_trade_price,
         );
 
-        let conversion_coef: f64 = self.get_spine().get_conversion_coef(&pair);
         self.get_spine_mut()
             .set_last_trade_volume(&pair, last_trade_volume);
         self.get_spine_mut()
-            .set_last_trade_price(&pair, last_trade_price * conversion_coef);
+            .set_last_trade_price(&pair, last_trade_price);
     }
 
     fn parse_depth_json(&mut self, pair: String, json: serde_json::Value) -> Option<()>;
@@ -417,7 +430,6 @@ pub trait Market {
         for (price, size) in bids {
             bid_sum += size * price;
         }
-        bid_sum *= self.get_spine().get_conversion_coef(&pair);
         self.get_spine_mut().set_total_bid(&pair, bid_sum);
 
         info!(
@@ -427,19 +439,14 @@ pub trait Market {
             ask_sum,
             bid_sum
         );
-
-        let timestamp = Utc::now();
-        self.get_spine_mut()
-            .get_exchange_pairs_mut()
-            .get_mut(&pair)
-            .unwrap()
-            .set_timestamp(timestamp);
     }
 }
 
 #[cfg(test)]
 mod test {
+    use crate::config_scheme::config_scheme::ConfigScheme;
     use crate::config_scheme::market_config::MarketConfig;
+    use crate::config_scheme::repositories_prepared::RepositoriesPrepared;
     use crate::worker::helper_functions::get_pair_ref;
     use crate::worker::market_helpers::conversion_type::ConversionType;
     use crate::worker::market_helpers::exchange_pair::ExchangePair;
@@ -447,7 +454,6 @@ mod test {
     use crate::worker::market_helpers::market_channels::MarketChannels;
     use crate::worker::market_helpers::market_spine::test::make_spine;
     use crate::worker::worker::test::check_threads;
-    use crate::worker::worker::Worker;
     use ntest::timeout;
     use std::sync::mpsc::Receiver;
     use std::sync::{Arc, Mutex};
@@ -456,12 +462,23 @@ mod test {
     fn make_market(
         market_name: Option<&str>,
     ) -> (Arc<Mutex<dyn Market + Send>>, Receiver<JoinHandle<()>>) {
-        let config = MarketConfig::default();
-        let coins = config.coins.iter().map(|v| v.as_ref()).collect();
-        let exchange_pairs = Worker::make_exchange_pairs(coins, None);
+        let config = ConfigScheme::default();
+
+        let RepositoriesPrepared {
+            pair_average_price_repository: _,
+            market_repositories,
+            ws_channels_holder,
+            pair_average_price: _,
+        } = RepositoriesPrepared::make(&config);
 
         let (market_spine, rx) = make_spine(market_name);
-        let market = market_factory(market_spine, exchange_pairs);
+        let market_name = market_spine.name.clone();
+        let market = market_factory(
+            market_spine,
+            config.market.exchange_pairs,
+            market_repositories.map(|mut v| v.remove(&market_name).unwrap()),
+            &ws_channels_holder,
+        );
 
         (market, rx)
     }
@@ -469,6 +486,7 @@ mod test {
     #[test]
     fn test_add_exchange_pair() {
         let (market, _) = make_market(None);
+        let market_name = market.lock().unwrap().get_spine().name.clone();
 
         let pair_tuple = ("some_coin_1".to_string(), "some_coin_2".to_string());
         let conversion_type = ConversionType::Crypto;
@@ -477,12 +495,31 @@ mod test {
             conversion: conversion_type,
         };
 
+        let mut config = ConfigScheme::default();
+        config.market.exchange_pairs = vec![exchange_pair.clone()];
+
+        let RepositoriesPrepared {
+            pair_average_price_repository: _,
+            market_repositories,
+            ws_channels_holder,
+            pair_average_price: _,
+        } = RepositoriesPrepared::make(&config);
+
         let pair_string = market
             .lock()
             .unwrap()
             .make_pair(get_pair_ref(&exchange_pair.pair));
 
-        market.lock().unwrap().add_exchange_pair(exchange_pair);
+        market.lock().unwrap().add_exchange_pair(
+            exchange_pair.clone(),
+            market_repositories.map(|mut v| {
+                v.remove(&market_name)
+                    .unwrap()
+                    .remove(&exchange_pair.pair)
+                    .unwrap()
+            }),
+            &ws_channels_holder,
+        );
 
         assert!(market
             .lock()
@@ -527,8 +564,6 @@ mod test {
         assert!(market.lock().unwrap().get_spine().arc.is_some());
 
         let config = MarketConfig::default();
-        let coins = config.coins.iter().map(|v| v.as_ref()).collect();
-        let exchange_pairs = Worker::make_exchange_pairs(coins, None);
         let exchange_pair_keys: Vec<String> = market
             .lock()
             .unwrap()
@@ -537,9 +572,9 @@ mod test {
             .keys()
             .cloned()
             .collect();
-        assert_eq!(exchange_pair_keys.len(), exchange_pairs.len());
+        assert_eq!(exchange_pair_keys.len(), config.exchange_pairs.len());
 
-        for pair in &exchange_pairs {
+        for pair in &config.exchange_pairs {
             let pair_string = market.lock().unwrap().make_pair(get_pair_ref(&pair.pair));
             assert!(exchange_pair_keys.contains(&pair_string));
         }
