@@ -353,10 +353,13 @@ pub mod test {
             market_repositories: _,
             ws_channels_holder: _,
             pair_average_price,
+            index_price,
         } = RepositoriesPrepared::make(&config);
 
         let spine = MarketSpine::new(
             pair_average_price,
+            index_price,
+            config.market.index_pairs,
             tx,
             1,
             market_name,
@@ -387,6 +390,7 @@ pub mod test {
             market_repositories,
             ws_channels_holder,
             pair_average_price: _,
+            index_price,
         } = RepositoriesPrepared::make(&config);
 
         let pair_string = "some_pair_string".to_string();

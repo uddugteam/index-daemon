@@ -231,6 +231,7 @@ pub mod test {
             market_repositories,
             ws_channels_holder,
             pair_average_price,
+            index_price,
         } = RepositoriesPrepared::make(&config);
 
         worker.configure(
@@ -240,6 +241,8 @@ pub mod test {
             1,
             market_repositories,
             pair_average_price,
+            index_price,
+            config.market.index_pairs,
             &ws_channels_holder,
         );
 
@@ -314,12 +317,14 @@ pub mod test {
         let markets = vec!["binance".to_string(), "bitfinex".to_string()];
         let coins = vec!["ABC".to_string(), "DEF".to_string()];
         let exchange_pairs = make_exchange_pairs(coins, Some(vec!["GHI"]));
+        let index_pairs = exchange_pairs.iter().map(|v| v.pair.clone()).collect();
         let channels = vec![MarketChannels::Ticker];
 
         let config = ConfigScheme {
             market: MarketConfig {
                 markets,
                 exchange_pairs,
+                index_pairs,
                 channels,
             },
             ..ConfigScheme::default()
