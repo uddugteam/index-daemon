@@ -7,13 +7,14 @@ use crate::worker::network_helpers::ws_server::ws_channels_holder::WsChannelsHol
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-pub type PairAveragePriceType = HashMap<(String, String), Arc<Mutex<StoredAndWsTransmissibleF64>>>;
+pub type StoredAndWsTransmissibleF64ByPairTuple =
+    HashMap<(String, String), Arc<Mutex<StoredAndWsTransmissibleF64>>>;
 
 pub fn make_pair_average_price(
     market_config: &MarketConfig,
     mut repository: Option<WorkerRepositoriesByPairTuple>,
     ws_channels_holder: &WsChannelsHolderHashMap,
-) -> PairAveragePriceType {
+) -> StoredAndWsTransmissibleF64ByPairTuple {
     let mut hash_map = HashMap::new();
 
     for exchange_pair in &market_config.exchange_pairs {

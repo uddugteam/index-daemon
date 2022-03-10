@@ -3,7 +3,7 @@ use crate::repository::repositories::{
     MarketRepositoriesByMarketName, Repositories, WorkerRepositoriesByPairTuple,
 };
 use crate::worker::market_helpers::pair_average_price::{
-    make_pair_average_price, PairAveragePriceType,
+    make_pair_average_price, StoredAndWsTransmissibleF64ByPairTuple,
 };
 use crate::worker::network_helpers::ws_server::ws_channels_holder::{
     WsChannelsHolder, WsChannelsHolderHashMap,
@@ -13,7 +13,7 @@ pub struct RepositoriesPrepared {
     pub pair_average_price_repository: Option<WorkerRepositoriesByPairTuple>,
     pub market_repositories: Option<MarketRepositoriesByMarketName>,
     pub ws_channels_holder: WsChannelsHolderHashMap,
-    pub pair_average_price: PairAveragePriceType,
+    pub pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
 }
 
 impl RepositoriesPrepared {

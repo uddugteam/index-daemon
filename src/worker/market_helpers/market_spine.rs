@@ -4,7 +4,7 @@ use crate::worker::market_helpers::exchange_pair::ExchangePair;
 use crate::worker::market_helpers::exchange_pair_info::ExchangePairInfo;
 use crate::worker::market_helpers::market::Market;
 use crate::worker::market_helpers::market_channels::MarketChannels;
-use crate::worker::market_helpers::pair_average_price::PairAveragePriceType;
+use crate::worker::market_helpers::pair_average_price::StoredAndWsTransmissibleF64ByPairTuple;
 use crate::worker::network_helpers::ws_server::ws_channels_holder::WsChannelsHolderHashMap;
 use std::collections::HashMap;
 use std::sync::mpsc::Sender;
@@ -14,7 +14,7 @@ use std::thread::{self, JoinHandle};
 pub const EPS: f64 = 0.00001;
 
 pub struct MarketSpine {
-    pair_average_price: PairAveragePriceType,
+    pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
     pub arc: Option<Arc<Mutex<dyn Market + Send>>>,
     pub tx: Sender<JoinHandle<()>>,
     pub rest_timeout_sec: u64,
@@ -29,7 +29,7 @@ pub struct MarketSpine {
 }
 impl MarketSpine {
     pub fn new(
-        pair_average_price: PairAveragePriceType,
+        pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
         tx: Sender<JoinHandle<()>>,
         rest_timeout_sec: u64,
         name: String,
