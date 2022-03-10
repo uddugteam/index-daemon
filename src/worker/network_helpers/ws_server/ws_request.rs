@@ -135,6 +135,9 @@ impl TryFrom<JsonRpcRequest> for WsRequest {
 
                 Ok(Self::Method(res))
             }
+            WsChannelName::IndexPrice => {
+                todo!()
+            }
         }
     }
 }

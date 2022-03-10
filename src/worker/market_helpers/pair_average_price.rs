@@ -22,7 +22,7 @@ pub fn make_pair_average_price(
         let key = (
             "worker".to_string(),
             MarketValue::PairAveragePrice,
-            pair.clone(),
+            Some(pair.clone()),
         );
         let ws_channels = ws_channels_holder.get(&key).unwrap();
 
@@ -35,7 +35,7 @@ pub fn make_pair_average_price(
                 WsChannelName::CoinAveragePriceCandles,
             ],
             None,
-            pair.clone(),
+            Some(pair.clone()),
             Arc::clone(ws_channels),
         )));
 

@@ -12,7 +12,7 @@ pub struct StoredAndWsTransmissibleF64 {
     ws_channels: Arc<Mutex<WsChannels>>,
     ws_channel_names: Vec<WsChannelName>,
     market_name: Option<String>,
-    pair: (String, String),
+    pair: Option<(String, String)>,
 }
 
 impl StoredAndWsTransmissibleF64 {
@@ -20,7 +20,7 @@ impl StoredAndWsTransmissibleF64 {
         repository: Option<RepositoryForF64ByTimestamp>,
         ws_channel_names: Vec<WsChannelName>,
         market_name: Option<String>,
-        pair: (String, String),
+        pair: Option<(String, String)>,
         ws_channels: Arc<Mutex<WsChannels>>,
     ) -> Self {
         for ws_channel_name in &ws_channel_names {
@@ -32,6 +32,12 @@ impl StoredAndWsTransmissibleF64 {
                 // Market's channel
 
                 assert!(matches!(market_name, Some(..)));
+            }
+
+            if matches!(ws_channel_name, WsChannelName::IndexPrice) {
+                assert!(pair.is_none());
+            } else {
+                assert!(pair.is_some());
             }
         }
 

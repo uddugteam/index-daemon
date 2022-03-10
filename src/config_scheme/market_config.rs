@@ -1,6 +1,7 @@
 use crate::config_scheme::helper_functions::{
     get_config_from_config_files, get_default_channels, get_default_exchange_pairs,
-    get_default_markets, get_param_value_as_vec_of_string, make_exchange_pairs,
+    get_default_index_pairs, get_default_markets, get_param_value_as_vec_of_string,
+    has_no_duplicates, is_subset, make_exchange_pairs, make_pairs,
 };
 use crate::worker::market_helpers::exchange_pair::ExchangePair;
 use crate::worker::market_helpers::market_channels::MarketChannels;
@@ -9,8 +10,10 @@ use clap::ArgMatches;
 pub struct MarketConfig {
     pub markets: Vec<String>,
     pub exchange_pairs: Vec<ExchangePair>,
+    pub index_pairs: Vec<(String, String)>,
     pub channels: Vec<MarketChannels>,
 }
+
 impl MarketConfig {
     pub fn new(matches: &ArgMatches) -> Self {
         let default = Self::default();
@@ -18,9 +21,20 @@ impl MarketConfig {
 
         let markets = get_param_value_as_vec_of_string(&market_config, "exchanges")
             .unwrap_or(default.markets);
+
         let exchange_pairs = get_param_value_as_vec_of_string(&market_config, "coins")
             .map(|coins| make_exchange_pairs(coins, None))
             .unwrap_or(default.exchange_pairs);
+
+        let exchange_pairs_stripped: Vec<(String, String)> =
+            exchange_pairs.iter().map(|v| v.pair.clone()).collect();
+
+        let index_pairs = get_param_value_as_vec_of_string(&market_config, "index_coins")
+            .map(|coins| make_pairs(coins, None))
+            .unwrap_or(default.index_pairs);
+
+        assert!(is_subset(&exchange_pairs_stripped, &index_pairs));
+        assert!(has_no_duplicates(&exchange_pairs));
 
         let channels = get_param_value_as_vec_of_string(&market_config, "channels");
         let channels = channels
@@ -30,15 +44,18 @@ impl MarketConfig {
         Self {
             markets,
             exchange_pairs,
+            index_pairs,
             channels,
         }
     }
 }
+
 impl Default for MarketConfig {
     fn default() -> Self {
         Self {
             markets: get_default_markets(),
             exchange_pairs: get_default_exchange_pairs(),
+            index_pairs: get_default_index_pairs(),
             channels: get_default_channels(),
         }
     }

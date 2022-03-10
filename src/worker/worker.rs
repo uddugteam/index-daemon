@@ -9,7 +9,8 @@ use crate::worker::market_helpers::exchange_pair::ExchangePair;
 use crate::worker::market_helpers::market::{market_factory, Market};
 use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
-use crate::worker::market_helpers::pair_average_price::PairAveragePriceType;
+use crate::worker::market_helpers::pair_average_price::StoredAndWsTransmissibleF64ByPairTuple;
+use crate::worker::market_helpers::stored_and_ws_transmissible_f64::StoredAndWsTransmissibleF64;
 use crate::worker::network_helpers::ws_server::ws_channels_holder::{
     WsChannelsHolder, WsChannelsHolderHashMap,
 };
@@ -45,7 +46,9 @@ impl Worker {
         channels: Vec<MarketChannels>,
         rest_timeout_sec: u64,
         repositories: Option<MarketRepositoriesByMarketName>,
-        pair_average_price: PairAveragePriceType,
+        pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
+        index_price: Arc<Mutex<StoredAndWsTransmissibleF64>>,
+        index_pairs: Vec<(String, String)>,
         ws_channels_holder: &WsChannelsHolderHashMap,
     ) {
         let mut repositories = repositories.unwrap_or_default();
@@ -54,6 +57,8 @@ impl Worker {
             let pair_average_price_2 = pair_average_price.clone();
             let market_spine = MarketSpine::new(
                 pair_average_price_2,
+                Arc::clone(&index_price),
+                index_pairs.clone(),
                 self.tx.clone(),
                 rest_timeout_sec,
                 market_name.to_string(),
@@ -107,6 +112,7 @@ impl Worker {
             market_repositories,
             ws_channels_holder,
             pair_average_price,
+            index_price,
         } = RepositoriesPrepared::make(&config);
 
         let ConfigScheme {
@@ -115,6 +121,7 @@ impl Worker {
         let MarketConfig {
             markets,
             exchange_pairs,
+            index_pairs,
             channels,
         } = market;
         let ServiceConfig {
@@ -135,6 +142,8 @@ impl Worker {
             rest_timeout_sec,
             market_repositories,
             pair_average_price,
+            index_price,
+            index_pairs,
             &ws_channels_holder,
         );
         self.start_ws(

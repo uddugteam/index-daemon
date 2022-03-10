@@ -136,7 +136,7 @@ impl WsServer {
 
         for exchange in exchanges {
             for pair in pairs.clone() {
-                let key = (exchange.to_string(), market_value, pair);
+                let key = (exchange.to_string(), market_value, Some(pair));
 
                 Self::subscribe_stage_2(
                     ws_channels_holder,

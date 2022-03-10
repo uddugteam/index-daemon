@@ -31,6 +31,7 @@ You can get cli params description by calling program with "-h" cli param.
 
 - **exchanges** - array (contains market names in _lowercase_. E.g. "binance")
 - **coins** - array (contains coin name abbreviations in _uppercase_. E.g. "BTC")
+- **index_coins** - coins that are used in index calculation. Same format as _coins_.
 - **channels** - array. Variants: ticker, trades, book.
 
 ### Env vars format description

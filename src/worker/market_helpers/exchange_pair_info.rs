@@ -29,13 +29,13 @@ impl ExchangePairInfo {
                 repositories.remove(&MarketValue::PairExchangePrice),
                 vec![WsChannelName::CoinExchangePrice],
                 Some(market_name.clone()),
-                pair.clone(),
+                Some(pair.clone()),
                 Arc::clone(
                     ws_channels_holder
                         .get(&(
                             market_name.clone(),
                             MarketValue::PairExchangePrice,
-                            pair.clone(),
+                            Some(pair.clone()),
                         ))
                         .unwrap(),
                 ),
@@ -45,10 +45,10 @@ impl ExchangePairInfo {
                 repositories.remove(&MarketValue::PairExchangeVolume),
                 vec![WsChannelName::CoinExchangeVolume],
                 Some(market_name.clone()),
-                pair.clone(),
+                Some(pair.clone()),
                 Arc::clone(
                     ws_channels_holder
-                        .get(&(market_name, MarketValue::PairExchangeVolume, pair))
+                        .get(&(market_name, MarketValue::PairExchangeVolume, Some(pair)))
                         .unwrap(),
                 ),
             ),

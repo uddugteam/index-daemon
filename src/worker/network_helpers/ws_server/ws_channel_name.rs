@@ -10,13 +10,16 @@ pub enum WsChannelName {
     CoinExchangeVolume,
     CoinAveragePriceHistorical,
     CoinAveragePriceCandlesHistorical,
+    IndexPrice,
     Unsubscribe,
 }
 
 impl WsChannelName {
     pub fn is_worker_channel(&self) -> bool {
         match self {
-            Self::CoinAveragePrice { .. } | Self::CoinAveragePriceCandles { .. } => true,
+            Self::CoinAveragePrice { .. }
+            | Self::CoinAveragePriceCandles { .. }
+            | Self::IndexPrice { .. } => true,
             Self::CoinExchangePrice { .. }
             | Self::CoinExchangeVolume { .. }
             | Self::CoinAveragePriceHistorical { .. }
@@ -33,6 +36,7 @@ impl WsChannelName {
             | Self::CoinAveragePriceCandlesHistorical { .. } => MarketValue::PairAveragePrice,
             Self::CoinExchangePrice { .. } => MarketValue::PairExchangePrice,
             Self::CoinExchangeVolume { .. } => MarketValue::PairExchangeVolume,
+            Self::IndexPrice { .. } => MarketValue::IndexPrice,
             Self::Unsubscribe { .. } => unreachable!(),
         }
     }
@@ -49,6 +53,7 @@ impl FromStr for WsChannelName {
             "coin_exchange_volume" => Ok(Self::CoinExchangeVolume),
             "coin_average_price_historical" => Ok(Self::CoinAveragePriceHistorical),
             "coin_average_price_candles_historical" => Ok(Self::CoinAveragePriceCandlesHistorical),
+            "index_price" => Ok(Self::IndexPrice),
             _ => Err(()),
         }
     }
@@ -65,6 +70,7 @@ impl ToString for WsChannelName {
             Self::CoinAveragePriceCandlesHistorical { .. } => {
                 "coin_average_price_candles_historical".to_string()
             }
+            Self::IndexPrice { .. } => "index_price".to_string(),
             Self::Unsubscribe => unreachable!(),
         }
     }

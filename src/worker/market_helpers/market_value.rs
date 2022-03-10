@@ -5,6 +5,7 @@ pub enum MarketValue {
     PairAveragePrice,
     PairExchangePrice,
     PairExchangeVolume,
+    IndexPrice,
 }
 
 impl FromStr for MarketValue {
@@ -15,6 +16,7 @@ impl FromStr for MarketValue {
             "pair_average_price" => Ok(Self::PairAveragePrice),
             "pair_exchange_price" => Ok(Self::PairExchangePrice),
             "pair_exchange_volume" => Ok(Self::PairExchangeVolume),
+            "index_price" => Ok(Self::IndexPrice),
             _ => Err(()),
         }
     }
@@ -26,6 +28,7 @@ impl ToString for MarketValue {
             Self::PairAveragePrice { .. } => "pair_average_price".to_string(),
             Self::PairExchangePrice { .. } => "pair_exchange_price".to_string(),
             Self::PairExchangeVolume { .. } => "pair_exchange_volume".to_string(),
+            Self::IndexPrice { .. } => "index_price".to_string(),
         }
     }
 }

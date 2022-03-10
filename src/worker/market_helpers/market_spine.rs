@@ -5,6 +5,7 @@ use crate::worker::market_helpers::exchange_pair_info::ExchangePairInfo;
 use crate::worker::market_helpers::market::Market;
 use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::market_helpers::pair_average_price::StoredAndWsTransmissibleF64ByPairTuple;
+use crate::worker::market_helpers::stored_and_ws_transmissible_f64::StoredAndWsTransmissibleF64;
 use crate::worker::network_helpers::ws_server::ws_channels_holder::WsChannelsHolderHashMap;
 use std::collections::HashMap;
 use std::sync::mpsc::Sender;
@@ -15,6 +16,7 @@ pub const EPS: f64 = 0.00001;
 
 pub struct MarketSpine {
     pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
+    index_price: Arc<Mutex<StoredAndWsTransmissibleF64>>,
     pub arc: Option<Arc<Mutex<dyn Market + Send>>>,
     pub tx: Sender<JoinHandle<()>>,
     pub rest_timeout_sec: u64,
@@ -22,6 +24,7 @@ pub struct MarketSpine {
     mask_pairs: HashMap<String, String>,
     unmask_pairs: HashMap<String, String>,
     exchange_pairs: HashMap<String, ExchangePairInfo>,
+    index_pairs: Vec<(String, String)>,
     conversions: HashMap<String, ConversionType>,
     pairs: HashMap<String, (String, String)>,
     pub channels: Vec<MarketChannels>,
@@ -30,6 +33,8 @@ pub struct MarketSpine {
 impl MarketSpine {
     pub fn new(
         pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
+        index_price: Arc<Mutex<StoredAndWsTransmissibleF64>>,
+        index_pairs: Vec<(String, String)>,
         tx: Sender<JoinHandle<()>>,
         rest_timeout_sec: u64,
         name: String,
@@ -57,6 +62,7 @@ impl MarketSpine {
 
         Self {
             pair_average_price,
+            index_price,
             arc: None,
             tx,
             rest_timeout_sec,
@@ -64,6 +70,7 @@ impl MarketSpine {
             mask_pairs: HashMap::new(),
             unmask_pairs: HashMap::new(),
             exchange_pairs: HashMap::new(),
+            index_pairs,
             conversions: HashMap::new(),
             pairs: HashMap::new(),
             channels,
@@ -169,10 +176,15 @@ impl MarketSpine {
 
     fn recalculate_pair_average_price(&self, pair: (String, String), new_price: f64) {
         let pair_average_price_2 = Arc::clone(self.pair_average_price.get(&pair).unwrap());
+        let pair_average_price_3 = self.pair_average_price.clone();
+        let index_price_2 = Arc::clone(&self.index_price);
+        let index_pairs_2 = self.index_pairs.clone();
+        let tx_2 = self.tx.clone();
+        let market_name_2 = self.name.to_string();
 
         let thread_name = format!(
             "fn: recalculate_pair_average_price, market: {}, pair: {:?}",
-            self.name, pair,
+            market_name_2, pair,
         );
         let thread = thread::Builder::new()
             .name(thread_name)
@@ -185,10 +197,62 @@ impl MarketSpine {
                     info!("new {}-{} average trade price: {}", pair.0, pair.1, new_avg);
 
                     pair_average_price_2.set_new_value(new_avg);
+
+                    Self::recalculate_index_price(
+                        market_name_2,
+                        pair,
+                        tx_2,
+                        pair_average_price_3,
+                        index_price_2,
+                        index_pairs_2,
+                    );
                 }
             })
             .unwrap();
         self.tx.send(thread).unwrap();
+    }
+
+    fn recalculate_index_price(
+        market_name: String,
+        pair: (String, String),
+        tx: Sender<JoinHandle<()>>,
+        pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
+        index_price: Arc<Mutex<StoredAndWsTransmissibleF64>>,
+        index_pairs: Vec<(String, String)>,
+    ) {
+        let thread_name = format!(
+            "fn: recalculate_index_price, market: {}, pair: {:?}",
+            market_name, pair,
+        );
+        let thread = thread::Builder::new()
+            .name(thread_name)
+            .spawn(move || {
+                let mut sum = 0.0;
+                let mut count = 0;
+                for index_pair in index_pairs {
+                    let value = pair_average_price
+                        .get(&index_pair)
+                        .unwrap()
+                        .lock()
+                        .unwrap()
+                        .get_value();
+
+                    if let Some(value) = value {
+                        count += 1;
+                        sum += value;
+                    }
+                }
+
+                if count > 0 {
+                    let avg = sum / count as f64;
+
+                    info!("new index price: {}", avg);
+
+                    index_price.lock().unwrap().set_new_value(avg);
+                }
+            })
+            .unwrap();
+        tx.send(thread).unwrap();
     }
 
     pub fn set_last_trade_volume(&mut self, pair: &str, value: f64) {

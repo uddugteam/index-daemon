@@ -59,6 +59,13 @@ pub fn get_default_exchange_pairs() -> Vec<ExchangePair> {
     make_exchange_pairs(get_default_coins(), None)
 }
 
+pub fn get_default_index_pairs() -> Vec<(String, String)> {
+    get_default_exchange_pairs()
+        .into_iter()
+        .map(|v| v.pair)
+        .collect()
+}
+
 pub fn get_default_channels() -> Vec<MarketChannels> {
     MarketChannels::get_all().to_vec()
 }
@@ -83,6 +90,20 @@ pub fn get_default_storage(historical: bool) -> Option<Storage> {
     }
 }
 
+pub fn make_pairs(coins: Vec<String>, fiats: Option<Vec<&str>>) -> Vec<(String, String)> {
+    let mut pairs = Vec::new();
+
+    let fiats = fiats.unwrap_or(FIATS.to_vec());
+
+    for coin in coins {
+        for fiat in &fiats {
+            pairs.push((coin.to_string(), fiat.to_string()));
+        }
+    }
+
+    pairs
+}
+
 pub fn make_exchange_pairs(coins: Vec<String>, fiats: Option<Vec<&str>>) -> Vec<ExchangePair> {
     let mut exchange_pairs = Vec::new();
 
@@ -98,4 +119,28 @@ pub fn make_exchange_pairs(coins: Vec<String>, fiats: Option<Vec<&str>>) -> Vec<
     }
 
     exchange_pairs
+}
+
+pub fn is_subset<T: PartialEq>(set: &[T], subset: &[T]) -> bool {
+    for item in subset {
+        if !set.contains(item) {
+            return false;
+        }
+    }
+
+    true
+}
+
+pub fn has_no_duplicates<T: PartialEq>(set: &[T]) -> bool {
+    let mut new_set = Vec::new();
+
+    for item in set {
+        if !new_set.contains(&item) {
+            new_set.push(item);
+        } else {
+            return false;
+        }
+    }
+
+    true
 }
