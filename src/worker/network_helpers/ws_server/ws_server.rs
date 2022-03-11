@@ -315,7 +315,11 @@ impl WsServer {
                                     },
                                     _ => unreachable!(),
                                 };
-                                let _ = ws_send_response(&broadcast_recipient, response, None);
+                                let _ = ws_send_response(
+                                    &broadcast_recipient,
+                                    response,
+                                    Some(request.get_method()),
+                                );
                             }
                             Err(e) => {
                                 error!("Historical. Read range error: {}", e);
