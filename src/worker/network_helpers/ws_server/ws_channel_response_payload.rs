@@ -5,6 +5,12 @@ use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
 use chrono::{DateTime, Utc};
 
 #[derive(Serialize, Clone)]
+pub struct CoinPrice {
+    pub coin: String,
+    pub value: f64,
+}
+
+#[derive(Serialize, Clone)]
 #[serde(untagged)]
 pub enum WsChannelResponsePayload {
     SuccSub {
@@ -15,6 +21,11 @@ pub enum WsChannelResponsePayload {
         method: Option<WsChannelName>,
         code: i64,
         message: String,
+    },
+    AvailableCoins {
+        coins: Vec<CoinPrice>,
+        #[serde(with = "ser_date_into_timestamp")]
+        timestamp: DateTime<Utc>,
     },
     CoinAveragePrice {
         coin: String,
@@ -53,6 +64,7 @@ pub enum WsChannelResponsePayload {
 impl WsChannelResponsePayload {
     pub fn get_method(&self) -> Option<WsChannelName> {
         match self {
+            Self::AvailableCoins { .. } => Some(WsChannelName::AvailableCoins),
             Self::CoinAveragePrice { .. } => Some(WsChannelName::CoinAveragePrice),
             Self::CoinExchangePrice { .. } => Some(WsChannelName::CoinExchangePrice),
             Self::CoinExchangeVolume { .. } => Some(WsChannelName::CoinExchangeVolume),
@@ -76,7 +88,7 @@ impl WsChannelResponsePayload {
             | Self::CoinAveragePriceHistorical { coin, .. }
             | Self::CoinAveragePriceCandles { coin, .. }
             | Self::CoinAveragePriceCandlesHistorical { coin, .. } => coin.to_string(),
-            Self::SuccSub { .. } | Self::Err { .. } => {
+            Self::AvailableCoins { .. } | Self::SuccSub { .. } | Self::Err { .. } => {
                 unreachable!()
             }
         }
@@ -84,7 +96,8 @@ impl WsChannelResponsePayload {
 
     pub fn get_timestamp(&self) -> DateTime<Utc> {
         match self {
-            Self::CoinAveragePrice { timestamp, .. }
+            Self::AvailableCoins { timestamp, .. }
+            | Self::CoinAveragePrice { timestamp, .. }
             | Self::CoinExchangePrice { timestamp, .. }
             | Self::CoinExchangeVolume { timestamp, .. } => *timestamp,
             Self::CoinAveragePriceCandles { value, .. } => value.timestamp,

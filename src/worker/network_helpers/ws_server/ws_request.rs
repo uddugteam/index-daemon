@@ -45,6 +45,11 @@ impl TryFrom<JsonRpcRequest> for WsRequest {
             .map(|v| serde_json::from_value(v).map_err(|_| e));
 
         match request.method {
+            WsChannelName::AvailableCoins => {
+                let res = WsMethodRequest::AvailableCoins { id };
+
+                Ok(Self::Method(res))
+            }
             WsChannelName::CoinAveragePrice | WsChannelName::CoinAveragePriceCandles => {
                 let coins = coins?;
 

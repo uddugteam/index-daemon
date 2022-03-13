@@ -4,6 +4,9 @@ use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
 
 #[derive(Debug, Clone)]
 pub enum WsMethodRequest {
+    AvailableCoins {
+        id: Option<JsonRpcId>,
+    },
     CoinAveragePriceHistorical {
         id: Option<JsonRpcId>,
         coin: String,
@@ -23,6 +26,7 @@ pub enum WsMethodRequest {
 impl WsMethodRequest {
     pub fn get_method(&self) -> WsChannelName {
         match self {
+            Self::AvailableCoins { .. } => WsChannelName::AvailableCoins,
             Self::CoinAveragePriceHistorical { .. } => WsChannelName::CoinAveragePriceHistorical,
             Self::CoinAveragePriceCandlesHistorical { .. } => {
                 WsChannelName::CoinAveragePriceCandlesHistorical
