@@ -72,6 +72,19 @@ Websocket server configs are described above (section _Configs -> service_config
 
 ### Channels
 
+#### available_coins (_not a channel, but a request_)
+
+request json example:
+
+```json
+{
+  "id": "some_id",
+  "jsonrpc": "2.0",
+  "method": "available_coins",
+  "params": {}
+}
+```
+
 #### coin_average_price
 
 subscription request json example:

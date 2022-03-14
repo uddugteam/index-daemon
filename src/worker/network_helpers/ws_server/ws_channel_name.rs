@@ -4,6 +4,7 @@ use std::str::FromStr;
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Eq, PartialEq, Hash)]
 #[serde(rename_all = "snake_case")]
 pub enum WsChannelName {
+    AvailableCoins,
     CoinAveragePrice,
     CoinAveragePriceCandles,
     CoinExchangePrice,
@@ -17,7 +18,8 @@ pub enum WsChannelName {
 impl WsChannelName {
     pub fn is_worker_channel(&self) -> bool {
         match self {
-            Self::CoinAveragePrice { .. }
+            Self::AvailableCoins { .. }
+            | Self::CoinAveragePrice { .. }
             | Self::CoinAveragePriceCandles { .. }
             | Self::IndexPrice { .. } => true,
             Self::CoinExchangePrice { .. }
@@ -30,7 +32,8 @@ impl WsChannelName {
 
     pub fn get_market_value(&self) -> MarketValue {
         match self {
-            Self::CoinAveragePrice { .. }
+            Self::AvailableCoins { .. }
+            | Self::CoinAveragePrice { .. }
             | Self::CoinAveragePriceHistorical { .. }
             | Self::CoinAveragePriceCandles { .. }
             | Self::CoinAveragePriceCandlesHistorical { .. } => MarketValue::PairAveragePrice,
@@ -47,6 +50,7 @@ impl FromStr for WsChannelName {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
+            "available_coins" => Ok(Self::AvailableCoins),
             "coin_average_price" => Ok(Self::CoinAveragePrice),
             "coin_average_price_candles" => Ok(Self::CoinAveragePriceCandles),
             "coin_exchange_price" => Ok(Self::CoinExchangePrice),
@@ -62,6 +66,7 @@ impl FromStr for WsChannelName {
 impl ToString for WsChannelName {
     fn to_string(&self) -> String {
         match self {
+            Self::AvailableCoins { .. } => "available_coins".to_string(),
             Self::CoinAveragePrice { .. } => "coin_average_price".to_string(),
             Self::CoinAveragePriceCandles { .. } => "coin_average_price_candles".to_string(),
             Self::CoinExchangePrice { .. } => "coin_exchange_price".to_string(),
