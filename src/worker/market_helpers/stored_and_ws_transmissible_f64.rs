@@ -66,11 +66,12 @@ impl StoredAndWsTransmissibleF64 {
 
         for ws_channel_name in &self.ws_channel_names {
             match ws_channel_name {
-                WsChannelName::CoinAveragePrice
+                WsChannelName::IndexPrice
+                | WsChannelName::CoinAveragePrice
                 | WsChannelName::CoinExchangePrice
                 | WsChannelName::CoinExchangeVolume => {
                     send_ws_response_1(
-                        &mut self.ws_channels,
+                        &self.ws_channels,
                         *ws_channel_name,
                         &self.market_name,
                         &self.pair,

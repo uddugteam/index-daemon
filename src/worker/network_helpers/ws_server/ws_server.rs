@@ -128,17 +128,20 @@ impl WsServer {
         };
 
         let market_value = request.get_method().get_market_value();
-        let pairs: Vec<(String, String)> = request
-            .get_coins()
-            .iter()
-            .map(|v| (v.to_string(), "USD".to_string()))
-            .collect();
+        let pairs: Vec<Option<(String, String)>> = match request.get_coins() {
+            Some(coins) => coins
+                .iter()
+                .map(|v| (v.to_string(), "USD".to_string()))
+                .map(|v| Some(v))
+                .collect(),
+            None => vec![None],
+        };
 
         Self::unsubscribe(ws_channels_holder, conn_id.clone(), request.clone().into());
 
         for exchange in exchanges {
             for pair in pairs.clone() {
-                let key = (exchange.to_string(), market_value, Some(pair));
+                let key = (exchange.to_string(), market_value, pair);
 
                 Self::subscribe_stage_2(
                     ws_channels_holder,

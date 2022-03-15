@@ -18,24 +18,23 @@ pub fn send_ws_response_1(
     value: f64,
     timestamp: DateTime<Utc>,
 ) -> Option<()> {
-    let pair = pair.as_ref()?;
-    let coin = strip_usd(pair)?;
     let market_name = market_name.as_ref().map(|v| v.to_string());
 
     let response_payload = match ws_channel_name {
+        WsChannelName::IndexPrice => WsChannelResponsePayload::IndexPrice { value, timestamp },
         WsChannelName::CoinAveragePrice => WsChannelResponsePayload::CoinAveragePrice {
-            coin,
+            coin: strip_usd(pair.as_ref()?)?,
             value,
             timestamp,
         },
         WsChannelName::CoinExchangePrice => WsChannelResponsePayload::CoinExchangePrice {
-            coin,
+            coin: strip_usd(pair.as_ref()?)?,
             exchange: market_name.unwrap(),
             value,
             timestamp,
         },
         WsChannelName::CoinExchangeVolume => WsChannelResponsePayload::CoinExchangeVolume {
-            coin,
+            coin: strip_usd(pair.as_ref()?)?,
             exchange: market_name.unwrap(),
             value,
             timestamp,

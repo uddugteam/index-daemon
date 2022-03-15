@@ -27,6 +27,11 @@ pub enum WsChannelResponsePayload {
         #[serde(with = "ser_date_into_timestamp")]
         timestamp: DateTime<Utc>,
     },
+    IndexPrice {
+        value: f64,
+        #[serde(with = "ser_date_into_timestamp")]
+        timestamp: DateTime<Utc>,
+    },
     CoinAveragePrice {
         coin: String,
         value: f64,
@@ -65,6 +70,7 @@ impl WsChannelResponsePayload {
     pub fn get_method(&self) -> Option<WsChannelName> {
         match self {
             Self::AvailableCoins { .. } => Some(WsChannelName::AvailableCoins),
+            Self::IndexPrice { .. } => Some(WsChannelName::IndexPrice),
             Self::CoinAveragePrice { .. } => Some(WsChannelName::CoinAveragePrice),
             Self::CoinExchangePrice { .. } => Some(WsChannelName::CoinExchangePrice),
             Self::CoinExchangeVolume { .. } => Some(WsChannelName::CoinExchangeVolume),
@@ -80,23 +86,25 @@ impl WsChannelResponsePayload {
         }
     }
 
-    pub fn get_coin(&self) -> String {
+    pub fn get_coin(&self) -> Option<String> {
         match self {
             Self::CoinAveragePrice { coin, .. }
             | Self::CoinExchangePrice { coin, .. }
             | Self::CoinExchangeVolume { coin, .. }
             | Self::CoinAveragePriceHistorical { coin, .. }
             | Self::CoinAveragePriceCandles { coin, .. }
-            | Self::CoinAveragePriceCandlesHistorical { coin, .. } => coin.to_string(),
-            Self::AvailableCoins { .. } | Self::SuccSub { .. } | Self::Err { .. } => {
-                unreachable!()
-            }
+            | Self::CoinAveragePriceCandlesHistorical { coin, .. } => Some(coin.to_string()),
+            Self::AvailableCoins { .. }
+            | Self::IndexPrice { .. }
+            | Self::SuccSub { .. }
+            | Self::Err { .. } => None,
         }
     }
 
     pub fn get_timestamp(&self) -> DateTime<Utc> {
         match self {
             Self::AvailableCoins { timestamp, .. }
+            | Self::IndexPrice { timestamp, .. }
             | Self::CoinAveragePrice { timestamp, .. }
             | Self::CoinExchangePrice { timestamp, .. }
             | Self::CoinExchangeVolume { timestamp, .. } => *timestamp,

@@ -13,7 +13,8 @@ impl WsChannelSubscriptionRequest {
     pub fn get_id(&self) -> Option<JsonRpcId> {
         match self {
             Self::WorkerChannels(channel) => match channel {
-                WorkerChannels::CoinAveragePrice { id, .. }
+                WorkerChannels::IndexPrice { id, .. }
+                | WorkerChannels::CoinAveragePrice { id, .. }
                 | WorkerChannels::CoinAveragePriceCandles { id, .. } => id.clone(),
             },
             Self::MarketChannels(channel) => match channel {
@@ -23,15 +24,16 @@ impl WsChannelSubscriptionRequest {
         }
     }
 
-    pub fn get_coins(&self) -> &[String] {
+    pub fn get_coins(&self) -> Option<&[String]> {
         match self {
             Self::WorkerChannels(channel) => match channel {
                 WorkerChannels::CoinAveragePrice { coins, .. }
-                | WorkerChannels::CoinAveragePriceCandles { coins, .. } => coins,
+                | WorkerChannels::CoinAveragePriceCandles { coins, .. } => Some(coins),
+                WorkerChannels::IndexPrice { .. } => None,
             },
             Self::MarketChannels(channel) => match channel {
                 MarketChannels::CoinExchangePrice { coins, .. }
-                | MarketChannels::CoinExchangeVolume { coins, .. } => coins,
+                | MarketChannels::CoinExchangeVolume { coins, .. } => Some(coins),
             },
         }
     }
@@ -39,7 +41,8 @@ impl WsChannelSubscriptionRequest {
     pub fn get_frequency_ms(&self) -> Option<u64> {
         match self {
             Self::WorkerChannels(channel) => match channel {
-                WorkerChannels::CoinAveragePrice { frequency_ms, .. }
+                WorkerChannels::IndexPrice { frequency_ms, .. }
+                | WorkerChannels::CoinAveragePrice { frequency_ms, .. }
                 | WorkerChannels::CoinAveragePriceCandles { frequency_ms, .. } => *frequency_ms,
             },
             Self::MarketChannels(channel) => match channel {
@@ -52,7 +55,8 @@ impl WsChannelSubscriptionRequest {
     pub fn set_frequency_ms(&mut self, new_value: u64) {
         match self {
             Self::WorkerChannels(channel) => match channel {
-                WorkerChannels::CoinAveragePrice { frequency_ms, .. }
+                WorkerChannels::IndexPrice { frequency_ms, .. }
+                | WorkerChannels::CoinAveragePrice { frequency_ms, .. }
                 | WorkerChannels::CoinAveragePriceCandles { frequency_ms, .. } => {
                     *frequency_ms = Some(new_value)
                 }
@@ -69,6 +73,7 @@ impl WsChannelSubscriptionRequest {
     pub fn get_method(&self) -> WsChannelName {
         match self {
             Self::WorkerChannels(channel) => match channel {
+                WorkerChannels::IndexPrice { .. } => WsChannelName::IndexPrice,
                 WorkerChannels::CoinAveragePrice { .. } => WsChannelName::CoinAveragePrice,
                 WorkerChannels::CoinAveragePriceCandles { .. } => {
                     WsChannelName::CoinAveragePriceCandles

@@ -85,6 +85,22 @@ request json example:
 }
 ```
 
+#### index_price
+
+subscription request json example:
+
+```json
+{
+  "id": "some_id",
+  "jsonrpc": "2.0",
+  "method": "index_price",
+  "params": {
+    "coins": ["BTC", "ETH"],
+    "frequency_ms": 100
+  }
+}
+```
+
 #### coin_average_price
 
 subscription request json example:

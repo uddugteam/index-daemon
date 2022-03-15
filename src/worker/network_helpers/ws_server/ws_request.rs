@@ -141,7 +141,11 @@ impl TryFrom<JsonRpcRequest> for WsRequest {
                 Ok(Self::Method(res))
             }
             WsChannelName::IndexPrice => {
-                todo!()
+                let res = WorkerChannels::IndexPrice { id, frequency_ms };
+
+                Ok(Self::Channel(WsChannelAction::Subscribe(
+                    WsChannelSubscriptionRequest::WorkerChannels(res),
+                )))
             }
         }
     }

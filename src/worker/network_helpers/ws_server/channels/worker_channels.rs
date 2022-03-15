@@ -3,6 +3,10 @@ use crate::worker::network_helpers::ws_server::jsonrpc_request::JsonRpcId;
 
 #[derive(Debug, Clone)]
 pub enum WorkerChannels {
+    IndexPrice {
+        id: Option<JsonRpcId>,
+        frequency_ms: Option<u64>,
+    },
     CoinAveragePrice {
         id: Option<JsonRpcId>,
         coins: Vec<String>,
