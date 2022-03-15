@@ -201,78 +201,88 @@ impl WsServer {
         date_time_from_timestamp_sec(timestamp as u64)
     }
 
-    /// Prepares response data and sends to recipient
-    fn do_response(
+    fn response_1(
         broadcast_recipient: Tx,
         sub_id: Option<JsonRpcId>,
         request: WsMethodRequest,
         pair_average_price_repositories: Option<WorkerRepositoriesByPairTuple>,
-    ) {
+    ) -> Option<()> {
         match request.clone() {
             WsMethodRequest::AvailableCoins { id } => {
                 let to = Utc::now();
                 let from = Self::one_hour_before(to);
 
-                if let Some(repositories) = pair_average_price_repositories {
-                    let mut res = Ok(Vec::new());
+                let repositories = pair_average_price_repositories?;
+                let mut res = Ok(Vec::new());
 
-                    for (pair_tuple, repository) in repositories {
-                        if let Some(coin) = strip_usd(&pair_tuple) {
-                            match repository.read_range(from, to) {
-                                Ok(values) => {
-                                    let mut values: Vec<(DateTime<Utc>, f64)> =
-                                        values.into_iter().map(|(k, v)| (k, v)).collect();
-                                    values.sort_by(|a, b| a.0.cmp(&b.0));
+                for (pair_tuple, repository) in repositories {
+                    if let Some(coin) = strip_usd(&pair_tuple) {
+                        match repository.read_range(from, to) {
+                            Ok(values) => {
+                                let mut values: Vec<(DateTime<Utc>, f64)> =
+                                    values.into_iter().map(|(k, v)| (k, v)).collect();
+                                values.sort_by(|a, b| a.0.cmp(&b.0));
 
-                                    let value = *values.last().unwrap();
-                                    let value = CoinPrice {
-                                        coin,
-                                        value: value.1,
-                                    };
+                                let value = *values.last().unwrap();
+                                let value = CoinPrice {
+                                    coin,
+                                    value: value.1,
+                                };
 
-                                    if let Ok(v) = res.as_mut() {
-                                        v.push(value);
-                                    }
+                                if let Ok(v) = res.as_mut() {
+                                    v.push(value);
                                 }
-                                Err(e) => {
-                                    error!("Available coins. Read range error: {}", e);
+                            }
+                            Err(e) => {
+                                error!("Available coins. Read range error: {}", e);
 
-                                    res =
-                                        Err("Internal error. Read available coins error."
-                                            .to_string());
-                                    break;
-                                }
+                                res =
+                                    Err("Internal error. Read available coins error.".to_string());
+                                break;
                             }
                         }
                     }
+                }
 
-                    match res {
-                        Ok(coins) => {
-                            let response = WsChannelResponse {
-                                id,
-                                result: WsChannelResponsePayload::AvailableCoins {
-                                    coins,
-                                    timestamp: to,
-                                },
-                            };
-                            let _ = ws_send_response(
-                                &broadcast_recipient,
-                                response,
-                                Some(request.get_method()),
-                            );
-                        }
-                        Err(e) => {
-                            Self::send_error(
-                                &broadcast_recipient,
-                                sub_id,
-                                Some(request.get_method()),
-                                JSONRPC_ERROR_INTERNAL_ERROR,
-                                e,
-                            );
-                        }
+                match res {
+                    Ok(coins) => {
+                        let response = WsChannelResponse {
+                            id,
+                            result: WsChannelResponsePayload::AvailableCoins {
+                                coins,
+                                timestamp: to,
+                            },
+                        };
+                        let _ = ws_send_response(
+                            &broadcast_recipient,
+                            response,
+                            Some(request.get_method()),
+                        );
+                    }
+                    Err(e) => {
+                        Self::send_error(
+                            &broadcast_recipient,
+                            sub_id,
+                            Some(request.get_method()),
+                            JSONRPC_ERROR_INTERNAL_ERROR,
+                            e,
+                        );
                     }
                 }
             }
+            _ => unreachable!(),
+        }
+
+        Some(())
+    }
+
+    fn response_2(
+        broadcast_recipient: Tx,
+        sub_id: Option<JsonRpcId>,
+        request: WsMethodRequest,
+        pair_average_price_repositories: Option<WorkerRepositoriesByPairTuple>,
+    ) -> Option<()> {
+        match request.clone() {
             WsMethodRequest::CoinAveragePriceHistorical {
                 id,
                 coin,
@@ -293,13 +303,14 @@ impl WsServer {
                     .map(date_time_from_timestamp_sec)
                     .unwrap_or_else(Utc::now);
 
-                if let Some(repositories) = pair_average_price_repositories {
-                    if let Some(repository) = repositories.get(&pair_tuple) {
-                        match repository.read_range(from, to) {
-                            Ok(values) => {
-                                let values = values.into_iter().map(|(k, v)| (k, v)).collect();
+                let repositories = pair_average_price_repositories?;
 
-                                let response = match request {
+                if let Some(repository) = repositories.get(&pair_tuple) {
+                    match repository.read_range(from, to) {
+                        Ok(values) => {
+                            let values = values.into_iter().map(|(k, v)| (k, v)).collect();
+
+                            let response = match request {
                                     WsMethodRequest::CoinAveragePriceHistorical { .. } => WsChannelResponse {
                                         id,
                                         result: WsChannelResponsePayload::CoinAveragePriceHistorical {
@@ -318,34 +329,64 @@ impl WsServer {
                                     },
                                     _ => unreachable!(),
                                 };
-                                let _ = ws_send_response(
-                                    &broadcast_recipient,
-                                    response,
-                                    Some(request.get_method()),
-                                );
-                            }
-                            Err(e) => {
-                                error!("Historical. Read range error: {}", e);
-
-                                Self::send_error(
-                                    &broadcast_recipient,
-                                    sub_id,
-                                    Some(request.get_method()),
-                                    JSONRPC_ERROR_INTERNAL_ERROR,
-                                    "Internal error. Read historical data error.".to_string(),
-                                );
-                            }
+                            let _ = ws_send_response(
+                                &broadcast_recipient,
+                                response,
+                                Some(request.get_method()),
+                            );
                         }
-                    } else {
-                        Self::send_error(
-                            &broadcast_recipient,
-                            sub_id,
-                            Some(request.get_method()),
-                            JSONRPC_ERROR_INVALID_PARAMS,
-                            format!("Coin {} not supported.", coin),
-                        );
+                        Err(e) => {
+                            error!("Historical. Read range error: {}", e);
+
+                            Self::send_error(
+                                &broadcast_recipient,
+                                sub_id,
+                                Some(request.get_method()),
+                                JSONRPC_ERROR_INTERNAL_ERROR,
+                                "Internal error. Read historical data error.".to_string(),
+                            );
+                        }
                     }
+                } else {
+                    Self::send_error(
+                        &broadcast_recipient,
+                        sub_id,
+                        Some(request.get_method()),
+                        JSONRPC_ERROR_INVALID_PARAMS,
+                        format!("Coin {} not supported.", coin),
+                    );
                 }
+            }
+            _ => unreachable!(),
+        }
+
+        Some(())
+    }
+
+    /// Prepares response data and sends to recipient
+    fn do_response(
+        broadcast_recipient: Tx,
+        sub_id: Option<JsonRpcId>,
+        request: WsMethodRequest,
+        pair_average_price_repositories: Option<WorkerRepositoriesByPairTuple>,
+    ) {
+        match request.clone() {
+            WsMethodRequest::AvailableCoins { .. } => {
+                Self::response_1(
+                    broadcast_recipient,
+                    sub_id,
+                    request,
+                    pair_average_price_repositories,
+                );
+            }
+            WsMethodRequest::CoinAveragePriceHistorical { .. }
+            | WsMethodRequest::CoinAveragePriceCandlesHistorical { .. } => {
+                Self::response_2(
+                    broadcast_recipient,
+                    sub_id,
+                    request,
+                    pair_average_price_repositories,
+                );
             }
         }
     }
