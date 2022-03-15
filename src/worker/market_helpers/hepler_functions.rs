@@ -18,48 +18,34 @@ pub fn send_ws_response_1(
     value: f64,
     timestamp: DateTime<Utc>,
 ) -> Option<()> {
-    if let Some(pair) = pair {
-        if let Some(coin) = strip_usd(pair) {
-            let market_name = market_name.as_ref().map(|v| v.to_string());
+    let pair = pair.as_ref()?;
+    let coin = strip_usd(pair)?;
+    let market_name = market_name.as_ref().map(|v| v.to_string());
 
-            let response_payload = match ws_channel_name {
-                WsChannelName::CoinAveragePrice => WsChannelResponsePayload::CoinAveragePrice {
-                    coin,
-                    value,
-                    timestamp,
-                },
-                WsChannelName::CoinExchangePrice => WsChannelResponsePayload::CoinExchangePrice {
-                    coin,
-                    exchange: market_name.unwrap(),
-                    value,
-                    timestamp,
-                },
-                WsChannelName::CoinExchangeVolume => WsChannelResponsePayload::CoinExchangeVolume {
-                    coin,
-                    exchange: market_name.unwrap(),
-                    value,
-                    timestamp,
-                },
-                _ => unreachable!(),
-            };
+    let response_payload = match ws_channel_name {
+        WsChannelName::CoinAveragePrice => WsChannelResponsePayload::CoinAveragePrice {
+            coin,
+            value,
+            timestamp,
+        },
+        WsChannelName::CoinExchangePrice => WsChannelResponsePayload::CoinExchangePrice {
+            coin,
+            exchange: market_name.unwrap(),
+            value,
+            timestamp,
+        },
+        WsChannelName::CoinExchangeVolume => WsChannelResponsePayload::CoinExchangeVolume {
+            coin,
+            exchange: market_name.unwrap(),
+            value,
+            timestamp,
+        },
+        _ => unreachable!(),
+    };
 
-            ws_channels.lock().unwrap().send_general(response_payload);
+    ws_channels.lock().unwrap().send_general(response_payload);
 
-            Some(())
-        } else {
-            None
-        }
-    } else {
-        // IndexPrice
-        todo!();
-
-        // match ws_channel_name {
-        //     WsChannelName::IndexPrice => {
-        //         todo!();
-        //     }
-        //     _ => unreachable!(),
-        // }
-    }
+    Some(())
 }
 
 pub fn send_ws_response_2(
@@ -69,78 +55,51 @@ pub fn send_ws_response_2(
     pair: &Option<(String, String)>,
     timestamp: DateTime<Utc>,
 ) -> Option<()> {
-    if let Some(pair) = pair {
-        if let Some(coin) = strip_usd(pair) {
-            if let Some(repository) = &repository {
-                if let Ok(mut ws_channels) = ws_channels.lock() {
-                    let channels = ws_channels.get_channels_by_method(ws_channel_name);
-                    let mut responses = HashMap::new();
+    let pair = pair.as_ref()?;
+    let coin = strip_usd(pair)?;
+    let repository = repository.as_ref()?;
+    let mut ws_channels = ws_channels.lock().ok()?;
+    let channels = ws_channels.get_channels_by_method(ws_channel_name);
+    let mut responses = HashMap::new();
 
-                    for (key, request) in channels {
-                        let to = timestamp;
+    for (key, request) in channels {
+        let to = timestamp;
 
-                        match request {
-                            WsChannelSubscriptionRequest::WorkerChannels(request) => {
-                                match request {
-                                    WorkerChannels::CoinAveragePriceCandles {
-                                        interval, ..
-                                    } => {
-                                        let interval = interval.into_seconds() as i64;
-                                        let from = timestamp.timestamp() - interval;
-                                        let from = date_time_from_timestamp_sec(from as u64);
+        match request {
+            WsChannelSubscriptionRequest::WorkerChannels(
+                WorkerChannels::CoinAveragePriceCandles { interval, .. },
+            ) => {
+                let interval = interval.into_seconds() as i64;
+                let from = timestamp.timestamp() - interval;
+                let from = date_time_from_timestamp_sec(from as u64);
 
-                                        if let Ok(values) = repository.read_range(from, to) {
-                                            let values: Vec<(DateTime<Utc>, f64)> =
-                                                values.into_iter().map(|(k, v)| (k, v)).collect();
+                if let Ok(values) = repository.read_range(from, to) {
+                    let values: Vec<(DateTime<Utc>, f64)> =
+                        values.into_iter().map(|(k, v)| (k, v)).collect();
 
-                                            let response_payload = if !values.is_empty() {
-                                                WsChannelResponsePayload::CoinAveragePriceCandles {
-                                                    coin: coin.clone(),
-                                                    value: Candle::calculate(values, timestamp)
-                                                        .unwrap(),
-                                                }
-                                            } else {
-                                                // Send "empty" message
-
-                                                WsChannelResponsePayload::Err {
-                                                    method: Some(WsChannelName::CoinAveragePriceCandles),
-                                                    code: 0,
-                                                    message: "No entries found in the requested time interval."
-                                                        .to_string(),
-                                                }
-                                            };
-
-                                            responses.insert(key.clone(), response_payload);
-                                        }
-                                    }
-                                    _ => unreachable!(),
-                                }
-                            }
-                            _ => unreachable!(),
+                    let response_payload = if !values.is_empty() {
+                        WsChannelResponsePayload::CoinAveragePriceCandles {
+                            coin: coin.clone(),
+                            value: Candle::calculate(values, timestamp).unwrap(),
                         }
-                    }
+                    } else {
+                        // Send "empty" message
 
-                    ws_channels.send_individual(responses);
+                        WsChannelResponsePayload::Err {
+                            method: Some(WsChannelName::CoinAveragePriceCandles),
+                            code: 0,
+                            message: "No entries found in the requested time interval.".to_string(),
+                        }
+                    };
 
-                    Some(())
-                } else {
-                    None
+                    responses.insert(key.clone(), response_payload);
                 }
-            } else {
-                None
             }
-        } else {
-            None
+            _ => unreachable!(),
         }
-    } else {
-        // IndexPrice
-        todo!();
-
-        // match ws_channel_name {
-        //     WsChannelName::IndexPrice => {
-        //         todo!();
-        //     }
-        //     _ => unreachable!(),
-        // }
     }
+
+    ws_channels.send_individual(responses);
+
+    Some(())
 }
