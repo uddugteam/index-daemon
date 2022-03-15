@@ -5,13 +5,13 @@ use std::str::FromStr;
 #[serde(rename_all = "snake_case")]
 pub enum WsChannelName {
     AvailableCoins,
+    IndexPrice,
     CoinAveragePrice,
     CoinAveragePriceCandles,
     CoinExchangePrice,
     CoinExchangeVolume,
     CoinAveragePriceHistorical,
     CoinAveragePriceCandlesHistorical,
-    IndexPrice,
     Unsubscribe,
 }
 
@@ -51,13 +51,13 @@ impl FromStr for WsChannelName {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "available_coins" => Ok(Self::AvailableCoins),
+            "index_price" => Ok(Self::IndexPrice),
             "coin_average_price" => Ok(Self::CoinAveragePrice),
             "coin_average_price_candles" => Ok(Self::CoinAveragePriceCandles),
             "coin_exchange_price" => Ok(Self::CoinExchangePrice),
             "coin_exchange_volume" => Ok(Self::CoinExchangeVolume),
             "coin_average_price_historical" => Ok(Self::CoinAveragePriceHistorical),
             "coin_average_price_candles_historical" => Ok(Self::CoinAveragePriceCandlesHistorical),
-            "index_price" => Ok(Self::IndexPrice),
             _ => Err(()),
         }
     }
@@ -67,6 +67,7 @@ impl ToString for WsChannelName {
     fn to_string(&self) -> String {
         match self {
             Self::AvailableCoins { .. } => "available_coins".to_string(),
+            Self::IndexPrice { .. } => "index_price".to_string(),
             Self::CoinAveragePrice { .. } => "coin_average_price".to_string(),
             Self::CoinAveragePriceCandles { .. } => "coin_average_price_candles".to_string(),
             Self::CoinExchangePrice { .. } => "coin_exchange_price".to_string(),
@@ -75,7 +76,6 @@ impl ToString for WsChannelName {
             Self::CoinAveragePriceCandlesHistorical { .. } => {
                 "coin_average_price_candles_historical".to_string()
             }
-            Self::IndexPrice { .. } => "index_price".to_string(),
             Self::Unsubscribe => unreachable!(),
         }
     }
