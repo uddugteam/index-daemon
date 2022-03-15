@@ -469,7 +469,7 @@ mod test {
             market_repositories,
             ws_channels_holder,
             pair_average_price: _,
-            index_price,
+            index_price: _,
         } = RepositoriesPrepared::make(&config);
 
         let (market_spine, rx) = make_spine(market_name);
@@ -504,7 +504,7 @@ mod test {
             market_repositories,
             ws_channels_holder,
             pair_average_price: _,
-            index_price,
+            index_price: _,
         } = RepositoriesPrepared::make(&config);
 
         let pair_string = market

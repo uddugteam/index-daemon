@@ -132,7 +132,7 @@ impl WsServer {
             Some(coins) => coins
                 .iter()
                 .map(|v| (v.to_string(), "USD".to_string()))
-                .map(|v| Some(v))
+                .map(Some)
                 .collect(),
             None => vec![None],
         };
