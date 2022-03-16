@@ -350,6 +350,7 @@ pub mod test {
 
         let config = ConfigScheme::default();
         let RepositoriesPrepared {
+            index_price_repository,
             pair_average_price_repository: _,
             market_repositories: _,
             ws_channels_holder: _,
@@ -387,6 +388,7 @@ pub mod test {
         config.market.exchange_pairs = vec![exchange_pair.clone()];
 
         let RepositoriesPrepared {
+            index_price_repository,
             pair_average_price_repository: _,
             market_repositories,
             ws_channels_holder,
