@@ -336,7 +336,11 @@ impl WsServer {
                             );
                         }
                         Err(e) => {
-                            error!("Historical. Read range error: {}", e);
+                            error!(
+                                "Method: {:?}. Read range error: {}",
+                                request.get_method(),
+                                e
+                            );
 
                             Self::send_error(
                                 &broadcast_recipient,

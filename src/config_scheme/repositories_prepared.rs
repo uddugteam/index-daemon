@@ -24,7 +24,7 @@ pub struct RepositoriesPrepared {
 
 impl RepositoriesPrepared {
     pub fn make(config: &ConfigScheme) -> Self {
-        let (pair_average_price_repository, market_repositories, index_repository) =
+        let (pair_average_price_repository, market_repositories, index_price_repository) =
             Repositories::optionize_fields(Repositories::new(config));
 
         let ws_channels_holder = WsChannelsHolder::make_hashmap(&config.market);
@@ -35,7 +35,7 @@ impl RepositoriesPrepared {
             &ws_channels_holder,
         );
 
-        let index_price = Self::make_index_price(index_repository, &ws_channels_holder);
+        let index_price = Self::make_index_price(index_price_repository, &ws_channels_holder);
 
         Self {
             pair_average_price_repository,
