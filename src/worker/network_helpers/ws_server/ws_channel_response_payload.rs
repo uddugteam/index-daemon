@@ -104,8 +104,8 @@ impl WsChannelResponsePayload {
             | Self::CoinAveragePriceCandlesHistorical { coin, .. } => Some(coin.to_string()),
             Self::AvailableCoins { .. }
             | Self::IndexPrice { .. }
-            | Self::IndexPriceCandles { .. }
             | Self::IndexPriceHistorical { .. }
+            | Self::IndexPriceCandles { .. }
             | Self::SuccSub { .. }
             | Self::Err { .. } => None,
         }
