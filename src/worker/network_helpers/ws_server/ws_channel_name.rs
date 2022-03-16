@@ -12,6 +12,7 @@ pub enum WsChannelName {
     CoinExchangePrice,
     CoinExchangeVolume,
     IndexPriceHistorical,
+    IndexPriceCandlesHistorical,
     CoinAveragePriceHistorical,
     CoinAveragePriceCandlesHistorical,
     Unsubscribe,
@@ -28,6 +29,7 @@ impl WsChannelName {
             Self::CoinExchangePrice { .. }
             | Self::CoinExchangeVolume { .. }
             | Self::IndexPriceHistorical { .. }
+            | Self::IndexPriceCandlesHistorical { .. }
             | Self::CoinAveragePriceHistorical { .. }
             | Self::CoinAveragePriceCandlesHistorical { .. } => false,
             Self::Unsubscribe => unreachable!(),
@@ -45,6 +47,7 @@ impl WsChannelName {
             Self::CoinExchangeVolume { .. } => MarketValue::PairExchangeVolume,
             Self::IndexPrice { .. }
             | Self::IndexPriceCandles { .. }
+            | Self::IndexPriceCandlesHistorical { .. }
             | Self::IndexPriceHistorical { .. } => MarketValue::IndexPrice,
             Self::Unsubscribe { .. } => unreachable!(),
         }
@@ -64,6 +67,7 @@ impl FromStr for WsChannelName {
             "coin_exchange_price" => Ok(Self::CoinExchangePrice),
             "coin_exchange_volume" => Ok(Self::CoinExchangeVolume),
             "index_price_historical" => Ok(Self::IndexPriceHistorical),
+            "index_price_candles_historical" => Ok(Self::IndexPriceCandlesHistorical),
             "coin_average_price_historical" => Ok(Self::CoinAveragePriceHistorical),
             "coin_average_price_candles_historical" => Ok(Self::CoinAveragePriceCandlesHistorical),
             _ => Err(()),
@@ -82,6 +86,9 @@ impl ToString for WsChannelName {
             Self::CoinExchangePrice { .. } => "coin_exchange_price".to_string(),
             Self::CoinExchangeVolume { .. } => "coin_exchange_volume".to_string(),
             Self::IndexPriceHistorical { .. } => "index_price_historical".to_string(),
+            Self::IndexPriceCandlesHistorical { .. } => {
+                "index_price_candles_historical".to_string()
+            }
             Self::CoinAveragePriceHistorical { .. } => "coin_average_price_historical".to_string(),
             Self::CoinAveragePriceCandlesHistorical { .. } => {
                 "coin_average_price_candles_historical".to_string()

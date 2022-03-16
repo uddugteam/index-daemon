@@ -380,6 +380,12 @@ impl WsServer {
                 interval,
                 from,
                 to,
+            }
+            | WsMethodRequest::IndexPriceCandlesHistorical {
+                id,
+                interval,
+                from,
+                to,
             } => {
                 let from = date_time_from_timestamp_sec(from);
                 let to = to
@@ -399,6 +405,14 @@ impl WsServer {
                                     values: F64Snapshots::with_interval(values, interval),
                                 },
                             },
+                            WsMethodRequest::IndexPriceCandlesHistorical { .. } => {
+                                WsChannelResponse {
+                                    id,
+                                    result: WsChannelResponsePayload::IndexPriceCandlesHistorical {
+                                        values: Candles::calculate(values, interval),
+                                    },
+                                }
+                            }
                             _ => unreachable!(),
                         };
                         let _ = ws_send_response(
@@ -447,7 +461,8 @@ impl WsServer {
                     pair_average_price_repositories,
                 );
             }
-            WsMethodRequest::IndexPriceHistorical { .. } => {
+            WsMethodRequest::IndexPriceHistorical { .. }
+            | WsMethodRequest::IndexPriceCandlesHistorical { .. } => {
                 Self::response_3(broadcast_recipient, sub_id, request, index_price_repository);
             }
             WsMethodRequest::CoinAveragePriceHistorical { .. }

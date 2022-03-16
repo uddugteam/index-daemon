@@ -210,6 +210,27 @@ subscription request json example:
 }
 ```
 
+#### index_price_candles_historical (_not a channel, but a request_)
+
+- **interval** - interval between snapshots. Variants: second, minute, hour, day, week, month.
+- **from** - timestamp from
+- **to** - timestamp to
+
+request json example:
+
+```json
+{
+  "id": "some_id",
+  "jsonrpc": "2.0",
+  "method": "index_price_candles_historical",
+  "params": {
+    "interval": "day",
+    "from": 1577826000,
+    "to": 1644872400
+  }
+}
+```
+
 #### coin_average_price_candles
 
 subscription request json example:

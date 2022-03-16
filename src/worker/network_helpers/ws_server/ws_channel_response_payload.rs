@@ -62,6 +62,9 @@ pub enum WsChannelResponsePayload {
     IndexPriceCandles {
         value: Candle,
     },
+    IndexPriceCandlesHistorical {
+        values: Candles,
+    },
     CoinAveragePriceCandles {
         coin: String,
         value: Candle,
@@ -85,6 +88,9 @@ impl WsChannelResponsePayload {
                 Some(WsChannelName::CoinAveragePriceHistorical)
             }
             Self::IndexPriceCandles { .. } => Some(WsChannelName::IndexPriceCandles),
+            Self::IndexPriceCandlesHistorical { .. } => {
+                Some(WsChannelName::IndexPriceCandlesHistorical)
+            }
             Self::CoinAveragePriceCandles { .. } => Some(WsChannelName::CoinAveragePriceCandles),
             Self::CoinAveragePriceCandlesHistorical { .. } => {
                 Some(WsChannelName::CoinAveragePriceCandlesHistorical)
@@ -106,6 +112,7 @@ impl WsChannelResponsePayload {
             | Self::IndexPrice { .. }
             | Self::IndexPriceHistorical { .. }
             | Self::IndexPriceCandles { .. }
+            | Self::IndexPriceCandlesHistorical { .. }
             | Self::SuccSub { .. }
             | Self::Err { .. } => None,
         }
@@ -122,6 +129,7 @@ impl WsChannelResponsePayload {
                 Some(value.timestamp)
             }
             Self::IndexPriceHistorical { .. }
+            | Self::IndexPriceCandlesHistorical { .. }
             | Self::CoinAveragePriceHistorical { .. }
             | Self::CoinAveragePriceCandlesHistorical { .. }
             | Self::SuccSub { .. }

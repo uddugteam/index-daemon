@@ -129,6 +129,7 @@ impl TryFrom<JsonRpcRequest> for WsRequest {
                 )))
             }
             WsChannelName::IndexPriceHistorical
+            | WsChannelName::IndexPriceCandlesHistorical
             | WsChannelName::CoinAveragePriceHistorical
             | WsChannelName::CoinAveragePriceCandlesHistorical => {
                 let coin = object.get("coin").ok_or(e);
@@ -143,6 +144,14 @@ impl TryFrom<JsonRpcRequest> for WsRequest {
                         from,
                         to,
                     },
+                    WsChannelName::IndexPriceCandlesHistorical => {
+                        WsMethodRequest::IndexPriceCandlesHistorical {
+                            id,
+                            interval,
+                            from,
+                            to,
+                        }
+                    }
                     WsChannelName::CoinAveragePriceHistorical => {
                         WsMethodRequest::CoinAveragePriceHistorical {
                             id,
