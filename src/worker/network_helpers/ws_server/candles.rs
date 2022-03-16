@@ -3,7 +3,7 @@ use crate::worker::network_helpers::ws_server::interval::Interval;
 use crate::worker::network_helpers::ws_server::ser_date_into_timestamp;
 use chrono::{DateTime, Utc};
 
-#[derive(Serialize, Clone)]
+#[derive(Debug, Serialize, Clone)]
 pub struct Candles(Vec<Candle>);
 
 impl Candles {
@@ -44,7 +44,7 @@ impl Candles {
     }
 }
 
-#[derive(Serialize, Clone)]
+#[derive(Debug, Serialize, Clone)]
 pub struct Candle {
     open: f64,
     close: f64,

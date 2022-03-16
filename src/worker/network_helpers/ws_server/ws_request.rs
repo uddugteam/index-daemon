@@ -50,8 +50,20 @@ impl TryFrom<JsonRpcRequest> for WsRequest {
 
                 Ok(Self::Method(res))
             }
-            WsChannelName::IndexPrice => {
-                let res = WorkerChannels::IndexPrice { id, frequency_ms };
+            WsChannelName::IndexPrice | WsChannelName::IndexPriceCandles => {
+                let res = match request.method {
+                    WsChannelName::IndexPrice => WorkerChannels::IndexPrice { id, frequency_ms },
+                    WsChannelName::IndexPriceCandles => {
+                        let interval = interval??;
+
+                        WorkerChannels::IndexPriceCandles {
+                            id,
+                            frequency_ms,
+                            interval,
+                        }
+                    }
+                    _ => unreachable!(),
+                };
 
                 Ok(Self::Channel(WsChannelAction::Subscribe(
                     WsChannelSubscriptionRequest::WorkerChannels(res),

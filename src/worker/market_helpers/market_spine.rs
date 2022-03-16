@@ -243,7 +243,8 @@ impl MarketSpine {
                     }
                 }
 
-                if count > 0 {
+                // Do not calculate if no coins or only one coin
+                if count > 1 {
                     let avg = sum / count as f64;
 
                     info!("new index price: {}", avg);

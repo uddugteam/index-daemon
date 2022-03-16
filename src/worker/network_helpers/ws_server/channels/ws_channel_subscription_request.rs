@@ -14,6 +14,7 @@ impl WsChannelSubscriptionRequest {
         match self {
             Self::WorkerChannels(channel) => match channel {
                 WorkerChannels::IndexPrice { id, .. }
+                | WorkerChannels::IndexPriceCandles { id, .. }
                 | WorkerChannels::CoinAveragePrice { id, .. }
                 | WorkerChannels::CoinAveragePriceCandles { id, .. } => id.clone(),
             },
@@ -29,7 +30,9 @@ impl WsChannelSubscriptionRequest {
             Self::WorkerChannels(channel) => match channel {
                 WorkerChannels::CoinAveragePrice { coins, .. }
                 | WorkerChannels::CoinAveragePriceCandles { coins, .. } => Some(coins),
-                WorkerChannels::IndexPrice { .. } => None,
+                WorkerChannels::IndexPrice { .. } | WorkerChannels::IndexPriceCandles { .. } => {
+                    None
+                }
             },
             Self::MarketChannels(channel) => match channel {
                 MarketChannels::CoinExchangePrice { coins, .. }
@@ -42,6 +45,7 @@ impl WsChannelSubscriptionRequest {
         match self {
             Self::WorkerChannels(channel) => match channel {
                 WorkerChannels::IndexPrice { frequency_ms, .. }
+                | WorkerChannels::IndexPriceCandles { frequency_ms, .. }
                 | WorkerChannels::CoinAveragePrice { frequency_ms, .. }
                 | WorkerChannels::CoinAveragePriceCandles { frequency_ms, .. } => *frequency_ms,
             },
@@ -56,6 +60,7 @@ impl WsChannelSubscriptionRequest {
         match self {
             Self::WorkerChannels(channel) => match channel {
                 WorkerChannels::IndexPrice { frequency_ms, .. }
+                | WorkerChannels::IndexPriceCandles { frequency_ms, .. }
                 | WorkerChannels::CoinAveragePrice { frequency_ms, .. }
                 | WorkerChannels::CoinAveragePriceCandles { frequency_ms, .. } => {
                     *frequency_ms = Some(new_value)
@@ -74,6 +79,7 @@ impl WsChannelSubscriptionRequest {
         match self {
             Self::WorkerChannels(channel) => match channel {
                 WorkerChannels::IndexPrice { .. } => WsChannelName::IndexPrice,
+                WorkerChannels::IndexPriceCandles { .. } => WsChannelName::IndexPriceCandles,
                 WorkerChannels::CoinAveragePrice { .. } => WsChannelName::CoinAveragePrice,
                 WorkerChannels::CoinAveragePriceCandles { .. } => {
                     WsChannelName::CoinAveragePriceCandles

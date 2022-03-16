@@ -54,8 +54,6 @@ pub fn send_ws_response_2(
     pair: &Option<(String, String)>,
     timestamp: DateTime<Utc>,
 ) -> Option<()> {
-    let pair = pair.as_ref()?;
-    let coin = strip_usd(pair)?;
     let repository = repository.as_ref()?;
     let mut ws_channels = ws_channels.lock().ok()?;
     let channels = ws_channels.get_channels_by_method(ws_channel_name);
@@ -65,35 +63,39 @@ pub fn send_ws_response_2(
         let to = timestamp;
 
         match request {
-            WsChannelSubscriptionRequest::WorkerChannels(
-                WorkerChannels::CoinAveragePriceCandles { interval, .. },
-            ) => {
-                let interval = interval.into_seconds() as i64;
-                let from = timestamp.timestamp() - interval;
-                let from = date_time_from_timestamp_sec(from as u64);
+            WsChannelSubscriptionRequest::WorkerChannels(channel) => match channel {
+                WorkerChannels::IndexPriceCandles { interval, .. }
+                | WorkerChannels::CoinAveragePriceCandles { interval, .. } => {
+                    let interval = interval.into_seconds() as i64;
+                    let from = timestamp.timestamp() - interval;
+                    let from = date_time_from_timestamp_sec(from as u64);
 
-                if let Ok(values) = repository.read_range(from, to) {
-                    let values: Vec<(DateTime<Utc>, f64)> =
-                        values.into_iter().map(|(k, v)| (k, v)).collect();
+                    if let Ok(values) = repository.read_range(from, to) {
+                        let values: Vec<(DateTime<Utc>, f64)> =
+                            values.into_iter().map(|(k, v)| (k, v)).collect();
 
-                    let response_payload = if !values.is_empty() {
-                        WsChannelResponsePayload::CoinAveragePriceCandles {
-                            coin: coin.clone(),
-                            value: Candle::calculate(values, timestamp).unwrap(),
+                        if !values.is_empty() {
+                            let value = Candle::calculate(values, timestamp).unwrap();
+
+                            let response_payload = match channel {
+                                WorkerChannels::IndexPriceCandles { .. } => {
+                                    WsChannelResponsePayload::IndexPriceCandles { value }
+                                }
+                                WorkerChannels::CoinAveragePriceCandles { .. } => {
+                                    WsChannelResponsePayload::CoinAveragePriceCandles {
+                                        coin: strip_usd(pair.as_ref()?)?.clone(),
+                                        value,
+                                    }
+                                }
+                                _ => unreachable!(),
+                            };
+
+                            responses.insert(key.clone(), response_payload);
                         }
-                    } else {
-                        // Send "empty" message
-
-                        WsChannelResponsePayload::Err {
-                            method: Some(WsChannelName::CoinAveragePriceCandles),
-                            code: 0,
-                            message: "No entries found in the requested time interval.".to_string(),
-                        }
-                    };
-
-                    responses.insert(key.clone(), response_payload);
+                    }
                 }
-            }
+                _ => unreachable!(),
+            },
             _ => unreachable!(),
         }
     }

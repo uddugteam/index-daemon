@@ -6,6 +6,7 @@ use std::str::FromStr;
 pub enum WsChannelName {
     AvailableCoins,
     IndexPrice,
+    IndexPriceCandles,
     CoinAveragePrice,
     CoinAveragePriceCandles,
     CoinExchangePrice,
@@ -20,6 +21,7 @@ impl WsChannelName {
         match self {
             Self::AvailableCoins { .. }
             | Self::IndexPrice { .. }
+            | Self::IndexPriceCandles { .. }
             | Self::CoinAveragePrice { .. }
             | Self::CoinAveragePriceCandles { .. } => true,
             Self::CoinExchangePrice { .. }
@@ -39,7 +41,7 @@ impl WsChannelName {
             | Self::CoinAveragePriceCandlesHistorical { .. } => MarketValue::PairAveragePrice,
             Self::CoinExchangePrice { .. } => MarketValue::PairExchangePrice,
             Self::CoinExchangeVolume { .. } => MarketValue::PairExchangeVolume,
-            Self::IndexPrice { .. } => MarketValue::IndexPrice,
+            Self::IndexPrice { .. } | Self::IndexPriceCandles { .. } => MarketValue::IndexPrice,
             Self::Unsubscribe { .. } => unreachable!(),
         }
     }
@@ -52,6 +54,7 @@ impl FromStr for WsChannelName {
         match s {
             "available_coins" => Ok(Self::AvailableCoins),
             "index_price" => Ok(Self::IndexPrice),
+            "index_price_candles" => Ok(Self::IndexPriceCandles),
             "coin_average_price" => Ok(Self::CoinAveragePrice),
             "coin_average_price_candles" => Ok(Self::CoinAveragePriceCandles),
             "coin_exchange_price" => Ok(Self::CoinExchangePrice),
@@ -68,6 +71,7 @@ impl ToString for WsChannelName {
         match self {
             Self::AvailableCoins { .. } => "available_coins".to_string(),
             Self::IndexPrice { .. } => "index_price".to_string(),
+            Self::IndexPriceCandles { .. } => "index_price_candles".to_string(),
             Self::CoinAveragePrice { .. } => "coin_average_price".to_string(),
             Self::CoinAveragePriceCandles { .. } => "coin_average_price_candles".to_string(),
             Self::CoinExchangePrice { .. } => "coin_exchange_price".to_string(),

@@ -173,6 +173,22 @@ request json example:
 }
 ```
 
+#### index_price_candles
+
+subscription request json example:
+
+```json
+{
+  "id": "some_id",
+  "jsonrpc": "2.0",
+  "method": "index_price_candles",
+  "params": {
+    "frequency_ms": 50,
+    "interval": "day"
+  }
+}
+```
+
 #### coin_average_price_candles
 
 subscription request json example:

@@ -34,7 +34,9 @@ impl StoredAndWsTransmissibleF64 {
                 assert!(matches!(market_name, Some(..)));
             }
 
-            if matches!(ws_channel_name, WsChannelName::IndexPrice) {
+            if matches!(ws_channel_name, WsChannelName::IndexPrice)
+                | matches!(ws_channel_name, WsChannelName::IndexPriceCandles)
+            {
                 assert!(pair.is_none());
             } else {
                 assert!(pair.is_some());
@@ -79,7 +81,7 @@ impl StoredAndWsTransmissibleF64 {
                         self.timestamp,
                     );
                 }
-                WsChannelName::CoinAveragePriceCandles => {
+                WsChannelName::IndexPriceCandles | WsChannelName::CoinAveragePriceCandles => {
                     send_ws_response_2(
                         &self.repository,
                         &self.ws_channels,

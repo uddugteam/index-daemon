@@ -3,7 +3,7 @@ use crate::worker::network_helpers::ws_server::interval::Interval;
 use crate::worker::network_helpers::ws_server::ser_date_into_timestamp;
 use chrono::{DateTime, Utc};
 
-#[derive(Serialize, Clone)]
+#[derive(Debug, Serialize, Clone)]
 pub struct F64Snapshots(Vec<F64Snapshot>);
 
 impl F64Snapshots {
@@ -18,7 +18,7 @@ impl F64Snapshots {
     }
 }
 
-#[derive(Serialize, Clone)]
+#[derive(Debug, Serialize, Clone)]
 pub struct F64Snapshot {
     value: f64,
     #[serde(with = "ser_date_into_timestamp")]

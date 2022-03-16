@@ -55,7 +55,7 @@ impl RepositoriesPrepared {
 
         Arc::new(Mutex::new(StoredAndWsTransmissibleF64::new(
             index_repository,
-            vec![WsChannelName::IndexPrice],
+            vec![WsChannelName::IndexPrice, WsChannelName::IndexPriceCandles],
             None,
             None,
             Arc::clone(ws_channels),
