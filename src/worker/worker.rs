@@ -231,7 +231,7 @@ pub mod test {
         config.market.exchange_pairs = exchange_pairs.clone();
 
         let RepositoriesPrepared {
-            index_price_repository,
+            index_price_repository: _,
             pair_average_price_repository: _,
             market_repositories,
             ws_channels_holder,
