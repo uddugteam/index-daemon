@@ -15,6 +15,7 @@ use crate::worker::network_helpers::ws_server::ws_channels_holder::{
 use std::sync::{Arc, Mutex};
 
 pub struct RepositoriesPrepared {
+    pub index_price_repository: Option<RepositoryForF64ByTimestamp>,
     pub pair_average_price_repository: Option<WorkerRepositoriesByPairTuple>,
     pub market_repositories: Option<MarketRepositoriesByMarketName>,
     pub ws_channels_holder: WsChannelsHolderHashMap,
@@ -35,9 +36,11 @@ impl RepositoriesPrepared {
             &ws_channels_holder,
         );
 
-        let index_price = Self::make_index_price(index_price_repository, &ws_channels_holder);
+        let index_price =
+            Self::make_index_price(index_price_repository.clone(), &ws_channels_holder);
 
         Self {
+            index_price_repository,
             pair_average_price_repository,
             market_repositories,
             ws_channels_holder,

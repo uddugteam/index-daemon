@@ -3,7 +3,7 @@ use crate::config_scheme::market_config::MarketConfig;
 use crate::config_scheme::repositories_prepared::RepositoriesPrepared;
 use crate::config_scheme::service_config::ServiceConfig;
 use crate::repository::repositories::{
-    MarketRepositoriesByMarketName, WorkerRepositoriesByPairTuple,
+    MarketRepositoriesByMarketName, RepositoryForF64ByTimestamp, WorkerRepositoriesByPairTuple,
 };
 use crate::worker::market_helpers::exchange_pair::ExchangePair;
 use crate::worker::market_helpers::market::{market_factory, Market};
@@ -81,6 +81,7 @@ impl Worker {
         ws: bool,
         ws_addr: String,
         ws_answer_timeout_ms: u64,
+        index_price_repository: Option<RepositoryForF64ByTimestamp>,
         pair_average_price_repositories: Option<WorkerRepositoriesByPairTuple>,
         ws_channels_holder: WsChannelsHolderHashMap,
         graceful_shutdown: Arc<Mutex<bool>>,
@@ -96,6 +97,7 @@ impl Worker {
                         ws_channels_holder,
                         ws_addr,
                         ws_answer_timeout_ms,
+                        index_price_repository,
                         pair_average_price_repositories,
                         graceful_shutdown,
                     };
@@ -108,6 +110,7 @@ impl Worker {
 
     pub fn start(&mut self, config: ConfigScheme) {
         let RepositoriesPrepared {
+            index_price_repository,
             pair_average_price_repository,
             market_repositories,
             ws_channels_holder,
@@ -150,6 +153,7 @@ impl Worker {
             ws,
             ws_addr,
             ws_answer_timeout_ms,
+            index_price_repository,
             pair_average_price_repository,
             ws_channels_holder,
             self.graceful_shutdown.clone(),
@@ -227,6 +231,7 @@ pub mod test {
         config.market.exchange_pairs = exchange_pairs.clone();
 
         let RepositoriesPrepared {
+            index_price_repository,
             pair_average_price_repository: _,
             market_repositories,
             ws_channels_holder,

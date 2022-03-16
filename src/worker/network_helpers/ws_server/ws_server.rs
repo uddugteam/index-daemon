@@ -1,4 +1,4 @@
-use crate::repository::repositories::WorkerRepositoriesByPairTuple;
+use crate::repository::repositories::{RepositoryForF64ByTimestamp, WorkerRepositoriesByPairTuple};
 use crate::worker::helper_functions::{date_time_from_timestamp_sec, strip_usd};
 use crate::worker::network_helpers::ws_server::candles::Candles;
 use crate::worker::network_helpers::ws_server::channels::ws_channel_action::WsChannelAction;
@@ -43,6 +43,7 @@ pub struct WsServer {
     pub ws_channels_holder: WsChannelsHolder,
     pub ws_addr: String,
     pub ws_answer_timeout_ms: u64,
+    pub index_price_repository: Option<RepositoryForF64ByTimestamp>,
     pub pair_average_price_repositories: Option<WorkerRepositoriesByPairTuple>,
     pub graceful_shutdown: Arc<Mutex<bool>>,
 }
@@ -311,24 +312,24 @@ impl WsServer {
                             let values = values.into_iter().map(|(k, v)| (k, v)).collect();
 
                             let response = match request {
-                                    WsMethodRequest::CoinAveragePriceHistorical { .. } => WsChannelResponse {
-                                        id,
-                                        result: WsChannelResponsePayload::CoinAveragePriceHistorical {
-                                            coin,
-                                            values: F64Snapshots::with_interval(
-                                                values, interval,
-                                            ),
-                                        },
+                                WsMethodRequest::CoinAveragePriceHistorical { .. } => WsChannelResponse {
+                                    id,
+                                    result: WsChannelResponsePayload::CoinAveragePriceHistorical {
+                                        coin,
+                                        values: F64Snapshots::with_interval(
+                                            values, interval,
+                                        ),
                                     },
-                                    WsMethodRequest::CoinAveragePriceCandlesHistorical { .. } => WsChannelResponse {
-                                        id,
-                                        result: WsChannelResponsePayload::CoinAveragePriceCandlesHistorical {
-                                            coin,
-                                            values: Candles::calculate(values, interval),
-                                        },
+                                },
+                                WsMethodRequest::CoinAveragePriceCandlesHistorical { .. } => WsChannelResponse {
+                                    id,
+                                    result: WsChannelResponsePayload::CoinAveragePriceCandlesHistorical {
+                                        coin,
+                                        values: Candles::calculate(values, interval),
                                     },
-                                    _ => unreachable!(),
-                                };
+                                },
+                                _ => unreachable!(),
+                            };
                             let _ = ws_send_response(
                                 &broadcast_recipient,
                                 response,
@@ -367,11 +368,74 @@ impl WsServer {
         Some(())
     }
 
+    fn response_3(
+        broadcast_recipient: Tx,
+        sub_id: Option<JsonRpcId>,
+        request: WsMethodRequest,
+        index_price_repository: Option<RepositoryForF64ByTimestamp>,
+    ) -> Option<()> {
+        match request.clone() {
+            WsMethodRequest::IndexPriceHistorical {
+                id,
+                interval,
+                from,
+                to,
+            } => {
+                let from = date_time_from_timestamp_sec(from);
+                let to = to
+                    .map(date_time_from_timestamp_sec)
+                    .unwrap_or_else(Utc::now);
+
+                let repository = index_price_repository?;
+
+                match repository.read_range(from, to) {
+                    Ok(values) => {
+                        let values = values.into_iter().map(|(k, v)| (k, v)).collect();
+
+                        let response = match request {
+                            WsMethodRequest::IndexPriceHistorical { .. } => WsChannelResponse {
+                                id,
+                                result: WsChannelResponsePayload::IndexPriceHistorical {
+                                    values: F64Snapshots::with_interval(values, interval),
+                                },
+                            },
+                            _ => unreachable!(),
+                        };
+                        let _ = ws_send_response(
+                            &broadcast_recipient,
+                            response,
+                            Some(request.get_method()),
+                        );
+                    }
+                    Err(e) => {
+                        error!(
+                            "Method: {:?}. Read range error: {}",
+                            request.get_method(),
+                            e
+                        );
+
+                        Self::send_error(
+                            &broadcast_recipient,
+                            sub_id,
+                            Some(request.get_method()),
+                            JSONRPC_ERROR_INTERNAL_ERROR,
+                            "Internal error. Read historical data error.".to_string(),
+                        );
+                    }
+                }
+            }
+            _ => unreachable!(),
+        }
+
+        Some(())
+    }
+
     /// Prepares response data and sends to recipient
     fn do_response(
         broadcast_recipient: Tx,
         sub_id: Option<JsonRpcId>,
         request: WsMethodRequest,
+        index_price_repository: Option<RepositoryForF64ByTimestamp>,
         pair_average_price_repositories: Option<WorkerRepositoriesByPairTuple>,
     ) {
         match request.clone() {
@@ -382,6 +446,9 @@ impl WsServer {
                     request,
                     pair_average_price_repositories,
                 );
+            }
+            WsMethodRequest::IndexPriceHistorical { .. } => {
+                Self::response_3(broadcast_recipient, sub_id, request, index_price_repository);
             }
             WsMethodRequest::CoinAveragePriceHistorical { .. }
             | WsMethodRequest::CoinAveragePriceCandlesHistorical { .. } => {
@@ -410,6 +477,7 @@ impl WsServer {
         method: WsChannelName,
         request: Result<WsRequest, String>,
         ws_answer_timeout_ms: u64,
+        index_price_repository: Option<RepositoryForF64ByTimestamp>,
         pair_average_price_repositories: Option<WorkerRepositoriesByPairTuple>,
     ) {
         match request {
@@ -435,6 +503,7 @@ impl WsServer {
                         broadcast_recipient,
                         sub_id,
                         request,
+                        index_price_repository,
                         pair_average_price_repositories,
                     );
                 }
@@ -459,6 +528,7 @@ impl WsServer {
         client_addr: SocketAddr,
         conn_id: &str,
         ws_answer_timeout_ms: u64,
+        index_price_repository: &mut Option<RepositoryForF64ByTimestamp>,
         pair_average_price_repositories: &mut Option<WorkerRepositoriesByPairTuple>,
         _graceful_shutdown: &Arc<Mutex<bool>>,
     ) {
@@ -473,6 +543,7 @@ impl WsServer {
 
                     let conn_id_2 = conn_id.to_string();
                     let ws_channels_holder_2 = ws_channels_holder.clone();
+                    let index_price_repository_2 = index_price_repository.clone();
                     let pair_average_price_repository_2 = pair_average_price_repositories.clone();
 
                     let thread_name = format!(
@@ -491,6 +562,7 @@ impl WsServer {
                                 method,
                                 request,
                                 ws_answer_timeout_ms,
+                                index_price_repository_2,
                                 pair_average_price_repository_2,
                             )
                         })
@@ -520,6 +592,7 @@ impl WsServer {
         client_addr: SocketAddr,
         conn_id: String,
         ws_answer_timeout_ms: u64,
+        mut index_price_repository: Option<RepositoryForF64ByTimestamp>,
         mut pair_average_price_repositories: Option<WorkerRepositoriesByPairTuple>,
         graceful_shutdown: Arc<Mutex<bool>>,
     ) {
@@ -545,6 +618,7 @@ impl WsServer {
                         client_addr,
                         &conn_id,
                         ws_answer_timeout_ms,
+                        &mut index_price_repository,
                         &mut pair_average_price_repositories,
                         &graceful_shutdown,
                     );
@@ -592,6 +666,7 @@ impl WsServer {
                 client_addr,
                 conn_id,
                 self.ws_answer_timeout_ms,
+                self.index_price_repository.clone(),
                 self.pair_average_price_repositories.clone(),
                 Arc::clone(&self.graceful_shutdown),
             ));

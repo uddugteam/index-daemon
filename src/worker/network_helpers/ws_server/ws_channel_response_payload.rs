@@ -52,6 +52,9 @@ pub enum WsChannelResponsePayload {
         #[serde(with = "ser_date_into_timestamp")]
         timestamp: DateTime<Utc>,
     },
+    IndexPriceHistorical {
+        values: F64Snapshots,
+    },
     CoinAveragePriceHistorical {
         coin: String,
         values: F64Snapshots,
@@ -77,6 +80,7 @@ impl WsChannelResponsePayload {
             Self::CoinAveragePrice { .. } => Some(WsChannelName::CoinAveragePrice),
             Self::CoinExchangePrice { .. } => Some(WsChannelName::CoinExchangePrice),
             Self::CoinExchangeVolume { .. } => Some(WsChannelName::CoinExchangeVolume),
+            Self::IndexPriceHistorical { .. } => Some(WsChannelName::IndexPriceHistorical),
             Self::CoinAveragePriceHistorical { .. } => {
                 Some(WsChannelName::CoinAveragePriceHistorical)
             }
@@ -101,6 +105,7 @@ impl WsChannelResponsePayload {
             Self::AvailableCoins { .. }
             | Self::IndexPrice { .. }
             | Self::IndexPriceCandles { .. }
+            | Self::IndexPriceHistorical { .. }
             | Self::SuccSub { .. }
             | Self::Err { .. } => None,
         }
@@ -116,7 +121,8 @@ impl WsChannelResponsePayload {
             Self::IndexPriceCandles { value, .. } | Self::CoinAveragePriceCandles { value, .. } => {
                 Some(value.timestamp)
             }
-            Self::CoinAveragePriceHistorical { .. }
+            Self::IndexPriceHistorical { .. }
+            | Self::CoinAveragePriceHistorical { .. }
             | Self::CoinAveragePriceCandlesHistorical { .. }
             | Self::SuccSub { .. }
             | Self::Err { .. } => None,

@@ -128,18 +128,25 @@ impl TryFrom<JsonRpcRequest> for WsRequest {
                     WsChannelUnsubscribe { id, method },
                 )))
             }
-            WsChannelName::CoinAveragePriceHistorical
+            WsChannelName::IndexPriceHistorical
+            | WsChannelName::CoinAveragePriceHistorical
             | WsChannelName::CoinAveragePriceCandlesHistorical => {
-                let coin = object.get("coin").ok_or(e)?.as_str().ok_or(e)?.to_string();
+                let coin = object.get("coin").ok_or(e);
                 let interval = interval??;
                 let from = Self::parse_u64(object, "from").ok_or(e)?;
                 let to = Self::parse_u64(object, "to").ok_or(e).ok();
 
                 let res = match request.method {
+                    WsChannelName::IndexPriceHistorical => WsMethodRequest::IndexPriceHistorical {
+                        id,
+                        interval,
+                        from,
+                        to,
+                    },
                     WsChannelName::CoinAveragePriceHistorical => {
                         WsMethodRequest::CoinAveragePriceHistorical {
                             id,
-                            coin,
+                            coin: coin?.as_str().ok_or(e)?.to_string(),
                             interval,
                             from,
                             to,
@@ -148,7 +155,7 @@ impl TryFrom<JsonRpcRequest> for WsRequest {
                     WsChannelName::CoinAveragePriceCandlesHistorical => {
                         WsMethodRequest::CoinAveragePriceCandlesHistorical {
                             id,
-                            coin,
+                            coin: coin?.as_str().ok_or(e)?.to_string(),
                             interval,
                             from,
                             to,
