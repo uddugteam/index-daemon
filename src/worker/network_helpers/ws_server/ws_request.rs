@@ -50,6 +50,13 @@ impl TryFrom<JsonRpcRequest> for WsRequest {
 
                 Ok(Self::Method(res))
             }
+            WsChannelName::IndexPrice => {
+                let res = WorkerChannels::IndexPrice { id, frequency_ms };
+
+                Ok(Self::Channel(WsChannelAction::Subscribe(
+                    WsChannelSubscriptionRequest::WorkerChannels(res),
+                )))
+            }
             WsChannelName::CoinAveragePrice | WsChannelName::CoinAveragePriceCandles => {
                 let coins = coins?;
 
@@ -139,13 +146,6 @@ impl TryFrom<JsonRpcRequest> for WsRequest {
                 };
 
                 Ok(Self::Method(res))
-            }
-            WsChannelName::IndexPrice => {
-                let res = WorkerChannels::IndexPrice { id, frequency_ms };
-
-                Ok(Self::Channel(WsChannelAction::Subscribe(
-                    WsChannelSubscriptionRequest::WorkerChannels(res),
-                )))
             }
         }
     }

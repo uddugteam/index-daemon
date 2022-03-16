@@ -19,9 +19,9 @@ impl WsChannelName {
     pub fn is_worker_channel(&self) -> bool {
         match self {
             Self::AvailableCoins { .. }
+            | Self::IndexPrice { .. }
             | Self::CoinAveragePrice { .. }
-            | Self::CoinAveragePriceCandles { .. }
-            | Self::IndexPrice { .. } => true,
+            | Self::CoinAveragePriceCandles { .. } => true,
             Self::CoinExchangePrice { .. }
             | Self::CoinExchangeVolume { .. }
             | Self::CoinAveragePriceHistorical { .. }
