@@ -19,13 +19,13 @@ impl Candles {
             let mut chunks = Vec::new();
             chunks.push(Vec::new());
             values.into_iter().for_each(|(t, v)| {
-                if t < last_to {
-                    let t = date_time_from_timestamp_sec(t as u64);
-                    chunks.last_mut().unwrap().push((t, v));
-                } else {
+                if last_to > t {
                     chunks.push(Vec::new());
                     last_to += interval;
                 }
+
+                let t = date_time_from_timestamp_sec(t as u64);
+                chunks.last_mut().unwrap().push((t, v));
             });
 
             chunks
