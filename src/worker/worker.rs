@@ -83,7 +83,7 @@ impl Worker {
         ws_answer_timeout_ms: u64,
         index_price_repository: Option<RepositoryForF64ByTimestamp>,
         pair_average_price_repositories: Option<WorkerRepositoriesByPairTuple>,
-        pair_average_price: PairAveragePriceType,
+        pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
         ws_channels_holder: WsChannelsHolderHashMap,
         graceful_shutdown: Arc<Mutex<bool>>,
     ) {
