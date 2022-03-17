@@ -165,7 +165,7 @@ fn is_graceful_shutdown(market: &Arc<Mutex<dyn Market + Send>>) -> bool {
         .unwrap()
 }
 
-fn update(market: Arc<Mutex<dyn Market + Send>>) {
+fn market_update(market: Arc<Mutex<dyn Market + Send>>) {
     let market_is_poloniex = market.lock().unwrap().get_spine().name == "poloniex";
     let market_is_ftx = market.lock().unwrap().get_spine().name == "ftx";
     let market_is_gemini = market.lock().unwrap().get_spine().name == "gemini";
@@ -354,7 +354,7 @@ pub trait Market {
         let thread_name = format!("fn: update, market: {}", self.get_spine().name);
         let thread = thread::Builder::new()
             .name(thread_name)
-            .spawn(move || update(market))
+            .spawn(move || market_update(market))
             .unwrap();
         self.get_spine().tx.send(thread).unwrap();
     }
@@ -450,7 +450,7 @@ mod test {
     use crate::worker::helper_functions::get_pair_ref;
     use crate::worker::market_helpers::conversion_type::ConversionType;
     use crate::worker::market_helpers::exchange_pair::ExchangePair;
-    use crate::worker::market_helpers::market::{market_factory, update, Market};
+    use crate::worker::market_helpers::market::{market_factory, market_update, Market};
     use crate::worker::market_helpers::market_channels::MarketChannels;
     use crate::worker::market_helpers::market_spine::test::make_spine;
     use crate::worker::worker::test::check_threads;
@@ -629,7 +629,7 @@ mod test {
             }
         }
 
-        update(market);
+        market_update(market);
         check_threads(thread_names, rx);
     }
 }
