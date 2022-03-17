@@ -5,7 +5,6 @@ use crate::config_scheme::service_config::ServiceConfig;
 use crate::repository::repositories::{
     MarketRepositoriesByMarketName, RepositoryForF64ByTimestamp, WorkerRepositoriesByPairTuple,
 };
-use crate::worker::market_helpers::exchange_pair::ExchangePair;
 use crate::worker::market_helpers::market::{market_factory, market_update, Market};
 use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
@@ -42,7 +41,7 @@ impl Worker {
     fn configure(
         &mut self,
         markets: Vec<&str>,
-        exchange_pairs: Vec<ExchangePair>,
+        exchange_pairs: Vec<(String, String)>,
         channels: Vec<MarketChannels>,
         rest_timeout_sec: u64,
         repositories: Option<MarketRepositoriesByMarketName>,
@@ -188,7 +187,6 @@ pub mod test {
     use crate::config_scheme::helper_functions::make_exchange_pairs;
     use crate::config_scheme::market_config::MarketConfig;
     use crate::config_scheme::repositories_prepared::RepositoriesPrepared;
-    use crate::worker::market_helpers::exchange_pair::ExchangePair;
     use crate::worker::market_helpers::market_channels::MarketChannels;
     use crate::worker::worker::Worker;
     use ntest::timeout;
@@ -224,7 +222,7 @@ pub mod test {
 
     fn test_configure(
         markets: Vec<&str>,
-        exchange_pairs: Vec<ExchangePair>,
+        exchange_pairs: Vec<(String, String)>,
         channels: Vec<MarketChannels>,
     ) {
         let (mut worker, _, _) = make_worker();
@@ -325,7 +323,7 @@ pub mod test {
         let markets = vec!["binance".to_string(), "bitfinex".to_string()];
         let coins = vec!["ABC".to_string(), "DEF".to_string()];
         let exchange_pairs = make_exchange_pairs(coins, Some(vec!["GHI"]));
-        let index_pairs = exchange_pairs.iter().map(|v| v.pair.clone()).collect();
+        let index_pairs = exchange_pairs.iter().map(|v| v.clone()).collect();
         let channels = vec![MarketChannels::Ticker];
 
         let config = ConfigScheme {

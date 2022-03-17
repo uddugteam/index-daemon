@@ -18,7 +18,7 @@ pub fn make_pair_average_price(
     let mut hash_map = HashMap::new();
 
     for exchange_pair in &market_config.exchange_pairs {
-        let pair = exchange_pair.pair.clone();
+        let pair = exchange_pair.clone();
         let key = (
             "worker".to_string(),
             MarketValue::PairAveragePrice,
@@ -29,7 +29,7 @@ pub fn make_pair_average_price(
         let pair_average_price = Arc::new(Mutex::new(StoredAndWsTransmissibleF64::new(
             repository
                 .as_mut()
-                .map(|v| v.remove(&exchange_pair.pair).unwrap()),
+                .map(|v| v.remove(&exchange_pair).unwrap()),
             vec![
                 WsChannelName::CoinAveragePrice,
                 WsChannelName::CoinAveragePriceCandles,

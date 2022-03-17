@@ -28,7 +28,7 @@ impl WsChannelsHolder {
             let key = (
                 "worker".to_string(),
                 MarketValue::PairAveragePrice,
-                Some(exchange_pair.pair.clone()),
+                Some(exchange_pair.clone()),
             );
             ws_channels_holder.insert(key, Arc::new(Mutex::new(WsChannels::new())));
         }
@@ -43,7 +43,7 @@ impl WsChannelsHolder {
                     let key = (
                         market_name.to_string(),
                         market_value,
-                        Some(exchange_pair.pair.clone()),
+                        Some(exchange_pair.clone()),
                     );
                     ws_channels_holder.insert(key, Arc::new(Mutex::new(WsChannels::new())));
                 }

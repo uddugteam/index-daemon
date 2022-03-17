@@ -1,6 +1,4 @@
 use crate::repository::repositories::MarketRepositoriesByMarketValue;
-use crate::worker::market_helpers::conversion_type::ConversionType;
-use crate::worker::market_helpers::exchange_pair::ExchangePair;
 use crate::worker::market_helpers::exchange_pair_info::ExchangePairInfo;
 use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::market_helpers::pair_average_price::StoredAndWsTransmissibleF64ByPairTuple;
@@ -23,7 +21,6 @@ pub struct MarketSpine {
     unmask_pairs: HashMap<String, String>,
     exchange_pairs: HashMap<String, ExchangePairInfo>,
     index_pairs: Vec<(String, String)>,
-    conversions: HashMap<String, ConversionType>,
     pairs: HashMap<String, (String, String)>,
     pub channels: Vec<MarketChannels>,
     pub graceful_shutdown: Arc<Mutex<bool>>,
@@ -68,7 +65,6 @@ impl MarketSpine {
             unmask_pairs: HashMap::new(),
             exchange_pairs: HashMap::new(),
             index_pairs,
-            conversions: HashMap::new(),
             pairs: HashMap::new(),
             channels,
             graceful_shutdown,
@@ -92,10 +88,6 @@ impl MarketSpine {
         &self.pairs
     }
 
-    pub fn get_conversions(&self) -> &HashMap<String, ConversionType> {
-        &self.conversions
-    }
-
     pub fn get_exchange_pairs(&self) -> &HashMap<String, ExchangePairInfo> {
         &self.exchange_pairs
     }
@@ -107,7 +99,7 @@ impl MarketSpine {
     pub fn add_exchange_pair(
         &mut self,
         pair_string: String,
-        exchange_pair: ExchangePair,
+        exchange_pair: (String, String),
         repositories: Option<MarketRepositoriesByMarketValue>,
         ws_channels_holder: &WsChannelsHolderHashMap,
     ) {
@@ -117,13 +109,11 @@ impl MarketSpine {
                 repositories,
                 ws_channels_holder,
                 self.name.clone(),
-                exchange_pair.pair.clone(),
+                exchange_pair.clone(),
             ),
         );
-        self.conversions
-            .insert(pair_string.clone(), exchange_pair.conversion);
         self.pairs
-            .insert(pair_string, (exchange_pair.pair.0, exchange_pair.pair.1));
+            .insert(pair_string, (exchange_pair.0, exchange_pair.1));
     }
 
     pub fn get_masked_value<'a>(&'a self, a: &'a str) -> &str {
@@ -328,8 +318,6 @@ impl MarketSpine {
 pub mod test {
     use crate::config_scheme::config_scheme::ConfigScheme;
     use crate::config_scheme::repositories_prepared::RepositoriesPrepared;
-    use crate::worker::market_helpers::conversion_type::ConversionType;
-    use crate::worker::market_helpers::exchange_pair::ExchangePair;
     use crate::worker::market_helpers::market_spine::MarketSpine;
     use crate::worker::worker::test::make_worker;
     use std::sync::mpsc::Receiver;
@@ -371,11 +359,7 @@ pub mod test {
         let market_name = spine.name.clone();
 
         let pair_tuple = ("some_coin_1".to_string(), "some_coin_2".to_string());
-        let conversion_type = ConversionType::Crypto;
-        let exchange_pair = ExchangePair {
-            pair: pair_tuple.clone(),
-            conversion: conversion_type,
-        };
+        let exchange_pair = pair_tuple.clone();
 
         let mut config = ConfigScheme::default();
         config.market.exchange_pairs = vec![exchange_pair.clone()];
@@ -397,18 +381,13 @@ pub mod test {
             market_repositories.map(|mut v| {
                 v.remove(&market_name)
                     .unwrap()
-                    .remove(&exchange_pair.pair)
+                    .remove(&exchange_pair)
                     .unwrap()
             }),
             &ws_channels_holder,
         );
 
         assert!(spine.get_exchange_pairs().get(&pair_string).is_some());
-
-        assert_eq!(
-            spine.get_conversions().get(&pair_string).unwrap(),
-            &conversion_type
-        );
 
         assert_eq!(spine.get_pairs().get(&pair_string).unwrap(), &pair_tuple);
     }
