@@ -1,7 +1,6 @@
 use crate::config_scheme::config_scheme::ConfigScheme;
 use crate::repository::repositories::{
     MarketRepositoriesByMarketName, Repositories, RepositoryForF64ByTimestamp,
-    WorkerRepositoriesByPairTuple,
 };
 use crate::worker::market_helpers::market_value::MarketValue;
 use crate::worker::market_helpers::pair_average_price::{
@@ -16,7 +15,6 @@ use std::sync::{Arc, Mutex};
 
 pub struct RepositoriesPrepared {
     pub index_price_repository: Option<RepositoryForF64ByTimestamp>,
-    pub pair_average_price_repository: Option<WorkerRepositoriesByPairTuple>,
     pub market_repositories: Option<MarketRepositoriesByMarketName>,
     pub ws_channels_holder: WsChannelsHolderHashMap,
     pub pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
@@ -32,7 +30,7 @@ impl RepositoriesPrepared {
 
         let pair_average_price = make_pair_average_price(
             &config.market,
-            pair_average_price_repository.clone(),
+            pair_average_price_repository,
             &ws_channels_holder,
         );
 
@@ -41,7 +39,6 @@ impl RepositoriesPrepared {
 
         Self {
             index_price_repository,
-            pair_average_price_repository,
             market_repositories,
             ws_channels_holder,
             pair_average_price,

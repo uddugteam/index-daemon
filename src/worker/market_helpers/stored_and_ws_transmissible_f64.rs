@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex};
 pub struct StoredAndWsTransmissibleF64 {
     value: Option<f64>,
     timestamp: DateTime<Utc>,
-    repository: Option<RepositoryForF64ByTimestamp>,
+    pub repository: Option<RepositoryForF64ByTimestamp>,
     ws_channels: Arc<Mutex<WsChannels>>,
     ws_channel_names: Vec<WsChannelName>,
     market_name: Option<String>,

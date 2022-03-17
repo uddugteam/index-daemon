@@ -1,4 +1,4 @@
-use crate::repository::repositories::{RepositoryForF64ByTimestamp, WorkerRepositoriesByPairTuple};
+use crate::repository::repositories::RepositoryForF64ByTimestamp;
 use crate::worker::helper_functions::{date_time_from_timestamp_sec, strip_usd};
 use crate::worker::market_helpers::pair_average_price::StoredAndWsTransmissibleF64ByPairTuple;
 use crate::worker::network_helpers::ws_server::candles::Candles;
@@ -45,7 +45,6 @@ pub struct WsServer {
     pub ws_addr: String,
     pub ws_answer_timeout_ms: u64,
     pub index_price_repository: Option<RepositoryForF64ByTimestamp>,
-    pub pair_average_price_repositories: Option<WorkerRepositoriesByPairTuple>,
     pub pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
     pub graceful_shutdown: Arc<Mutex<bool>>,
 }
@@ -255,7 +254,7 @@ impl WsServer {
         broadcast_recipient: Tx,
         sub_id: Option<JsonRpcId>,
         request: WsMethodRequest,
-        pair_average_price_repositories: Option<WorkerRepositoriesByPairTuple>,
+        pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
     ) -> Option<()> {
         match request.clone() {
             WsMethodRequest::CoinAveragePriceHistorical {
@@ -278,50 +277,50 @@ impl WsServer {
                     .map(date_time_from_timestamp_sec)
                     .unwrap_or_else(Utc::now);
 
-                let repositories = pair_average_price_repositories?;
-
-                if let Some(repository) = repositories.get(&pair_tuple) {
-                    match repository.read_range(from, to) {
-                        Ok(values) => {
-                            let response = match request {
-                                WsMethodRequest::CoinAveragePriceHistorical { .. } => WsChannelResponse {
-                                    id,
-                                    result: WsChannelResponsePayload::CoinAveragePriceHistorical {
-                                        coin,
-                                        values: F64Snapshots::with_interval(
-                                            values, interval,
-                                        ),
+                if let Some(repository) = pair_average_price.get(&pair_tuple) {
+                    if let Some(repository) = &repository.lock().unwrap().repository {
+                        match repository.read_range(from, to) {
+                            Ok(values) => {
+                                let response = match request {
+                                    WsMethodRequest::CoinAveragePriceHistorical { .. } => WsChannelResponse {
+                                        id,
+                                        result: WsChannelResponsePayload::CoinAveragePriceHistorical {
+                                            coin,
+                                            values: F64Snapshots::with_interval(
+                                                values, interval,
+                                            ),
+                                        },
                                     },
-                                },
-                                WsMethodRequest::CoinAveragePriceCandlesHistorical { .. } => WsChannelResponse {
-                                    id,
-                                    result: WsChannelResponsePayload::CoinAveragePriceCandlesHistorical {
-                                        coin,
-                                        values: Candles::calculate(values, interval),
+                                    WsMethodRequest::CoinAveragePriceCandlesHistorical { .. } => WsChannelResponse {
+                                        id,
+                                        result: WsChannelResponsePayload::CoinAveragePriceCandlesHistorical {
+                                            coin,
+                                            values: Candles::calculate(values, interval),
+                                        },
                                     },
-                                },
-                                _ => unreachable!(),
-                            };
-                            let _ = ws_send_response(
-                                &broadcast_recipient,
-                                response,
-                                Some(request.get_method()),
-                            );
-                        }
-                        Err(e) => {
-                            error!(
-                                "Method: {:?}. Read range error: {}",
-                                request.get_method(),
-                                e
-                            );
+                                    _ => unreachable!(),
+                                };
+                                let _ = ws_send_response(
+                                    &broadcast_recipient,
+                                    response,
+                                    Some(request.get_method()),
+                                );
+                            }
+                            Err(e) => {
+                                error!(
+                                    "Method: {:?}. Read range error: {}",
+                                    request.get_method(),
+                                    e
+                                );
 
-                            Self::send_error(
-                                &broadcast_recipient,
-                                sub_id,
-                                Some(request.get_method()),
-                                JSONRPC_ERROR_INTERNAL_ERROR,
-                                "Internal error. Read historical data error.".to_string(),
-                            );
+                                Self::send_error(
+                                    &broadcast_recipient,
+                                    sub_id,
+                                    Some(request.get_method()),
+                                    JSONRPC_ERROR_INTERNAL_ERROR,
+                                    "Internal error. Read historical data error.".to_string(),
+                                );
+                            }
                         }
                     }
                 } else {
@@ -420,7 +419,6 @@ impl WsServer {
         sub_id: Option<JsonRpcId>,
         request: WsMethodRequest,
         index_price_repository: Option<RepositoryForF64ByTimestamp>,
-        pair_average_price_repositories: Option<WorkerRepositoriesByPairTuple>,
         pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
     ) {
         match request.clone() {
@@ -433,12 +431,7 @@ impl WsServer {
             }
             WsMethodRequest::CoinAveragePriceHistorical { .. }
             | WsMethodRequest::CoinAveragePriceCandlesHistorical { .. } => {
-                Self::response_2(
-                    broadcast_recipient,
-                    sub_id,
-                    request,
-                    pair_average_price_repositories,
-                );
+                Self::response_2(broadcast_recipient, sub_id, request, pair_average_price);
             }
         }
     }
@@ -459,7 +452,6 @@ impl WsServer {
         request: Result<WsRequest, String>,
         ws_answer_timeout_ms: u64,
         index_price_repository: Option<RepositoryForF64ByTimestamp>,
-        pair_average_price_repositories: Option<WorkerRepositoriesByPairTuple>,
         pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
     ) {
         match request {
@@ -486,7 +478,6 @@ impl WsServer {
                         sub_id,
                         request,
                         index_price_repository,
-                        pair_average_price_repositories,
                         pair_average_price,
                     );
                 }
@@ -512,7 +503,6 @@ impl WsServer {
         conn_id: &str,
         ws_answer_timeout_ms: u64,
         index_price_repository: &mut Option<RepositoryForF64ByTimestamp>,
-        pair_average_price_repositories: &mut Option<WorkerRepositoriesByPairTuple>,
         pair_average_price: &mut StoredAndWsTransmissibleF64ByPairTuple,
         _graceful_shutdown: &Arc<Mutex<bool>>,
     ) {
@@ -528,7 +518,6 @@ impl WsServer {
                     let conn_id_2 = conn_id.to_string();
                     let ws_channels_holder_2 = ws_channels_holder.clone();
                     let index_price_repository_2 = index_price_repository.clone();
-                    let pair_average_price_repository_2 = pair_average_price_repositories.clone();
                     let pair_average_price_2 = pair_average_price.clone();
 
                     let thread_name = format!(
@@ -548,7 +537,6 @@ impl WsServer {
                                 request,
                                 ws_answer_timeout_ms,
                                 index_price_repository_2,
-                                pair_average_price_repository_2,
                                 pair_average_price_2,
                             )
                         })
@@ -579,7 +567,6 @@ impl WsServer {
         conn_id: String,
         ws_answer_timeout_ms: u64,
         mut index_price_repository: Option<RepositoryForF64ByTimestamp>,
-        mut pair_average_price_repositories: Option<WorkerRepositoriesByPairTuple>,
         mut pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
         graceful_shutdown: Arc<Mutex<bool>>,
     ) {
@@ -606,7 +593,6 @@ impl WsServer {
                         &conn_id,
                         ws_answer_timeout_ms,
                         &mut index_price_repository,
-                        &mut pair_average_price_repositories,
                         &mut pair_average_price,
                         &graceful_shutdown,
                     );
@@ -655,7 +641,6 @@ impl WsServer {
                 conn_id,
                 self.ws_answer_timeout_ms,
                 self.index_price_repository.clone(),
-                self.pair_average_price_repositories.clone(),
                 self.pair_average_price.clone(),
                 Arc::clone(&self.graceful_shutdown),
             ));

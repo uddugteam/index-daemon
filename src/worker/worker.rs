@@ -3,7 +3,7 @@ use crate::config_scheme::market_config::MarketConfig;
 use crate::config_scheme::repositories_prepared::RepositoriesPrepared;
 use crate::config_scheme::service_config::ServiceConfig;
 use crate::repository::repositories::{
-    MarketRepositoriesByMarketName, RepositoryForF64ByTimestamp, WorkerRepositoriesByPairTuple,
+    MarketRepositoriesByMarketName, RepositoryForF64ByTimestamp,
 };
 use crate::worker::market_helpers::market::{market_factory, market_update, Market};
 use crate::worker::market_helpers::market_channels::MarketChannels;
@@ -81,7 +81,6 @@ impl Worker {
         ws_addr: String,
         ws_answer_timeout_ms: u64,
         index_price_repository: Option<RepositoryForF64ByTimestamp>,
-        pair_average_price_repositories: Option<WorkerRepositoriesByPairTuple>,
         pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
         ws_channels_holder: WsChannelsHolderHashMap,
         graceful_shutdown: Arc<Mutex<bool>>,
@@ -98,7 +97,6 @@ impl Worker {
                         ws_addr,
                         ws_answer_timeout_ms,
                         index_price_repository,
-                        pair_average_price_repositories,
                         pair_average_price,
                         graceful_shutdown,
                     };
@@ -112,7 +110,6 @@ impl Worker {
     pub fn start(&mut self, config: ConfigScheme) {
         let RepositoriesPrepared {
             index_price_repository,
-            pair_average_price_repository,
             market_repositories,
             ws_channels_holder,
             pair_average_price,
@@ -155,7 +152,6 @@ impl Worker {
             ws_addr,
             ws_answer_timeout_ms,
             index_price_repository,
-            pair_average_price_repository,
             pair_average_price,
             ws_channels_holder,
             self.graceful_shutdown.clone(),
