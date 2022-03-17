@@ -99,10 +99,10 @@ fn fill_storage(
 }
 
 pub fn fill_historical_data(config: &ConfigScheme) {
-    if config.service.storage.is_some() {
-        let matches = &config.matches;
+    let matches = &config.matches;
 
-        if let Some(fill_historical_config) = get_cli_param_values(matches, "fill_historical") {
+    if let Some(fill_historical_config) = get_cli_param_values(matches, "fill_historical") {
+        if config.service.storage.is_some() {
             info!("Fill historical data begin.");
 
             let (timestamp_from, timestamp_to) = parse_timestamp(&fill_historical_config);
@@ -131,6 +131,8 @@ pub fn fill_historical_data(config: &ConfigScheme) {
             }
 
             info!("Fill historical data end.");
+        } else {
+            panic!("Called with param \"fill_historical\", but with disabled DB.");
         }
     }
 }
