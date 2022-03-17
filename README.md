@@ -72,19 +72,6 @@ Websocket server configs are described above (section _Configs -> service_config
 
 ### Channels
 
-#### available_coins (_not a channel, but a request_)
-
-request json example:
-
-```json
-{
-  "id": "some_id",
-  "jsonrpc": "2.0",
-  "method": "available_coins",
-  "params": {}
-}
-```
-
 #### index_price
 
 subscription request json example:
@@ -151,49 +138,6 @@ subscription request json example:
 }
 ```
 
-#### index_price_historical (_not a channel, but a request_)
-
-- **interval** - interval between snapshots. Variants: second, minute, hour, day, week, month.
-- **from** - timestamp from
-- **to** - timestamp to
-
-request json example:
-
-```json
-{
-  "id": "some_id",
-  "jsonrpc": "2.0",
-  "method": "index_price_historical",
-  "params": {
-    "interval": "day",
-    "from": 1643835600,
-    "to": 1644440400
-  }
-}
-```
-
-#### coin_average_price_historical (_not a channel, but a request_)
-
-- **interval** - interval between snapshots. Variants: second, minute, hour, day, week, month.
-- **from** - timestamp from
-- **to** - timestamp to
-
-request json example:
-
-```json
-{
-  "id": "some_id",
-  "jsonrpc": "2.0",
-  "method": "coin_average_price_historical",
-  "params": {
-    "coin": "BTC",
-    "interval": "day",
-    "from": 1643835600,
-    "to": 1644440400
-  }
-}
-```
-
 #### index_price_candles
 
 subscription request json example:
@@ -206,27 +150,6 @@ subscription request json example:
   "params": {
     "frequency_ms": 50,
     "interval": "day"
-  }
-}
-```
-
-#### index_price_candles_historical (_not a channel, but a request_)
-
-- **interval** - interval between snapshots. Variants: second, minute, hour, day, week, month.
-- **from** - timestamp from
-- **to** - timestamp to
-
-request json example:
-
-```json
-{
-  "id": "some_id",
-  "jsonrpc": "2.0",
-  "method": "index_price_candles_historical",
-  "params": {
-    "interval": "day",
-    "from": 1577826000,
-    "to": 1644872400
   }
 }
 ```
@@ -248,7 +171,86 @@ subscription request json example:
 }
 ```
 
-#### coin_average_price_candles_historical (_not a channel, but a request_)
+### Methods
+
+#### available_coins
+
+request json example:
+
+```json
+{
+  "id": "some_id",
+  "jsonrpc": "2.0",
+  "method": "available_coins",
+  "params": {}
+}
+```
+
+#### index_price_historical
+
+- **interval** - interval between snapshots. Variants: second, minute, hour, day, week, month.
+- **from** - timestamp from
+- **to** - timestamp to
+
+request json example:
+
+```json
+{
+  "id": "some_id",
+  "jsonrpc": "2.0",
+  "method": "index_price_historical",
+  "params": {
+    "interval": "day",
+    "from": 1643835600,
+    "to": 1644440400
+  }
+}
+```
+
+#### coin_average_price_historical
+
+- **interval** - interval between snapshots. Variants: second, minute, hour, day, week, month.
+- **from** - timestamp from
+- **to** - timestamp to
+
+request json example:
+
+```json
+{
+  "id": "some_id",
+  "jsonrpc": "2.0",
+  "method": "coin_average_price_historical",
+  "params": {
+    "coin": "BTC",
+    "interval": "day",
+    "from": 1643835600,
+    "to": 1644440400
+  }
+}
+```
+
+#### index_price_candles_historical
+
+- **interval** - interval between snapshots. Variants: second, minute, hour, day, week, month.
+- **from** - timestamp from
+- **to** - timestamp to
+
+request json example:
+
+```json
+{
+  "id": "some_id",
+  "jsonrpc": "2.0",
+  "method": "index_price_candles_historical",
+  "params": {
+    "interval": "day",
+    "from": 1577826000,
+    "to": 1644872400
+  }
+}
+```
+
+#### coin_average_price_candles_historical
 
 - **interval** - interval between snapshots. Variants: second, minute, hour, day, week, month.
 - **from** - timestamp from
@@ -270,7 +272,7 @@ request json example:
 }
 ```
 
-#### unsubscribe (_not a channel, but a request_)
+#### unsubscribe
 
 request json example:
 
