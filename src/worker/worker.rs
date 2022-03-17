@@ -6,7 +6,7 @@ use crate::repository::repositories::{
     MarketRepositoriesByMarketName, RepositoryForF64ByTimestamp, WorkerRepositoriesByPairTuple,
 };
 use crate::worker::market_helpers::exchange_pair::ExchangePair;
-use crate::worker::market_helpers::market::{market_factory, Market};
+use crate::worker::market_helpers::market::{market_factory, market_update, Market};
 use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
 use crate::worker::market_helpers::pair_average_price::StoredAndWsTransmissibleF64ByPairTuple;
@@ -168,13 +168,13 @@ impl Worker {
             }
 
             let thread_name = format!(
-                "fn: perform, market: {}",
-                market.lock().unwrap().get_spine().name,
+                "fn: market_update, market: {}",
+                market.lock().unwrap().get_spine().name
             );
             let thread = thread::Builder::new()
                 .name(thread_name)
                 .spawn(move || {
-                    market.lock().unwrap().perform();
+                    market_update(market);
                 })
                 .unwrap();
             self.tx.send(thread).unwrap();
@@ -299,7 +299,7 @@ pub mod test {
 
         let mut thread_names = Vec::new();
         for market in &config.market.markets {
-            let thread_name = format!("fn: perform, market: {}", market);
+            let thread_name = format!("fn: market_update, market: {}", market);
             thread_names.push(thread_name);
         }
 

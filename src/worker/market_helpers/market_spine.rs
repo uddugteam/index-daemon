@@ -2,7 +2,6 @@ use crate::repository::repositories::MarketRepositoriesByMarketValue;
 use crate::worker::market_helpers::conversion_type::ConversionType;
 use crate::worker::market_helpers::exchange_pair::ExchangePair;
 use crate::worker::market_helpers::exchange_pair_info::ExchangePairInfo;
-use crate::worker::market_helpers::market::Market;
 use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::market_helpers::pair_average_price::StoredAndWsTransmissibleF64ByPairTuple;
 use crate::worker::market_helpers::stored_and_ws_transmissible_f64::StoredAndWsTransmissibleF64;
@@ -17,7 +16,6 @@ pub const EPS: f64 = 0.00001;
 pub struct MarketSpine {
     pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
     index_price: Arc<Mutex<StoredAndWsTransmissibleF64>>,
-    pub arc: Option<Arc<Mutex<dyn Market + Send>>>,
     pub tx: Sender<JoinHandle<()>>,
     pub rest_timeout_sec: u64,
     pub name: String,
@@ -63,7 +61,6 @@ impl MarketSpine {
         Self {
             pair_average_price,
             index_price,
-            arc: None,
             tx,
             rest_timeout_sec,
             name,
@@ -76,10 +73,6 @@ impl MarketSpine {
             channels,
             graceful_shutdown,
         }
-    }
-
-    pub fn set_arc(&mut self, arc: Arc<Mutex<dyn Market + Send>>) {
-        self.arc = Some(arc);
     }
 
     pub fn add_mask_pairs(&mut self, pairs: Vec<(&str, &str)>) {

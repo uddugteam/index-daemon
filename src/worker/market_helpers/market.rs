@@ -62,12 +62,6 @@ pub fn market_factory(
         _ => panic!("Market not found: {}", spine.name),
     };
 
-    market
-        .lock()
-        .unwrap()
-        .get_spine_mut()
-        .set_arc(Arc::clone(&market));
-
     for exchange_pair in exchange_pairs {
         market.lock().unwrap().add_exchange_pair(
             exchange_pair.clone(),
@@ -165,7 +159,12 @@ fn is_graceful_shutdown(market: &Arc<Mutex<dyn Market + Send>>) -> bool {
         .unwrap()
 }
 
-fn market_update(market: Arc<Mutex<dyn Market + Send>>) {
+pub fn market_update(market: Arc<Mutex<dyn Market + Send>>) {
+    trace!(
+        "called market_update(). Market: {}",
+        market.lock().unwrap().get_spine().name
+    );
+
     let market_is_poloniex = market.lock().unwrap().get_spine().name == "poloniex";
     let market_is_ftx = market.lock().unwrap().get_spine().name == "ftx";
     let market_is_gemini = market.lock().unwrap().get_spine().name == "gemini";
@@ -342,22 +341,6 @@ pub trait Market {
     fn get_channel_text_view(&self, channel: MarketChannels) -> String;
     fn get_websocket_url(&self, pair: &str, channel: MarketChannels) -> String;
     fn get_websocket_on_open_msg(&self, pair: &str, channel: MarketChannels) -> Option<String>;
-
-    fn perform(&mut self) {
-        trace!(
-            "called Market::perform(). Market: {}",
-            self.get_spine().name
-        );
-
-        let market = Arc::clone(self.get_spine().arc.as_ref().unwrap());
-
-        let thread_name = format!("fn: update, market: {}", self.get_spine().name);
-        let thread = thread::Builder::new()
-            .name(thread_name)
-            .spawn(move || market_update(market))
-            .unwrap();
-        self.get_spine().tx.send(thread).unwrap();
-    }
 
     fn get_pair_text_view(&self, pair: String) -> String {
         let pair_text_view = if self.get_spine().name == "poloniex" {
@@ -565,8 +548,6 @@ mod test {
     fn test_market_factory() {
         let (market, _) = make_market(None);
 
-        assert!(market.lock().unwrap().get_spine().arc.is_some());
-
         let config = MarketConfig::default();
         let exchange_pair_keys: Vec<String> = market
             .lock()
@@ -582,22 +563,6 @@ mod test {
             let pair_string = market.lock().unwrap().make_pair(get_pair_ref(&pair.pair));
             assert!(exchange_pair_keys.contains(&pair_string));
         }
-    }
-
-    #[test]
-    #[timeout(3000)]
-    fn test_perform() {
-        let (market, rx) = make_market(None);
-
-        let thread_names = vec![format!(
-            "fn: update, market: {}",
-            market.lock().unwrap().get_spine().name
-        )];
-
-        market.lock().unwrap().perform();
-
-        // TODO: Refactor (not always working)
-        check_threads(thread_names, rx);
     }
 
     #[test]
