@@ -283,8 +283,6 @@ impl WsServer {
                 if let Some(repository) = repositories.get(&pair_tuple) {
                     match repository.read_range(from, to) {
                         Ok(values) => {
-                            let values = values.into_iter().map(|(k, v)| (k, v)).collect();
-
                             let response = match request {
                                 WsMethodRequest::CoinAveragePriceHistorical { .. } => WsChannelResponse {
                                     id,
@@ -370,8 +368,6 @@ impl WsServer {
 
                 match repository.read_range(from, to) {
                     Ok(values) => {
-                        let values = values.into_iter().map(|(k, v)| (k, v)).collect();
-
                         let response = match request {
                             WsMethodRequest::IndexPriceHistorical { .. } => WsChannelResponse {
                                 id,

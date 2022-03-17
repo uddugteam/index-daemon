@@ -60,7 +60,7 @@ impl Repository<DateTime<Utc>, f64> for F64ByTimestampSled {
         &self,
         primary_from: DateTime<Utc>,
         primary_to: DateTime<Utc>,
-    ) -> Result<HashMap<DateTime<Utc>, f64>, String> {
+    ) -> Result<Vec<(DateTime<Utc>, f64)>, String> {
         let key_from = self.stringify_primary(primary_from);
         let key_to = self.stringify_primary(primary_to);
 
@@ -87,7 +87,7 @@ impl Repository<DateTime<Utc>, f64> for F64ByTimestampSled {
 
             Err(error_string)
         } else {
-            let res = oks
+            let mut res: Vec<(DateTime<Utc>, f64)> = oks
                 .into_iter()
                 .map(|(k, v)| {
                     (
@@ -96,6 +96,7 @@ impl Repository<DateTime<Utc>, f64> for F64ByTimestampSled {
                     )
                 })
                 .collect();
+            res.sort_by(|a, b| a.0.cmp(&b.0));
 
             Ok(res)
         }

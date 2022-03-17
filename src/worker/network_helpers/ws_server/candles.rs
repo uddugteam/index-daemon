@@ -8,10 +8,7 @@ pub struct Candles(Vec<Candle>);
 
 impl Candles {
     pub fn calculate(values: Vec<(DateTime<Utc>, f64)>, interval: Interval) -> Self {
-        let mut values: Vec<(i64, f64)> =
-            values.into_iter().map(|v| (v.0.timestamp(), v.1)).collect();
-        values.sort_by(|a, b| a.0.cmp(&b.0));
-
+        let values: Vec<(i64, f64)> = values.into_iter().map(|v| (v.0.timestamp(), v.1)).collect();
         let interval = interval.into_seconds() as i64;
 
         let candles = if !values.is_empty() {
@@ -56,12 +53,7 @@ pub struct Candle {
 }
 
 impl Candle {
-    pub fn calculate(
-        mut values: Vec<(DateTime<Utc>, f64)>,
-        timestamp: DateTime<Utc>,
-    ) -> Option<Self> {
-        values.sort_by(|a, b| a.0.cmp(&b.0));
-
+    pub fn calculate(values: Vec<(DateTime<Utc>, f64)>, timestamp: DateTime<Utc>) -> Option<Self> {
         if !values.is_empty() {
             let open = values.first().unwrap().1;
             let close = values.last().unwrap().1;

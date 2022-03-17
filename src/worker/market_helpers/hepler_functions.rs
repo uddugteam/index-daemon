@@ -71,9 +71,6 @@ pub fn send_ws_response_2(
                     let from = date_time_from_timestamp_sec(from as u64);
 
                     if let Ok(values) = repository.read_range(from, to) {
-                        let values: Vec<(DateTime<Utc>, f64)> =
-                            values.into_iter().map(|(k, v)| (k, v)).collect();
-
                         if !values.is_empty() {
                             let value = Candle::calculate(values, timestamp).unwrap();
 
