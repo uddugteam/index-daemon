@@ -1,5 +1,6 @@
 use crate::repository::repositories::{RepositoryForF64ByTimestamp, WorkerRepositoriesByPairTuple};
 use crate::worker::helper_functions::{date_time_from_timestamp_sec, strip_usd};
+use crate::worker::market_helpers::pair_average_price::PairAveragePriceType;
 use crate::worker::network_helpers::ws_server::candles::Candles;
 use crate::worker::network_helpers::ws_server::channels::ws_channel_action::WsChannelAction;
 use crate::worker::network_helpers::ws_server::channels::ws_channel_subscription_request::WsChannelSubscriptionRequest;
@@ -23,7 +24,7 @@ use async_std::{
     task,
 };
 use async_tungstenite::tungstenite::protocol::Message;
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use futures::{
     channel::mpsc::{unbounded, UnboundedSender},
     future, pin_mut,
@@ -45,6 +46,7 @@ pub struct WsServer {
     pub ws_answer_timeout_ms: u64,
     pub index_price_repository: Option<RepositoryForF64ByTimestamp>,
     pub pair_average_price_repositories: Option<WorkerRepositoriesByPairTuple>,
+    pub pair_average_price: PairAveragePriceType,
     pub graceful_shutdown: Arc<Mutex<bool>>,
 }
 
@@ -195,51 +197,23 @@ impl WsServer {
         }
     }
 
-    fn one_hour_before(timestamp: DateTime<Utc>) -> DateTime<Utc> {
-        let one_hour_in_seconds = 3600;
-        let timestamp = timestamp.timestamp() - one_hour_in_seconds;
-
-        date_time_from_timestamp_sec(timestamp as u64)
-    }
-
     fn response_1(
         broadcast_recipient: Tx,
         sub_id: Option<JsonRpcId>,
         request: WsMethodRequest,
-        pair_average_price_repositories: Option<WorkerRepositoriesByPairTuple>,
+        pair_average_price: PairAveragePriceType,
     ) -> Option<()> {
         match request.clone() {
             WsMethodRequest::AvailableCoins { id } => {
-                let to = Utc::now();
-                let from = Self::one_hour_before(to);
-
-                let repositories = pair_average_price_repositories?;
                 let mut res = Ok(Vec::new());
 
-                for (pair_tuple, repository) in repositories {
+                for (pair_tuple, repository) in pair_average_price {
                     if let Some(coin) = strip_usd(&pair_tuple) {
-                        match repository.read_range(from, to) {
-                            Ok(values) => {
-                                let mut values: Vec<(DateTime<Utc>, f64)> =
-                                    values.into_iter().map(|(k, v)| (k, v)).collect();
-                                values.sort_by(|a, b| a.0.cmp(&b.0));
+                        if let Some(value) = repository.lock().unwrap().get_value() {
+                            let value = CoinPrice { coin, value };
 
-                                let value = *values.last().unwrap();
-                                let value = CoinPrice {
-                                    coin,
-                                    value: value.1,
-                                };
-
-                                if let Ok(v) = res.as_mut() {
-                                    v.push(value);
-                                }
-                            }
-                            Err(e) => {
-                                error!("Available coins. Read range error: {}", e);
-
-                                res =
-                                    Err("Internal error. Read available coins error.".to_string());
-                                break;
+                            if let Ok(v) = res.as_mut() {
+                                v.push(value);
                             }
                         }
                     }
@@ -251,7 +225,7 @@ impl WsServer {
                             id,
                             result: WsChannelResponsePayload::AvailableCoins {
                                 coins,
-                                timestamp: to,
+                                timestamp: Utc::now(),
                             },
                         };
                         let _ = ws_send_response(
@@ -451,15 +425,11 @@ impl WsServer {
         request: WsMethodRequest,
         index_price_repository: Option<RepositoryForF64ByTimestamp>,
         pair_average_price_repositories: Option<WorkerRepositoriesByPairTuple>,
+        pair_average_price: PairAveragePriceType,
     ) {
         match request.clone() {
             WsMethodRequest::AvailableCoins { .. } => {
-                Self::response_1(
-                    broadcast_recipient,
-                    sub_id,
-                    request,
-                    pair_average_price_repositories,
-                );
+                Self::response_1(broadcast_recipient, sub_id, request, pair_average_price);
             }
             WsMethodRequest::IndexPriceHistorical { .. }
             | WsMethodRequest::IndexPriceCandlesHistorical { .. } => {
@@ -494,6 +464,7 @@ impl WsServer {
         ws_answer_timeout_ms: u64,
         index_price_repository: Option<RepositoryForF64ByTimestamp>,
         pair_average_price_repositories: Option<WorkerRepositoriesByPairTuple>,
+        pair_average_price: PairAveragePriceType,
     ) {
         match request {
             Ok(request) => match request {
@@ -520,6 +491,7 @@ impl WsServer {
                         request,
                         index_price_repository,
                         pair_average_price_repositories,
+                        pair_average_price,
                     );
                 }
             },
@@ -545,6 +517,7 @@ impl WsServer {
         ws_answer_timeout_ms: u64,
         index_price_repository: &mut Option<RepositoryForF64ByTimestamp>,
         pair_average_price_repositories: &mut Option<WorkerRepositoriesByPairTuple>,
+        pair_average_price: &mut PairAveragePriceType,
         _graceful_shutdown: &Arc<Mutex<bool>>,
     ) {
         let peers = peer_map.lock().unwrap();
@@ -560,6 +533,7 @@ impl WsServer {
                     let ws_channels_holder_2 = ws_channels_holder.clone();
                     let index_price_repository_2 = index_price_repository.clone();
                     let pair_average_price_repository_2 = pair_average_price_repositories.clone();
+                    let pair_average_price_2 = pair_average_price.clone();
 
                     let thread_name = format!(
                         "fn: process_jsonrpc_request, addr: {}, request: {:?}",
@@ -579,6 +553,7 @@ impl WsServer {
                                 ws_answer_timeout_ms,
                                 index_price_repository_2,
                                 pair_average_price_repository_2,
+                                pair_average_price_2,
                             )
                         })
                         .unwrap();
@@ -609,6 +584,7 @@ impl WsServer {
         ws_answer_timeout_ms: u64,
         mut index_price_repository: Option<RepositoryForF64ByTimestamp>,
         mut pair_average_price_repositories: Option<WorkerRepositoriesByPairTuple>,
+        mut pair_average_price: PairAveragePriceType,
         graceful_shutdown: Arc<Mutex<bool>>,
     ) {
         match async_tungstenite::accept_async(raw_stream).await {
@@ -635,6 +611,7 @@ impl WsServer {
                         ws_answer_timeout_ms,
                         &mut index_price_repository,
                         &mut pair_average_price_repositories,
+                        &mut pair_average_price,
                         &graceful_shutdown,
                     );
                     future::ok(())
@@ -683,6 +660,7 @@ impl WsServer {
                 self.ws_answer_timeout_ms,
                 self.index_price_repository.clone(),
                 self.pair_average_price_repositories.clone(),
+                self.pair_average_price.clone(),
                 Arc::clone(&self.graceful_shutdown),
             ));
         }

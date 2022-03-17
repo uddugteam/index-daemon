@@ -8,9 +8,8 @@ ADD . .
 
 RUN apt-get update && \
 	apt-get dist-upgrade -y -o Dpkg::Options::="--force-confold" && \
-	apt-get install -y cmake pkg-config libssl-dev git clang curl
-
-RUN curl https://sh.rustup.rs -sSf | sh -s -- -y && \
+	apt-get install -y cmake pkg-config libssl-dev git clang curl && \
+        curl https://sh.rustup.rs -sSf | sh -s -- -y && \
 	export PATH="$PATH:$HOME/.cargo/bin" && \
 	cargo build "--$PROFILE"
 
@@ -22,19 +21,15 @@ ARG PROFILE=release
 
 COPY --from=builder /app/target/$PROFILE/index-daemon /usr/local/bin
 
-RUN apt-get update \
-        && apt-get -y install make openssh-client ca-certificates && update-ca-certificates
-
-RUN mv /usr/share/ca* /tmp && \
-	rm -rf /usr/share/*  && \
-	mv /tmp/ca-certificates /usr/share/
-
-# checks
-RUN ldd /usr/local/bin/index-daemon && \
-	/usr/local/bin/index-daemon --version
-
-# Shrinking
-RUN rm -rf /usr/lib/python* && \
-	rm -rf /usr/bin /usr/sbin /usr/share/man
+RUN apt-get update && \
+    apt-get -y install make openssh-client ca-certificates && \
+    update-ca-certificates && \
+    mv /usr/share/ca* /tmp && \
+    rm -rf /usr/share/*  && \
+    mv /tmp/ca-certificates /usr/share/ && \
+    ldd /usr/local/bin/index-daemon && \
+    /usr/local/bin/index-daemon --version && \
+    rm -rf /usr/lib/python* && \
+    rm -rf /usr/bin /usr/sbin /usr/share/man
 
 CMD ["/usr/local/bin/index-daemon"]
