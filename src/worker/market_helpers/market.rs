@@ -446,7 +446,6 @@ mod test {
 
         let RepositoriesPrepared {
             index_price_repository: _,
-            pair_average_price_repository: _,
             market_repositories,
             ws_channels_holder,
             pair_average_price: _,
@@ -478,7 +477,6 @@ mod test {
 
         let RepositoriesPrepared {
             index_price_repository: _,
-            pair_average_price_repository: _,
             market_repositories,
             ws_channels_holder,
             pair_average_price: _,
