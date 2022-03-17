@@ -323,7 +323,7 @@ pub mod test {
         let markets = vec!["binance".to_string(), "bitfinex".to_string()];
         let coins = vec!["ABC".to_string(), "DEF".to_string()];
         let exchange_pairs = make_exchange_pairs(coins, Some(vec!["GHI"]));
-        let index_pairs = exchange_pairs.iter().map(|v| v.clone()).collect();
+        let index_pairs = exchange_pairs.clone();
         let channels = vec![MarketChannels::Ticker];
 
         let config = ConfigScheme {

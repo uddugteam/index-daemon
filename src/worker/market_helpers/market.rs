@@ -542,7 +542,7 @@ mod test {
         assert_eq!(exchange_pair_keys.len(), config.exchange_pairs.len());
 
         for pair in &config.exchange_pairs {
-            let pair_string = market.lock().unwrap().make_pair(get_pair_ref(&pair));
+            let pair_string = market.lock().unwrap().make_pair(get_pair_ref(pair));
             assert!(exchange_pair_keys.contains(&pair_string));
         }
     }

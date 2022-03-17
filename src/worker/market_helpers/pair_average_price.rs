@@ -29,7 +29,7 @@ pub fn make_pair_average_price(
         let pair_average_price = Arc::new(Mutex::new(StoredAndWsTransmissibleF64::new(
             repository
                 .as_mut()
-                .map(|v| v.remove(&exchange_pair).unwrap()),
+                .map(|v| v.remove(exchange_pair).unwrap()),
             vec![
                 WsChannelName::CoinAveragePrice,
                 WsChannelName::CoinAveragePriceCandles,
