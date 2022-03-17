@@ -77,6 +77,7 @@ impl Worker {
         ws_addr: String,
         ws_answer_timeout_ms: u64,
         pair_average_price_repositories: Option<WorkerRepositoriesByPairTuple>,
+        pair_average_price: PairAveragePriceType,
         ws_channels_holder: WsChannelsHolderHashMap,
         graceful_shutdown: Arc<Mutex<bool>>,
     ) {
@@ -92,6 +93,7 @@ impl Worker {
                         ws_addr,
                         ws_answer_timeout_ms,
                         pair_average_price_repositories,
+                        pair_average_price,
                         graceful_shutdown,
                     };
                     ws_server.start();
@@ -134,7 +136,7 @@ impl Worker {
             channels,
             rest_timeout_sec,
             market_repositories,
-            pair_average_price,
+            pair_average_price.clone(),
             &ws_channels_holder,
         );
         self.start_ws(
@@ -142,6 +144,7 @@ impl Worker {
             ws_addr,
             ws_answer_timeout_ms,
             pair_average_price_repository,
+            pair_average_price,
             ws_channels_holder,
             self.graceful_shutdown.clone(),
         );
