@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::option::Option::Some;
 use std::sync::{Arc, Mutex};
 
-pub type WsChannelsHolderKey = (String, MarketValue, (String, String));
+pub type WsChannelsHolderKey = (String, MarketValue, Option<(String, String)>);
 pub type WsChannelsHolderHashMap = HashMap<WsChannelsHolderKey, Arc<Mutex<WsChannels>>>;
 
 #[derive(Clone)]
@@ -21,11 +21,14 @@ impl WsChannelsHolder {
     pub fn make_hashmap(market_config: &MarketConfig) -> WsChannelsHolderHashMap {
         let mut ws_channels_holder = HashMap::new();
 
+        let key = ("worker".to_string(), MarketValue::IndexPrice, None);
+        ws_channels_holder.insert(key, Arc::new(Mutex::new(WsChannels::new())));
+
         for exchange_pair in &market_config.exchange_pairs {
             let key = (
                 "worker".to_string(),
                 MarketValue::PairAveragePrice,
-                exchange_pair.pair.clone(),
+                Some(exchange_pair.clone()),
             );
             ws_channels_holder.insert(key, Arc::new(Mutex::new(WsChannels::new())));
         }
@@ -40,7 +43,7 @@ impl WsChannelsHolder {
                     let key = (
                         market_name.to_string(),
                         market_value,
-                        exchange_pair.pair.clone(),
+                        Some(exchange_pair.clone()),
                     );
                     ws_channels_holder.insert(key, Arc::new(Mutex::new(WsChannels::new())));
                 }

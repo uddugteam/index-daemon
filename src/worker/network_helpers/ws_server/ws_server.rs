@@ -1,6 +1,6 @@
-use crate::repository::repositories::WorkerRepositoriesByPairTuple;
+use crate::repository::repositories::RepositoryForF64ByTimestamp;
 use crate::worker::helper_functions::{date_time_from_timestamp_sec, strip_usd};
-use crate::worker::market_helpers::pair_average_price::PairAveragePriceType;
+use crate::worker::market_helpers::pair_average_price::StoredAndWsTransmissibleF64ByPairTuple;
 use crate::worker::network_helpers::ws_server::candles::Candles;
 use crate::worker::network_helpers::ws_server::channels::ws_channel_action::WsChannelAction;
 use crate::worker::network_helpers::ws_server::channels::ws_channel_subscription_request::WsChannelSubscriptionRequest;
@@ -44,8 +44,8 @@ pub struct WsServer {
     pub ws_channels_holder: WsChannelsHolder,
     pub ws_addr: String,
     pub ws_answer_timeout_ms: u64,
-    pub pair_average_price_repositories: Option<WorkerRepositoriesByPairTuple>,
-    pub pair_average_price: PairAveragePriceType,
+    pub index_price_repository: Option<RepositoryForF64ByTimestamp>,
+    pub pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
     pub graceful_shutdown: Arc<Mutex<bool>>,
 }
 
@@ -130,11 +130,14 @@ impl WsServer {
         };
 
         let market_value = request.get_method().get_market_value();
-        let pairs: Vec<(String, String)> = request
-            .get_coins()
-            .iter()
-            .map(|v| (v.to_string(), "USD".to_string()))
-            .collect();
+        let pairs: Vec<Option<(String, String)>> = match request.get_coins() {
+            Some(coins) => coins
+                .iter()
+                .map(|v| (v.to_string(), "USD".to_string()))
+                .map(Some)
+                .collect(),
+            None => vec![None],
+        };
 
         Self::unsubscribe(ws_channels_holder, conn_id.clone(), request.clone().into());
 
@@ -193,14 +196,12 @@ impl WsServer {
         }
     }
 
-    /// Prepares response data and sends to recipient
-    fn do_response(
+    fn response_1(
         broadcast_recipient: Tx,
         sub_id: Option<JsonRpcId>,
         request: WsMethodRequest,
-        pair_average_price_repositories: Option<WorkerRepositoriesByPairTuple>,
-        pair_average_price: PairAveragePriceType,
-    ) {
+        pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
+    ) -> Option<()> {
         match request.clone() {
             WsMethodRequest::AvailableCoins { id } => {
                 let mut res = Ok(Vec::new());
@@ -243,6 +244,19 @@ impl WsServer {
                     }
                 }
             }
+            _ => unreachable!(),
+        }
+
+        Some(())
+    }
+
+    fn response_2(
+        broadcast_recipient: Tx,
+        sub_id: Option<JsonRpcId>,
+        request: WsMethodRequest,
+        pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
+    ) -> Option<()> {
+        match request.clone() {
             WsMethodRequest::CoinAveragePriceHistorical {
                 id,
                 coin,
@@ -263,12 +277,10 @@ impl WsServer {
                     .map(date_time_from_timestamp_sec)
                     .unwrap_or_else(Utc::now);
 
-                if let Some(repositories) = pair_average_price_repositories {
-                    if let Some(repository) = repositories.get(&pair_tuple) {
+                if let Some(repository) = pair_average_price.get(&pair_tuple) {
+                    if let Some(repository) = &repository.lock().unwrap().repository {
                         match repository.read_range(from, to) {
                             Ok(values) => {
-                                let values = values.into_iter().map(|(k, v)| (k, v)).collect();
-
                                 let response = match request {
                                     WsMethodRequest::CoinAveragePriceHistorical { .. } => WsChannelResponse {
                                         id,
@@ -295,7 +307,11 @@ impl WsServer {
                                 );
                             }
                             Err(e) => {
-                                error!("Historical. Read range error: {}", e);
+                                error!(
+                                    "Method: {:?}. Read range error: {}",
+                                    request.get_method(),
+                                    e
+                                );
 
                                 Self::send_error(
                                     &broadcast_recipient,
@@ -306,16 +322,116 @@ impl WsServer {
                                 );
                             }
                         }
-                    } else {
+                    }
+                } else {
+                    Self::send_error(
+                        &broadcast_recipient,
+                        sub_id,
+                        Some(request.get_method()),
+                        JSONRPC_ERROR_INVALID_PARAMS,
+                        format!("Coin {} not supported.", coin),
+                    );
+                }
+            }
+            _ => unreachable!(),
+        }
+
+        Some(())
+    }
+
+    fn response_3(
+        broadcast_recipient: Tx,
+        sub_id: Option<JsonRpcId>,
+        request: WsMethodRequest,
+        index_price_repository: Option<RepositoryForF64ByTimestamp>,
+    ) -> Option<()> {
+        match request.clone() {
+            WsMethodRequest::IndexPriceHistorical {
+                id,
+                interval,
+                from,
+                to,
+            }
+            | WsMethodRequest::IndexPriceCandlesHistorical {
+                id,
+                interval,
+                from,
+                to,
+            } => {
+                let from = date_time_from_timestamp_sec(from);
+                let to = to
+                    .map(date_time_from_timestamp_sec)
+                    .unwrap_or_else(Utc::now);
+
+                let repository = index_price_repository?;
+
+                match repository.read_range(from, to) {
+                    Ok(values) => {
+                        let response = match request {
+                            WsMethodRequest::IndexPriceHistorical { .. } => WsChannelResponse {
+                                id,
+                                result: WsChannelResponsePayload::IndexPriceHistorical {
+                                    values: F64Snapshots::with_interval(values, interval),
+                                },
+                            },
+                            WsMethodRequest::IndexPriceCandlesHistorical { .. } => {
+                                WsChannelResponse {
+                                    id,
+                                    result: WsChannelResponsePayload::IndexPriceCandlesHistorical {
+                                        values: Candles::calculate(values, interval),
+                                    },
+                                }
+                            }
+                            _ => unreachable!(),
+                        };
+                        let _ = ws_send_response(
+                            &broadcast_recipient,
+                            response,
+                            Some(request.get_method()),
+                        );
+                    }
+                    Err(e) => {
+                        error!(
+                            "Method: {:?}. Read range error: {}",
+                            request.get_method(),
+                            e
+                        );
+
                         Self::send_error(
                             &broadcast_recipient,
                             sub_id,
                             Some(request.get_method()),
-                            JSONRPC_ERROR_INVALID_PARAMS,
-                            format!("Coin {} not supported.", coin),
+                            JSONRPC_ERROR_INTERNAL_ERROR,
+                            "Internal error. Read historical data error.".to_string(),
                         );
                     }
                 }
+            }
+            _ => unreachable!(),
+        }
+
+        Some(())
+    }
+
+    /// Prepares response data and sends to recipient
+    fn do_response(
+        broadcast_recipient: Tx,
+        sub_id: Option<JsonRpcId>,
+        request: WsMethodRequest,
+        index_price_repository: Option<RepositoryForF64ByTimestamp>,
+        pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
+    ) {
+        match request.clone() {
+            WsMethodRequest::AvailableCoins { .. } => {
+                Self::response_1(broadcast_recipient, sub_id, request, pair_average_price);
+            }
+            WsMethodRequest::IndexPriceHistorical { .. }
+            | WsMethodRequest::IndexPriceCandlesHistorical { .. } => {
+                Self::response_3(broadcast_recipient, sub_id, request, index_price_repository);
+            }
+            WsMethodRequest::CoinAveragePriceHistorical { .. }
+            | WsMethodRequest::CoinAveragePriceCandlesHistorical { .. } => {
+                Self::response_2(broadcast_recipient, sub_id, request, pair_average_price);
             }
         }
     }
@@ -335,8 +451,8 @@ impl WsServer {
         method: WsChannelName,
         request: Result<WsRequest, String>,
         ws_answer_timeout_ms: u64,
-        pair_average_price_repositories: Option<WorkerRepositoriesByPairTuple>,
-        pair_average_price: PairAveragePriceType,
+        index_price_repository: Option<RepositoryForF64ByTimestamp>,
+        pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
     ) {
         match request {
             Ok(request) => match request {
@@ -361,7 +477,7 @@ impl WsServer {
                         broadcast_recipient,
                         sub_id,
                         request,
-                        pair_average_price_repositories,
+                        index_price_repository,
                         pair_average_price,
                     );
                 }
@@ -386,8 +502,8 @@ impl WsServer {
         client_addr: SocketAddr,
         conn_id: &str,
         ws_answer_timeout_ms: u64,
-        pair_average_price_repositories: &mut Option<WorkerRepositoriesByPairTuple>,
-        pair_average_price: &mut PairAveragePriceType,
+        index_price_repository: &mut Option<RepositoryForF64ByTimestamp>,
+        pair_average_price: &mut StoredAndWsTransmissibleF64ByPairTuple,
         _graceful_shutdown: &Arc<Mutex<bool>>,
     ) {
         let peers = peer_map.lock().unwrap();
@@ -401,7 +517,7 @@ impl WsServer {
 
                     let conn_id_2 = conn_id.to_string();
                     let ws_channels_holder_2 = ws_channels_holder.clone();
-                    let pair_average_price_repository_2 = pair_average_price_repositories.clone();
+                    let index_price_repository_2 = index_price_repository.clone();
                     let pair_average_price_2 = pair_average_price.clone();
 
                     let thread_name = format!(
@@ -420,7 +536,7 @@ impl WsServer {
                                 method,
                                 request,
                                 ws_answer_timeout_ms,
-                                pair_average_price_repository_2,
+                                index_price_repository_2,
                                 pair_average_price_2,
                             )
                         })
@@ -450,8 +566,8 @@ impl WsServer {
         client_addr: SocketAddr,
         conn_id: String,
         ws_answer_timeout_ms: u64,
-        mut pair_average_price_repositories: Option<WorkerRepositoriesByPairTuple>,
-        mut pair_average_price: PairAveragePriceType,
+        mut index_price_repository: Option<RepositoryForF64ByTimestamp>,
+        mut pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
         graceful_shutdown: Arc<Mutex<bool>>,
     ) {
         match async_tungstenite::accept_async(raw_stream).await {
@@ -476,7 +592,7 @@ impl WsServer {
                         client_addr,
                         &conn_id,
                         ws_answer_timeout_ms,
-                        &mut pair_average_price_repositories,
+                        &mut index_price_repository,
                         &mut pair_average_price,
                         &graceful_shutdown,
                     );
@@ -524,7 +640,7 @@ impl WsServer {
                 client_addr,
                 conn_id,
                 self.ws_answer_timeout_ms,
-                self.pair_average_price_repositories.clone(),
+                self.index_price_repository.clone(),
                 self.pair_average_price.clone(),
                 Arc::clone(&self.graceful_shutdown),
             ));

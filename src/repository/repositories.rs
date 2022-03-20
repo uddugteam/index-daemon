@@ -16,6 +16,7 @@ pub type MarketRepositoriesByMarketName = HashMap<String, MarketRepositoriesByPa
 pub struct Repositories {
     pub pair_average_price: WorkerRepositoriesByPairTuple,
     pub market_repositories: MarketRepositoriesByMarketName,
+    pub index_repository: RepositoryForF64ByTimestamp,
 }
 
 impl Repositories {
@@ -33,6 +34,7 @@ impl Repositories {
                         config,
                         Arc::clone(tree),
                     ),
+                    index_repository: Self::make_index_repository_sled(config, Arc::clone(tree)),
                 }),
             },
             None => None,
@@ -44,13 +46,15 @@ impl Repositories {
     ) -> (
         Option<WorkerRepositoriesByPairTuple>,
         Option<MarketRepositoriesByMarketName>,
+        Option<RepositoryForF64ByTimestamp>,
     ) {
         match config {
             Some(config) => (
                 Some(config.pair_average_price),
                 Some(config.market_repositories),
+                Some(config.index_repository),
             ),
-            None => (None, None),
+            None => (None, None, None),
         }
     }
 
@@ -63,7 +67,7 @@ impl Repositories {
 
         let mut hash_map = HashMap::new();
         for exchange_pair in &market_config.exchange_pairs {
-            let pair = format!("{}_{}", exchange_pair.pair.0, exchange_pair.pair.1);
+            let pair = format!("{}_{}", exchange_pair.0, exchange_pair.1);
             let entity_name = format!(
                 "worker__{}__{}",
                 MarketValue::PairAveragePrice.to_string(),
@@ -76,7 +80,7 @@ impl Repositories {
                 service_config.historical_storage_frequency_ms,
             ));
 
-            hash_map.insert(exchange_pair.pair.clone(), repository);
+            hash_map.insert(exchange_pair.clone(), repository);
         }
 
         hash_map
@@ -101,11 +105,11 @@ impl Repositories {
 
             for exchange_pair in &market_config.exchange_pairs {
                 let hash_map = hash_map
-                    .entry(exchange_pair.pair.clone())
+                    .entry(exchange_pair.clone())
                     .or_insert(HashMap::new());
 
                 for market_value in market_values {
-                    let pair = format!("{}_{}", exchange_pair.pair.0, exchange_pair.pair.1);
+                    let pair = format!("{}_{}", exchange_pair.0, exchange_pair.1);
                     let entity_name = format!(
                         "market__{}__{}__{}",
                         market_name,
@@ -126,5 +130,20 @@ impl Repositories {
         }
 
         hash_map
+    }
+
+    pub fn make_index_repository_sled(
+        config: &ConfigScheme,
+        tree: Arc<Mutex<vsdbsled::Db>>,
+    ) -> RepositoryForF64ByTimestamp {
+        let service_config = &config.service;
+
+        let entity_name = format!("worker__{}", MarketValue::IndexPrice.to_string());
+
+        Box::new(F64ByTimestampSled::new(
+            entity_name,
+            Arc::clone(&tree),
+            service_config.historical_storage_frequency_ms,
+        ))
     }
 }

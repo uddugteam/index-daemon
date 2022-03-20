@@ -3,13 +3,13 @@ use crate::config_scheme::market_config::MarketConfig;
 use crate::config_scheme::repositories_prepared::RepositoriesPrepared;
 use crate::config_scheme::service_config::ServiceConfig;
 use crate::repository::repositories::{
-    MarketRepositoriesByMarketName, WorkerRepositoriesByPairTuple,
+    MarketRepositoriesByMarketName, RepositoryForF64ByTimestamp,
 };
-use crate::worker::market_helpers::exchange_pair::ExchangePair;
-use crate::worker::market_helpers::market::{market_factory, Market};
+use crate::worker::market_helpers::market::{market_factory, market_update, Market};
 use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
-use crate::worker::market_helpers::pair_average_price::PairAveragePriceType;
+use crate::worker::market_helpers::pair_average_price::StoredAndWsTransmissibleF64ByPairTuple;
+use crate::worker::market_helpers::stored_and_ws_transmissible_f64::StoredAndWsTransmissibleF64;
 use crate::worker::network_helpers::ws_server::ws_channels_holder::{
     WsChannelsHolder, WsChannelsHolderHashMap,
 };
@@ -41,11 +41,13 @@ impl Worker {
     fn configure(
         &mut self,
         markets: Vec<&str>,
-        exchange_pairs: Vec<ExchangePair>,
+        exchange_pairs: Vec<(String, String)>,
         channels: Vec<MarketChannels>,
         rest_timeout_sec: u64,
         repositories: Option<MarketRepositoriesByMarketName>,
-        pair_average_price: PairAveragePriceType,
+        pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
+        index_price: Arc<Mutex<StoredAndWsTransmissibleF64>>,
+        index_pairs: Vec<(String, String)>,
         ws_channels_holder: &WsChannelsHolderHashMap,
     ) {
         let mut repositories = repositories.unwrap_or_default();
@@ -54,6 +56,8 @@ impl Worker {
             let pair_average_price_2 = pair_average_price.clone();
             let market_spine = MarketSpine::new(
                 pair_average_price_2,
+                Arc::clone(&index_price),
+                index_pairs.clone(),
                 self.tx.clone(),
                 rest_timeout_sec,
                 market_name.to_string(),
@@ -76,8 +80,8 @@ impl Worker {
         ws: bool,
         ws_addr: String,
         ws_answer_timeout_ms: u64,
-        pair_average_price_repositories: Option<WorkerRepositoriesByPairTuple>,
-        pair_average_price: PairAveragePriceType,
+        index_price_repository: Option<RepositoryForF64ByTimestamp>,
+        pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
         ws_channels_holder: WsChannelsHolderHashMap,
         graceful_shutdown: Arc<Mutex<bool>>,
     ) {
@@ -92,7 +96,7 @@ impl Worker {
                         ws_channels_holder,
                         ws_addr,
                         ws_answer_timeout_ms,
-                        pair_average_price_repositories,
+                        index_price_repository,
                         pair_average_price,
                         graceful_shutdown,
                     };
@@ -105,10 +109,11 @@ impl Worker {
 
     pub fn start(&mut self, config: ConfigScheme) {
         let RepositoriesPrepared {
-            pair_average_price_repository,
+            index_price_repository,
             market_repositories,
             ws_channels_holder,
             pair_average_price,
+            index_price,
         } = RepositoriesPrepared::make(&config);
 
         let ConfigScheme {
@@ -117,6 +122,7 @@ impl Worker {
         let MarketConfig {
             markets,
             exchange_pairs,
+            index_pairs,
             channels,
         } = market;
         let ServiceConfig {
@@ -137,13 +143,15 @@ impl Worker {
             rest_timeout_sec,
             market_repositories,
             pair_average_price.clone(),
+            index_price,
+            index_pairs,
             &ws_channels_holder,
         );
         self.start_ws(
             ws,
             ws_addr,
             ws_answer_timeout_ms,
-            pair_average_price_repository,
+            index_price_repository,
             pair_average_price,
             ws_channels_holder,
             self.graceful_shutdown.clone(),
@@ -155,13 +163,13 @@ impl Worker {
             }
 
             let thread_name = format!(
-                "fn: perform, market: {}",
-                market.lock().unwrap().get_spine().name,
+                "fn: market_update, market: {}",
+                market.lock().unwrap().get_spine().name
             );
             let thread = thread::Builder::new()
                 .name(thread_name)
                 .spawn(move || {
-                    market.lock().unwrap().perform();
+                    market_update(market);
                 })
                 .unwrap();
             self.tx.send(thread).unwrap();
@@ -175,7 +183,6 @@ pub mod test {
     use crate::config_scheme::helper_functions::make_exchange_pairs;
     use crate::config_scheme::market_config::MarketConfig;
     use crate::config_scheme::repositories_prepared::RepositoriesPrepared;
-    use crate::worker::market_helpers::exchange_pair::ExchangePair;
     use crate::worker::market_helpers::market_channels::MarketChannels;
     use crate::worker::worker::Worker;
     use ntest::timeout;
@@ -211,7 +218,7 @@ pub mod test {
 
     fn test_configure(
         markets: Vec<&str>,
-        exchange_pairs: Vec<ExchangePair>,
+        exchange_pairs: Vec<(String, String)>,
         channels: Vec<MarketChannels>,
     ) {
         let (mut worker, _, _) = make_worker();
@@ -221,10 +228,11 @@ pub mod test {
         config.market.exchange_pairs = exchange_pairs.clone();
 
         let RepositoriesPrepared {
-            pair_average_price_repository: _,
+            index_price_repository: _,
             market_repositories,
             ws_channels_holder,
             pair_average_price,
+            index_price,
         } = RepositoriesPrepared::make(&config);
 
         worker.configure(
@@ -234,6 +242,8 @@ pub mod test {
             1,
             market_repositories,
             pair_average_price,
+            index_price,
+            config.market.index_pairs,
             &ws_channels_holder,
         );
 
@@ -282,7 +292,7 @@ pub mod test {
 
         let mut thread_names = Vec::new();
         for market in &config.market.markets {
-            let thread_name = format!("fn: perform, market: {}", market);
+            let thread_name = format!("fn: market_update, market: {}", market);
             thread_names.push(thread_name);
         }
 
@@ -308,12 +318,14 @@ pub mod test {
         let markets = vec!["binance".to_string(), "bitfinex".to_string()];
         let coins = vec!["ABC".to_string(), "DEF".to_string()];
         let exchange_pairs = make_exchange_pairs(coins, Some(vec!["GHI"]));
+        let index_pairs = exchange_pairs.clone();
         let channels = vec![MarketChannels::Ticker];
 
         let config = ConfigScheme {
             market: MarketConfig {
                 markets,
                 exchange_pairs,
+                index_pairs,
                 channels,
             },
             ..ConfigScheme::default()

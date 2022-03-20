@@ -1,5 +1,3 @@
-pub mod conversion_type;
-pub mod exchange_pair;
 pub mod exchange_pair_info;
 pub mod hepler_functions;
 pub mod market;

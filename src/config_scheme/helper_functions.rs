@@ -1,7 +1,5 @@
 use crate::config_scheme::storage::Storage;
 use crate::worker::defaults::{COINS, FIATS, MARKETS};
-use crate::worker::market_helpers::conversion_type::ConversionType;
-use crate::worker::market_helpers::exchange_pair::ExchangePair;
 use crate::worker::market_helpers::market_channels::MarketChannels;
 use clap::ArgMatches;
 use env_logger::Builder;
@@ -55,7 +53,7 @@ pub fn get_default_coins() -> Vec<String> {
     COINS.into_iter().map(|v| v.to_string()).collect()
 }
 
-pub fn get_default_exchange_pairs() -> Vec<ExchangePair> {
+pub fn get_default_exchange_pairs() -> Vec<(String, String)> {
     make_exchange_pairs(get_default_coins(), None)
 }
 
@@ -83,19 +81,54 @@ pub fn get_default_storage(historical: bool) -> Option<Storage> {
     }
 }
 
-pub fn make_exchange_pairs(coins: Vec<String>, fiats: Option<Vec<&str>>) -> Vec<ExchangePair> {
+pub fn make_pairs(coins: Vec<String>, fiats: Option<Vec<&str>>) -> Vec<(String, String)> {
+    let mut pairs = Vec::new();
+
+    let fiats = fiats.unwrap_or(FIATS.to_vec());
+
+    for coin in coins {
+        for fiat in &fiats {
+            pairs.push((coin.to_string(), fiat.to_string()));
+        }
+    }
+
+    pairs
+}
+
+pub fn make_exchange_pairs(coins: Vec<String>, fiats: Option<Vec<&str>>) -> Vec<(String, String)> {
     let mut exchange_pairs = Vec::new();
 
     let fiats = fiats.unwrap_or(FIATS.to_vec());
 
     for coin in coins {
         for fiat in &fiats {
-            exchange_pairs.push(ExchangePair {
-                pair: (coin.to_string(), fiat.to_string()),
-                conversion: ConversionType::None,
-            });
+            exchange_pairs.push((coin.to_string(), fiat.to_string()));
         }
     }
 
     exchange_pairs
+}
+
+pub fn is_subset<T: PartialEq>(set: &[T], subset: &[T]) -> bool {
+    for item in subset {
+        if !set.contains(item) {
+            return false;
+        }
+    }
+
+    true
+}
+
+pub fn has_no_duplicates<T: PartialEq>(set: &[T]) -> bool {
+    let mut new_set = Vec::new();
+
+    for item in set {
+        if !new_set.contains(&item) {
+            new_set.push(item);
+        } else {
+            return false;
+        }
+    }
+
+    true
 }

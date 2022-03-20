@@ -3,9 +3,11 @@ use crate::worker::network_helpers::ws_server::hepler_functions::ws_send_respons
 use crate::worker::network_helpers::ws_server::ws_channel_response::WsChannelResponse;
 use crate::worker::network_helpers::ws_server::ws_channel_response_payload::WsChannelResponsePayload;
 use async_tungstenite::tungstenite::protocol::Message;
-use chrono::{DateTime, Utc, MIN_DATETIME};
+use chrono::{DateTime, Utc, MAX_DATETIME, MIN_DATETIME};
 use futures::channel::mpsc::{TrySendError, UnboundedSender};
 use std::cmp;
+use std::thread;
+use std::time;
 
 type Tx = UnboundedSender<Message>;
 
@@ -58,9 +60,16 @@ impl WsChannelResponseSender {
         &mut self,
         response: WsChannelResponse,
     ) -> Option<Result<(), TrySendError<Message>>> {
-        let timestamp = response.result.get_timestamp();
-
         if let Some(frequency_ms) = self.request.get_frequency_ms() {
+            let timestamp = if let Some(timestamp) = response.result.get_timestamp() {
+                timestamp
+            } else {
+                // We sleep because if we send response immediately, there will bw an opportunity to DDoS our server
+                thread::sleep(time::Duration::from_millis(frequency_ms));
+
+                MAX_DATETIME
+            };
+
             if (timestamp - self.last_send_timestamp).num_milliseconds() as u64 > frequency_ms {
                 // Enough time passed
                 self.last_send_timestamp = Utc::now();

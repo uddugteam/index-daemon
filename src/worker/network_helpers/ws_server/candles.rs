@@ -3,15 +3,12 @@ use crate::worker::network_helpers::ws_server::interval::Interval;
 use crate::worker::network_helpers::ws_server::ser_date_into_timestamp;
 use chrono::{DateTime, Utc};
 
-#[derive(Serialize, Clone)]
+#[derive(Debug, Serialize, Clone)]
 pub struct Candles(Vec<Candle>);
 
 impl Candles {
     pub fn calculate(values: Vec<(DateTime<Utc>, f64)>, interval: Interval) -> Self {
-        let mut values: Vec<(i64, f64)> =
-            values.into_iter().map(|v| (v.0.timestamp(), v.1)).collect();
-        values.sort_by(|a, b| a.0.cmp(&b.0));
-
+        let values: Vec<(i64, f64)> = values.into_iter().map(|v| (v.0.timestamp(), v.1)).collect();
         let interval = interval.into_seconds() as i64;
 
         let candles = if !values.is_empty() {
@@ -19,13 +16,13 @@ impl Candles {
             let mut chunks = Vec::new();
             chunks.push(Vec::new());
             values.into_iter().for_each(|(t, v)| {
-                if t < last_to {
-                    let t = date_time_from_timestamp_sec(t as u64);
-                    chunks.last_mut().unwrap().push((t, v));
-                } else {
+                if last_to > t {
                     chunks.push(Vec::new());
                     last_to += interval;
                 }
+
+                let t = date_time_from_timestamp_sec(t as u64);
+                chunks.last_mut().unwrap().push((t, v));
             });
 
             chunks
@@ -44,7 +41,7 @@ impl Candles {
     }
 }
 
-#[derive(Serialize, Clone)]
+#[derive(Debug, Serialize, Clone)]
 pub struct Candle {
     open: f64,
     close: f64,
@@ -56,12 +53,7 @@ pub struct Candle {
 }
 
 impl Candle {
-    pub fn calculate(
-        mut values: Vec<(DateTime<Utc>, f64)>,
-        timestamp: DateTime<Utc>,
-    ) -> Option<Self> {
-        values.sort_by(|a, b| a.0.cmp(&b.0));
-
+    pub fn calculate(values: Vec<(DateTime<Utc>, f64)>, timestamp: DateTime<Utc>) -> Option<Self> {
         if !values.is_empty() {
             let open = values.first().unwrap().1;
             let close = values.last().unwrap().1;

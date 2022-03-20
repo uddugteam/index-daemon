@@ -2,7 +2,6 @@ use crate::repository::repositories::{
     MarketRepositoriesByMarketValue, MarketRepositoriesByPairTuple,
 };
 use crate::worker::helper_functions::get_pair_ref;
-use crate::worker::market_helpers::exchange_pair::ExchangePair;
 use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
 use crate::worker::markets::binance::Binance;
@@ -27,7 +26,7 @@ use std::time;
 
 pub fn market_factory(
     mut spine: MarketSpine,
-    exchange_pairs: Vec<ExchangePair>,
+    exchange_pairs: Vec<(String, String)>,
     repositories: Option<MarketRepositoriesByPairTuple>,
     ws_channels_holder: &WsChannelsHolderHashMap,
 ) -> Arc<Mutex<dyn Market + Send>> {
@@ -62,16 +61,10 @@ pub fn market_factory(
         _ => panic!("Market not found: {}", spine.name),
     };
 
-    market
-        .lock()
-        .unwrap()
-        .get_spine_mut()
-        .set_arc(Arc::clone(&market));
-
     for exchange_pair in exchange_pairs {
         market.lock().unwrap().add_exchange_pair(
             exchange_pair.clone(),
-            repositories.remove(&exchange_pair.pair),
+            repositories.remove(&exchange_pair),
             ws_channels_holder,
         );
     }
@@ -165,7 +158,12 @@ fn is_graceful_shutdown(market: &Arc<Mutex<dyn Market + Send>>) -> bool {
         .unwrap()
 }
 
-fn update(market: Arc<Mutex<dyn Market + Send>>) {
+pub fn market_update(market: Arc<Mutex<dyn Market + Send>>) {
+    trace!(
+        "called market_update(). Market: {}",
+        market.lock().unwrap().get_spine().name
+    );
+
     let market_is_poloniex = market.lock().unwrap().get_spine().name == "poloniex";
     let market_is_ftx = market.lock().unwrap().get_spine().name == "ftx";
     let market_is_gemini = market.lock().unwrap().get_spine().name == "gemini";
@@ -295,11 +293,11 @@ pub trait Market {
 
     fn add_exchange_pair(
         &mut self,
-        exchange_pair: ExchangePair,
+        exchange_pair: (String, String),
         repositories: Option<MarketRepositoriesByMarketValue>,
         ws_channels_holder: &WsChannelsHolderHashMap,
     ) {
-        let pair_string = self.make_pair(get_pair_ref(&exchange_pair.pair));
+        let pair_string = self.make_pair(get_pair_ref(&exchange_pair));
         self.get_spine_mut().add_exchange_pair(
             pair_string,
             exchange_pair,
@@ -342,22 +340,6 @@ pub trait Market {
     fn get_channel_text_view(&self, channel: MarketChannels) -> String;
     fn get_websocket_url(&self, pair: &str, channel: MarketChannels) -> String;
     fn get_websocket_on_open_msg(&self, pair: &str, channel: MarketChannels) -> Option<String>;
-
-    fn perform(&mut self) {
-        trace!(
-            "called Market::perform(). Market: {}",
-            self.get_spine().name
-        );
-
-        let market = Arc::clone(self.get_spine().arc.as_ref().unwrap());
-
-        let thread_name = format!("fn: update, market: {}", self.get_spine().name);
-        let thread = thread::Builder::new()
-            .name(thread_name)
-            .spawn(move || update(market))
-            .unwrap();
-        self.get_spine().tx.send(thread).unwrap();
-    }
 
     fn get_pair_text_view(&self, pair: String) -> String {
         let pair_text_view = if self.get_spine().name == "poloniex" {
@@ -448,9 +430,7 @@ mod test {
     use crate::config_scheme::market_config::MarketConfig;
     use crate::config_scheme::repositories_prepared::RepositoriesPrepared;
     use crate::worker::helper_functions::get_pair_ref;
-    use crate::worker::market_helpers::conversion_type::ConversionType;
-    use crate::worker::market_helpers::exchange_pair::ExchangePair;
-    use crate::worker::market_helpers::market::{market_factory, update, Market};
+    use crate::worker::market_helpers::market::{market_factory, market_update, Market};
     use crate::worker::market_helpers::market_channels::MarketChannels;
     use crate::worker::market_helpers::market_spine::test::make_spine;
     use crate::worker::worker::test::check_threads;
@@ -465,10 +445,11 @@ mod test {
         let config = ConfigScheme::default();
 
         let RepositoriesPrepared {
-            pair_average_price_repository: _,
+            index_price_repository: _,
             market_repositories,
             ws_channels_holder,
             pair_average_price: _,
+            index_price: _,
         } = RepositoriesPrepared::make(&config);
 
         let (market_spine, rx) = make_spine(market_name);
@@ -489,33 +470,30 @@ mod test {
         let market_name = market.lock().unwrap().get_spine().name.clone();
 
         let pair_tuple = ("some_coin_1".to_string(), "some_coin_2".to_string());
-        let conversion_type = ConversionType::Crypto;
-        let exchange_pair = ExchangePair {
-            pair: pair_tuple.clone(),
-            conversion: conversion_type,
-        };
+        let exchange_pair = pair_tuple.clone();
 
         let mut config = ConfigScheme::default();
         config.market.exchange_pairs = vec![exchange_pair.clone()];
 
         let RepositoriesPrepared {
-            pair_average_price_repository: _,
+            index_price_repository: _,
             market_repositories,
             ws_channels_holder,
             pair_average_price: _,
+            index_price: _,
         } = RepositoriesPrepared::make(&config);
 
         let pair_string = market
             .lock()
             .unwrap()
-            .make_pair(get_pair_ref(&exchange_pair.pair));
+            .make_pair(get_pair_ref(&exchange_pair));
 
         market.lock().unwrap().add_exchange_pair(
             exchange_pair.clone(),
             market_repositories.map(|mut v| {
                 v.remove(&market_name)
                     .unwrap()
-                    .remove(&exchange_pair.pair)
+                    .remove(&exchange_pair)
                     .unwrap()
             }),
             &ws_channels_holder,
@@ -527,17 +505,6 @@ mod test {
             .get_spine()
             .get_exchange_pairs()
             .contains_key(&pair_string));
-
-        assert_eq!(
-            market
-                .lock()
-                .unwrap()
-                .get_spine()
-                .get_conversions()
-                .get(&pair_string)
-                .unwrap(),
-            &conversion_type
-        );
 
         assert_eq!(
             market
@@ -561,8 +528,6 @@ mod test {
     fn test_market_factory() {
         let (market, _) = make_market(None);
 
-        assert!(market.lock().unwrap().get_spine().arc.is_some());
-
         let config = MarketConfig::default();
         let exchange_pair_keys: Vec<String> = market
             .lock()
@@ -575,25 +540,9 @@ mod test {
         assert_eq!(exchange_pair_keys.len(), config.exchange_pairs.len());
 
         for pair in &config.exchange_pairs {
-            let pair_string = market.lock().unwrap().make_pair(get_pair_ref(&pair.pair));
+            let pair_string = market.lock().unwrap().make_pair(get_pair_ref(pair));
             assert!(exchange_pair_keys.contains(&pair_string));
         }
-    }
-
-    #[test]
-    #[timeout(3000)]
-    fn test_perform() {
-        let (market, rx) = make_market(None);
-
-        let thread_names = vec![format!(
-            "fn: update, market: {}",
-            market.lock().unwrap().get_spine().name
-        )];
-
-        market.lock().unwrap().perform();
-
-        // TODO: Refactor (not always working)
-        check_threads(thread_names, rx);
     }
 
     #[test]
@@ -625,7 +574,7 @@ mod test {
             }
         }
 
-        update(market);
+        market_update(market);
         check_threads(thread_names, rx);
     }
 }

@@ -7,34 +7,35 @@ use crate::worker::network_helpers::ws_server::ws_channels_holder::WsChannelsHol
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-pub type PairAveragePriceType = HashMap<(String, String), Arc<Mutex<StoredAndWsTransmissibleF64>>>;
+pub type StoredAndWsTransmissibleF64ByPairTuple =
+    HashMap<(String, String), Arc<Mutex<StoredAndWsTransmissibleF64>>>;
 
 pub fn make_pair_average_price(
     market_config: &MarketConfig,
     mut repository: Option<WorkerRepositoriesByPairTuple>,
     ws_channels_holder: &WsChannelsHolderHashMap,
-) -> PairAveragePriceType {
+) -> StoredAndWsTransmissibleF64ByPairTuple {
     let mut hash_map = HashMap::new();
 
     for exchange_pair in &market_config.exchange_pairs {
-        let pair = exchange_pair.pair.clone();
+        let pair = exchange_pair.clone();
         let key = (
             "worker".to_string(),
             MarketValue::PairAveragePrice,
-            pair.clone(),
+            Some(pair.clone()),
         );
         let ws_channels = ws_channels_holder.get(&key).unwrap();
 
         let pair_average_price = Arc::new(Mutex::new(StoredAndWsTransmissibleF64::new(
             repository
                 .as_mut()
-                .map(|v| v.remove(&exchange_pair.pair).unwrap()),
+                .map(|v| v.remove(exchange_pair).unwrap()),
             vec![
                 WsChannelName::CoinAveragePrice,
                 WsChannelName::CoinAveragePriceCandles,
             ],
             None,
-            pair.clone(),
+            Some(pair.clone()),
             Arc::clone(ws_channels),
         )));
 

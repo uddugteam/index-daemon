@@ -8,11 +8,11 @@ use std::sync::{Arc, Mutex};
 pub struct StoredAndWsTransmissibleF64 {
     value: Option<f64>,
     timestamp: DateTime<Utc>,
-    repository: Option<RepositoryForF64ByTimestamp>,
+    pub repository: Option<RepositoryForF64ByTimestamp>,
     ws_channels: Arc<Mutex<WsChannels>>,
     ws_channel_names: Vec<WsChannelName>,
     market_name: Option<String>,
-    pair: (String, String),
+    pair: Option<(String, String)>,
 }
 
 impl StoredAndWsTransmissibleF64 {
@@ -20,7 +20,7 @@ impl StoredAndWsTransmissibleF64 {
         repository: Option<RepositoryForF64ByTimestamp>,
         ws_channel_names: Vec<WsChannelName>,
         market_name: Option<String>,
-        pair: (String, String),
+        pair: Option<(String, String)>,
         ws_channels: Arc<Mutex<WsChannels>>,
     ) -> Self {
         for ws_channel_name in &ws_channel_names {
@@ -32,6 +32,14 @@ impl StoredAndWsTransmissibleF64 {
                 // Market's channel
 
                 assert!(matches!(market_name, Some(..)));
+            }
+
+            if matches!(ws_channel_name, WsChannelName::IndexPrice)
+                | matches!(ws_channel_name, WsChannelName::IndexPriceCandles)
+            {
+                assert!(pair.is_none());
+            } else {
+                assert!(pair.is_some());
             }
         }
 
@@ -60,11 +68,12 @@ impl StoredAndWsTransmissibleF64 {
 
         for ws_channel_name in &self.ws_channel_names {
             match ws_channel_name {
-                WsChannelName::CoinAveragePrice
+                WsChannelName::IndexPrice
+                | WsChannelName::CoinAveragePrice
                 | WsChannelName::CoinExchangePrice
                 | WsChannelName::CoinExchangeVolume => {
                     send_ws_response_1(
-                        &mut self.ws_channels,
+                        &self.ws_channels,
                         *ws_channel_name,
                         &self.market_name,
                         &self.pair,
@@ -72,7 +81,7 @@ impl StoredAndWsTransmissibleF64 {
                         self.timestamp,
                     );
                 }
-                WsChannelName::CoinAveragePriceCandles => {
+                WsChannelName::IndexPriceCandles | WsChannelName::CoinAveragePriceCandles => {
                     send_ws_response_2(
                         &self.repository,
                         &self.ws_channels,

@@ -71,13 +71,20 @@ impl WsChannels {
     }
 
     pub fn send_general(&mut self, response_payload: WsChannelResponsePayload) {
-        let coin = response_payload.get_coin();
-
-        let senders: HashMap<&(String, WsChannelName), &mut WsChannelResponseSender> = self
-            .0
-            .iter_mut()
-            .filter(|(_, v)| v.request.get_coins().contains(&coin))
-            .collect();
+        let senders: HashMap<&(String, WsChannelName), &mut WsChannelResponseSender> =
+            match response_payload.get_coin() {
+                Some(coin) => self
+                    .0
+                    .iter_mut()
+                    .filter(|(_, v)| v.request.get_coins().is_some())
+                    .filter(|(_, v)| v.request.get_coins().unwrap().contains(&coin))
+                    .collect(),
+                None => self
+                    .0
+                    .iter_mut()
+                    .filter(|(_, v)| v.request.get_coins().is_none())
+                    .collect(),
+            };
 
         let mut keys_to_remove = Vec::new();
 
@@ -123,7 +130,7 @@ pub mod test {
 
     pub fn check_subscriptions(
         ws_channels: &WsChannels,
-        subscriptions: &Vec<(String, WsChannelName, Vec<String>)>,
+        subscriptions: &[(String, WsChannelName, Vec<String>)],
     ) {
         assert_eq!(subscriptions.len(), ws_channels.0.len());
 
@@ -144,7 +151,7 @@ pub mod test {
             }
 
             assert_eq!(&channel.request.get_method(), method);
-            assert_eq!(channel.request.get_coins(), coins);
+            assert_eq!(channel.request.get_coins(), Some(coins.as_slice()));
         }
     }
 }
