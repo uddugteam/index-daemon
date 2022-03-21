@@ -1,7 +1,6 @@
 use crate::repository::repository::Repository;
 use crate::worker::helper_functions::date_time_from_timestamp_sec;
 use chrono::{DateTime, Utc, MIN_DATETIME};
-use std::collections::HashMap;
 use std::str;
 use std::sync::{Arc, Mutex};
 
@@ -29,6 +28,16 @@ impl F64ByTimestampSled {
 
     fn stringify_primary(&self, primary: DateTime<Utc>) -> String {
         format!("{}__{}", self.entity_name, primary.timestamp_millis())
+    }
+
+    fn stringify_errors(errors: Vec<String>) -> String {
+        let mut error_string = String::new();
+
+        for error in errors {
+            error_string += &(error + ". ");
+        }
+
+        error_string
     }
 
     fn date_time_from_timestamp_millis(timestamp_millis: u64) -> DateTime<Utc> {
@@ -64,7 +73,7 @@ impl Repository<DateTime<Utc>, f64> for F64ByTimestampSled {
         let key_from = self.stringify_primary(primary_from);
         let key_to = self.stringify_primary(primary_to);
 
-        let mut oks = HashMap::new();
+        let mut oks = Vec::new();
         let mut errors = Vec::new();
 
         self.repository
@@ -73,19 +82,13 @@ impl Repository<DateTime<Utc>, f64> for F64ByTimestampSled {
             .range(key_from..key_to)
             .for_each(|v| match v {
                 Ok((k, v)) => {
-                    oks.insert(k, v);
+                    oks.push((k, v));
                 }
                 Err(e) => errors.push(e.to_string()),
             });
 
         if !errors.is_empty() {
-            let mut error_string = String::new();
-
-            for error in errors {
-                error_string += &(error + ". ");
-            }
-
-            Err(error_string)
+            Err(Self::stringify_errors(errors))
         } else {
             let mut res: Vec<(DateTime<Utc>, f64)> = oks
                 .into_iter()
@@ -128,7 +131,9 @@ impl Repository<DateTime<Utc>, f64> for F64ByTimestampSled {
     fn delete(&mut self, primary: DateTime<Utc>) {
         let key = self.stringify_primary(primary);
 
-        let _ = self.repository.lock().unwrap().remove(key);
-        let _ = self.repository.lock().unwrap().flush();
+        if let Ok(repository) = self.repository.lock() {
+            let _ = repository.remove(key);
+            let _ = repository.flush();
+        }
     }
 }

@@ -37,24 +37,3 @@ pub fn ws_send_response(
 
     broadcast_recipient.unbounded_send(response)
 }
-
-pub fn thin_by_interval(
-    values: Vec<(DateTime<Utc>, f64)>,
-    interval: Interval,
-) -> Vec<(DateTime<Utc>, f64)> {
-    let interval = interval.into_seconds() as i64;
-
-    let mut res = Vec::new();
-
-    let mut next_timestamp = MIN_DATETIME.timestamp();
-    for value in values {
-        let curr_timestamp = value.0.timestamp();
-
-        if curr_timestamp >= next_timestamp {
-            res.push(value);
-            next_timestamp = curr_timestamp + interval;
-        }
-    }
-
-    res
-}
