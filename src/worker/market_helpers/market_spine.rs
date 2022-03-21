@@ -332,6 +332,7 @@ pub mod test {
         let config = ConfigScheme::default();
         let RepositoriesPrepared {
             index_price_repository: _,
+            pair_average_price_repositories: _,
             market_repositories: _,
             ws_channels_holder: _,
             pair_average_price,
@@ -365,6 +366,7 @@ pub mod test {
 
         let RepositoriesPrepared {
             index_price_repository: _,
+            pair_average_price_repositories: _,
             market_repositories,
             ws_channels_holder,
             pair_average_price: _,
