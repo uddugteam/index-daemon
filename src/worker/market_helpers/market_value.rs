@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-#[derive(Clone, Copy, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub enum MarketValue {
     IndexPrice,
     PairAveragePrice,

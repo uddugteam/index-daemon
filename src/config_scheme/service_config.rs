@@ -1,9 +1,10 @@
 use crate::config_scheme::helper_functions::{
-    get_config_from_config_files, get_default_historical, get_default_host, get_default_port,
-    get_default_storage, set_log_level,
+    get_config_from_config_files, get_default_data_expire_sec, get_default_data_expire_string,
+    get_default_historical, get_default_host, get_default_port, get_default_storage, set_log_level,
 };
 use crate::config_scheme::storage::Storage;
 use clap::ArgMatches;
+use parse_duration::parse;
 
 pub struct ServiceConfig {
     pub rest_timeout_sec: u64,
@@ -12,6 +13,7 @@ pub struct ServiceConfig {
     pub ws_answer_timeout_ms: u64,
     pub storage: Option<Storage>,
     pub historical_storage_frequency_ms: u64,
+    pub data_expire_sec: u64,
 }
 
 impl ServiceConfig {
@@ -85,10 +87,11 @@ impl ServiceConfig {
             && (service_config.get_str("storage").is_ok()
                 || service_config
                     .get_str("historical_storage_frequency_ms")
-                    .is_ok())
+                    .is_ok()
+                || service_config.get_str("data_expire").is_ok())
         {
             panic!(
-                "Got unexpected config. service_config: \"storage\" or \"historical_storage_frequency_ms\". These configs are allowed only if historical=1"
+                "Got unexpected config. service_config: \"storage\" or \"historical_storage_frequency_ms\" or \"data_expire\". These configs are allowed only if historical=1"
             );
         }
         let storage = if historical {
@@ -111,6 +114,14 @@ impl ServiceConfig {
                 historical_storage_frequency_ms
             );
         }
+        let data_expire_sec = parse(
+            &service_config
+                .get_str("data_expire")
+                .unwrap_or(get_default_data_expire_string()),
+        )
+        .unwrap()
+        .as_secs();
+
         Self {
             rest_timeout_sec,
             ws,
@@ -118,6 +129,7 @@ impl ServiceConfig {
             ws_answer_timeout_ms,
             storage,
             historical_storage_frequency_ms,
+            data_expire_sec,
         }
     }
 }
@@ -131,6 +143,7 @@ impl Default for ServiceConfig {
             ws_answer_timeout_ms: 100,
             storage: get_default_storage(get_default_historical()),
             historical_storage_frequency_ms: 20,
+            data_expire_sec: get_default_data_expire_sec(),
         }
     }
 }

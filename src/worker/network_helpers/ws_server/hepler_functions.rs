@@ -1,8 +1,6 @@
-use crate::worker::network_helpers::ws_server::interval::Interval;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
 use crate::worker::network_helpers::ws_server::ws_channel_response::WsChannelResponse;
 use async_tungstenite::tungstenite::protocol::Message;
-use chrono::{DateTime, Utc, MIN_DATETIME};
 use futures::channel::mpsc::{TrySendError, UnboundedSender};
 
 type Tx = UnboundedSender<Message>;
@@ -10,6 +8,7 @@ type Tx = UnboundedSender<Message>;
 pub fn add_jsonrpc_version_and_method(response: &mut String, method: Option<WsChannelName>) {
     let mut value: serde_json::Value = serde_json::from_str(response).unwrap();
     let object = value.as_object_mut().unwrap();
+
     object.insert(
         "jsonrpc".to_string(),
         serde_json::Value::from("2.0".to_string()),

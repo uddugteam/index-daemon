@@ -136,4 +136,16 @@ impl Repository<DateTime<Utc>, f64> for F64ByTimestampSled {
             let _ = repository.flush();
         }
     }
+
+    fn delete_multiple(&mut self, primary: &[DateTime<Utc>]) {
+        if let Ok(repository) = self.repository.lock() {
+            for &key in primary {
+                let key = self.stringify_primary(key);
+
+                let _ = repository.remove(key);
+            }
+
+            let _ = repository.flush();
+        }
+    }
 }

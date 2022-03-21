@@ -3,8 +3,9 @@ use crate::config_scheme::market_config::MarketConfig;
 use crate::config_scheme::repositories_prepared::RepositoriesPrepared;
 use crate::config_scheme::service_config::ServiceConfig;
 use crate::repository::repositories::{
-    MarketRepositoriesByMarketName, RepositoryForF64ByTimestamp,
+    MarketRepositoriesByMarketName, RepositoryForF64ByTimestamp, WorkerRepositoriesByPairTuple,
 };
+use crate::worker::db_cleaner::clear_db;
 use crate::worker::market_helpers::market::{market_factory, market_update, Market};
 use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
@@ -18,6 +19,7 @@ use std::collections::HashMap;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
+use std::time;
 
 pub struct Worker {
     tx: Sender<JoinHandle<()>>,
@@ -107,9 +109,37 @@ impl Worker {
         }
     }
 
+    fn start_db_cleaner(
+        &self,
+        index_price_repository: Option<RepositoryForF64ByTimestamp>,
+        pair_average_price_repositories: Option<WorkerRepositoriesByPairTuple>,
+        market_repositories: Option<MarketRepositoriesByMarketName>,
+        data_expire_sec: u64,
+    ) {
+        let thread_name = "fn: clear_db".to_string();
+        let thread = thread::Builder::new()
+            .name(thread_name)
+            .spawn(move || {
+                loop {
+                    clear_db(
+                        index_price_repository.clone(),
+                        pair_average_price_repositories.clone(),
+                        market_repositories.clone(),
+                        data_expire_sec,
+                    );
+
+                    // Sleep 1 day
+                    thread::sleep(time::Duration::from_secs(86_400));
+                }
+            })
+            .unwrap();
+        self.tx.send(thread).unwrap();
+    }
+
     pub fn start(&mut self, config: ConfigScheme) {
         let RepositoriesPrepared {
             index_price_repository,
+            pair_average_price_repositories,
             market_repositories,
             ws_channels_holder,
             pair_average_price,
@@ -132,6 +162,7 @@ impl Worker {
             ws_answer_timeout_ms,
             storage: _,
             historical_storage_frequency_ms: _,
+            data_expire_sec,
         } = service;
 
         let markets = markets.iter().map(|v| v.as_ref()).collect();
@@ -141,7 +172,7 @@ impl Worker {
             exchange_pairs,
             channels,
             rest_timeout_sec,
-            market_repositories,
+            market_repositories.clone(),
             pair_average_price.clone(),
             index_price,
             index_pairs,
@@ -151,10 +182,17 @@ impl Worker {
             ws,
             ws_addr,
             ws_answer_timeout_ms,
-            index_price_repository,
+            index_price_repository.clone(),
             pair_average_price,
             ws_channels_holder,
             self.graceful_shutdown.clone(),
+        );
+
+        self.start_db_cleaner(
+            index_price_repository,
+            pair_average_price_repositories,
+            market_repositories,
+            data_expire_sec,
         );
 
         for market in self.markets.values().cloned() {
@@ -229,6 +267,7 @@ pub mod test {
 
         let RepositoriesPrepared {
             index_price_repository: _,
+            pair_average_price_repositories: _,
             market_repositories,
             ws_channels_holder,
             pair_average_price,

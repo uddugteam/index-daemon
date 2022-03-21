@@ -26,6 +26,7 @@ You can get cli params description by calling program with "-h" cli param.
 - **ws_answer_timeout_ms** - u64 (min - 100, default - 100). Timeout in ms between websocket answers.
 - **historical** - string ("1" - on, default - off). Turn on historical data storage.
 - **storage** - string. Variants: sled. Default: sled.
+- **data_expire** - string. DB data lifetime. Format: number and word, e.g., "5mi", "3mo", "1y" etc. Default: 1 month.
 
 #### market_config
 

@@ -3,6 +3,7 @@ use crate::worker::defaults::{COINS, FIATS, MARKETS};
 use crate::worker::market_helpers::market_channels::MarketChannels;
 use clap::ArgMatches;
 use env_logger::Builder;
+use parse_duration::parse;
 
 pub fn get_config_file_path(matches: &ArgMatches, key: &str) -> Option<String> {
     matches.value_of(key).map(|v| v.to_string())
@@ -79,6 +80,14 @@ pub fn get_default_storage(historical: bool) -> Option<Storage> {
     } else {
         None
     }
+}
+
+pub fn get_default_data_expire_string() -> String {
+    "1 month".to_string()
+}
+
+pub fn get_default_data_expire_sec() -> u64 {
+    parse(&get_default_data_expire_string()).unwrap().as_secs()
 }
 
 pub fn make_pairs(coins: Vec<String>, fiats: Option<Vec<&str>>) -> Vec<(String, String)> {
