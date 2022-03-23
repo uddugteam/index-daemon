@@ -54,16 +54,16 @@ impl StoredAndWsTransmissibleF64 {
         }
     }
 
-    pub fn get_value(&self) -> Option<f64> {
+    pub fn get(&self) -> Option<f64> {
         self.value
     }
 
-    pub fn set_new_value(&mut self, new_value: f64) {
-        self.value = Some(new_value);
+    pub fn set(&mut self, value: f64) {
+        self.value = Some(value);
         self.timestamp = Utc::now();
 
         if let Some(repository) = &mut self.repository {
-            let _ = repository.insert(self.timestamp, new_value);
+            let _ = repository.insert(self.timestamp, value);
         }
 
         for ws_channel_name in &self.ws_channel_names {
@@ -77,7 +77,7 @@ impl StoredAndWsTransmissibleF64 {
                         *ws_channel_name,
                         &self.market_name,
                         &self.pair,
-                        new_value,
+                        value,
                         self.timestamp,
                     );
                 }

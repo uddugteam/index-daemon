@@ -208,7 +208,7 @@ impl WsServer {
 
                 for (pair_tuple, repository) in pair_average_price {
                     if let Some(coin) = strip_usd(&pair_tuple) {
-                        if let Some(value) = repository.lock().unwrap().get_value() {
+                        if let Some(value) = repository.lock().unwrap().get() {
                             let value = CoinPrice { coin, value };
 
                             if let Ok(v) = res.as_mut() {
