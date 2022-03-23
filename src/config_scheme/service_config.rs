@@ -1,10 +1,12 @@
 use crate::config_scheme::helper_functions::{
-    get_config_from_config_files, get_default_data_expire_sec, get_default_data_expire_string,
-    get_default_historical, get_default_host, get_default_port, get_default_storage, set_log_level,
+    check_unexpected_configs, get_config_from_config_files, get_default_data_expire_sec,
+    get_default_data_expire_string, get_default_historical, get_default_host, get_default_port,
+    get_default_storage, set_log_level,
 };
 use crate::config_scheme::storage::Storage;
 use clap::ArgMatches;
 use parse_duration::parse;
+use std::collections::HashMap;
 
 pub struct ServiceConfig {
     pub rest_timeout_sec: u64,
@@ -27,31 +29,15 @@ impl ServiceConfig {
             .get_str("rest_timeout_sec")
             .map(|v| v.parse().unwrap())
             .unwrap_or(default.rest_timeout_sec);
-        if rest_timeout_sec < 1 {
-            panic!(
-                "Got wrong config value. service_config: rest_timeout_sec={}",
-                rest_timeout_sec
-            );
-        }
+        assert!(rest_timeout_sec > 0);
 
         let ws = if let Ok(ws) = service_config.get_str("ws") {
-            if ws == "1" {
-                true
-            } else {
-                panic!("Got wrong config value. service_config: ws={}", ws);
-            }
+            assert_eq!(ws, "1");
+
+            true
         } else {
             default.ws
         };
-        if !ws
-            && (service_config.get_str("ws_host").is_ok()
-                || service_config.get_str("ws_port").is_ok()
-                || service_config.get_str("ws_answer_timeout_ms").is_ok())
-        {
-            panic!(
-                "Got unexpected config. service_config: ws_*. That config is allowed only if ws=1"
-            );
-        }
 
         let ws_host = service_config
             .get_str("ws_host")
@@ -64,36 +50,16 @@ impl ServiceConfig {
             .get_str("ws_answer_timeout_ms")
             .map(|v| v.parse().unwrap())
             .unwrap_or(default.ws_answer_timeout_ms);
-        if ws_answer_timeout_ms < 100 {
-            panic!(
-                "Got wrong config value. Value is less than allowed min. service_config: ws_answer_timeout_ms={}",
-                ws_answer_timeout_ms
-            );
-        }
+        assert!(ws_answer_timeout_ms >= 100);
 
         let historical = if let Ok(historical) = service_config.get_str("historical") {
-            if historical == "1" {
-                true
-            } else {
-                panic!(
-                    "Got wrong config value. service_config: historical={}",
-                    historical
-                );
-            }
+            assert_eq!(historical, "1");
+
+            true
         } else {
             get_default_historical()
         };
-        if !historical
-            && (service_config.get_str("storage").is_ok()
-                || service_config
-                    .get_str("historical_storage_frequency_ms")
-                    .is_ok()
-                || service_config.get_str("data_expire").is_ok())
-        {
-            panic!(
-                "Got unexpected config. service_config: \"storage\" or \"historical_storage_frequency_ms\" or \"data_expire\". These configs are allowed only if historical=1"
-            );
-        }
+
         let storage = if historical {
             Some(
                 service_config
@@ -108,12 +74,8 @@ impl ServiceConfig {
             .get_str("historical_storage_frequency_ms")
             .map(|v| v.parse().unwrap())
             .unwrap_or(default.historical_storage_frequency_ms);
-        if historical_storage_frequency_ms < 10 {
-            panic!(
-                "Got wrong config value. Value is less than allowed min. service_config: historical_storage_frequency_ms={}",
-                historical_storage_frequency_ms
-            );
-        }
+        assert!(historical_storage_frequency_ms >= 10);
+
         let data_expire_sec = parse(
             &service_config
                 .get_str("data_expire")
@@ -121,6 +83,16 @@ impl ServiceConfig {
         )
         .unwrap()
         .as_secs();
+        assert!(data_expire_sec > 0);
+
+        let received_configs = HashMap::from([
+            ("ws", vec!["ws_host", "ws_port", "ws_answer_timeout_ms"]),
+            (
+                "historical",
+                vec!["storage", "historical_storage_frequency_ms", "data_expire"],
+            ),
+        ]);
+        check_unexpected_configs(service_config, received_configs).unwrap();
 
         Self {
             rest_timeout_sec,
