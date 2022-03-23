@@ -7,6 +7,8 @@ use crate::worker::network_helpers::ws_server::channels::ws_channel_subscription
 use crate::worker::network_helpers::ws_server::channels::ws_channel_unsubscribe::WsChannelUnsubscribe;
 use crate::worker::network_helpers::ws_server::f64_snapshot::F64Snapshots;
 use crate::worker::network_helpers::ws_server::hepler_functions::ws_send_response;
+use crate::worker::network_helpers::ws_server::holders::helper_functions::HolderKey;
+use crate::worker::network_helpers::ws_server::holders::ws_channels_holder::WsChannelsHolder;
 use crate::worker::network_helpers::ws_server::jsonrpc_request::{JsonRpcId, JsonRpcRequest};
 use crate::worker::network_helpers::ws_server::requests::ws_method_request::WsMethodRequest;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
@@ -15,9 +17,6 @@ use crate::worker::network_helpers::ws_server::ws_channel_response_payload::{
     CoinPrice, WsChannelResponsePayload,
 };
 use crate::worker::network_helpers::ws_server::ws_channel_response_sender::WsChannelResponseSender;
-use crate::worker::network_helpers::ws_server::ws_channels_holder::{
-    WsChannelsHolder, WsChannelsHolderKey,
-};
 use crate::worker::network_helpers::ws_server::ws_request::WsRequest;
 use async_std::{
     net::{TcpListener, TcpStream},
@@ -86,7 +85,7 @@ impl WsServer {
         conn_id: String,
         request: WsChannelSubscriptionRequest,
         ws_answer_timeout_ms: u64,
-        key: WsChannelsHolderKey,
+        key: HolderKey,
         error_msg: String,
     ) {
         let sub_id = request.get_id();

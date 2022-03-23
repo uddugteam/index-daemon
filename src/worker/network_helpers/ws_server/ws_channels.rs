@@ -1,3 +1,4 @@
+use crate::config_scheme::config_scheme::ConfigScheme;
 use crate::worker::network_helpers::ws_server::channels::ws_channel_subscription_request::WsChannelSubscriptionRequest;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
 use crate::worker::network_helpers::ws_server::ws_channel_response::WsChannelResponse;
@@ -119,6 +120,12 @@ impl WsChannels {
 
     pub fn remove_channel(&mut self, key: &(String, WsChannelName)) {
         self.0.remove(key);
+    }
+}
+
+impl From<ConfigScheme> for WsChannels {
+    fn from(_config: ConfigScheme) -> Self {
+        Self::new()
     }
 }
 

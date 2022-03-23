@@ -6,6 +6,7 @@ use crate::config_scheme::helper_functions::{
 use crate::worker::market_helpers::market_channels::MarketChannels;
 use clap::ArgMatches;
 
+#[derive(Clone)]
 pub struct MarketConfig {
     pub markets: Vec<String>,
     pub exchange_pairs: Vec<(String, String)>,

@@ -1,5 +1,6 @@
 use std::sync::{Arc, Mutex};
 
+#[derive(Clone)]
 pub enum Storage {
     Sled(Arc<Mutex<vsdbsled::Db>>),
 }

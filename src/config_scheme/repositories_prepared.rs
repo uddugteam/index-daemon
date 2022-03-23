@@ -8,17 +8,17 @@ use crate::worker::market_helpers::pair_average_price::{
     make_pair_average_price, StoredAndWsTransmissibleF64ByPairTuple,
 };
 use crate::worker::market_helpers::stored_and_ws_transmissible_f64::StoredAndWsTransmissibleF64;
+use crate::worker::network_helpers::ws_server::holders::helper_functions::make_holder_hashmap;
+use crate::worker::network_helpers::ws_server::holders::helper_functions::HolderHashMap;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
-use crate::worker::network_helpers::ws_server::ws_channels_holder::{
-    WsChannelsHolder, WsChannelsHolderHashMap,
-};
+use crate::worker::network_helpers::ws_server::ws_channels::WsChannels;
 use std::sync::{Arc, Mutex};
 
 pub struct RepositoriesPrepared {
     pub index_price_repository: Option<RepositoryForF64ByTimestamp>,
     pub pair_average_price_repositories: Option<WorkerRepositoriesByPairTuple>,
     pub market_repositories: Option<MarketRepositoriesByMarketName>,
-    pub ws_channels_holder: WsChannelsHolderHashMap,
+    pub ws_channels_holder: HolderHashMap<WsChannels>,
     pub pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
     pub index_price: Arc<Mutex<StoredAndWsTransmissibleF64>>,
 }
@@ -28,7 +28,7 @@ impl RepositoriesPrepared {
         let (pair_average_price_repositories, market_repositories, index_price_repository) =
             Repositories::optionize_fields(Repositories::new(config));
 
-        let ws_channels_holder = WsChannelsHolder::make_hashmap(&config.market);
+        let ws_channels_holder = make_holder_hashmap::<WsChannels>(config);
 
         let pair_average_price = make_pair_average_price(
             config,
@@ -54,7 +54,7 @@ impl RepositoriesPrepared {
 
     fn make_index_price(
         index_repository: Option<RepositoryForF64ByTimestamp>,
-        ws_channels_holder: &WsChannelsHolderHashMap,
+        ws_channels_holder: &HolderHashMap<WsChannels>,
         percent_change_interval_sec: u64,
     ) -> Arc<Mutex<StoredAndWsTransmissibleF64>> {
         let key = ("worker".to_string(), MarketValue::IndexPrice, None);

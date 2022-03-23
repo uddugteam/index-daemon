@@ -9,6 +9,7 @@ use clap::ArgMatches;
 use parse_duration::parse;
 use std::collections::HashMap;
 
+#[derive(Clone)]
 pub struct ServiceConfig {
     pub rest_timeout_sec: u64,
     pub ws: bool,

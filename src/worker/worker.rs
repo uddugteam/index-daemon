@@ -11,9 +11,9 @@ use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
 use crate::worker::market_helpers::pair_average_price::StoredAndWsTransmissibleF64ByPairTuple;
 use crate::worker::market_helpers::stored_and_ws_transmissible_f64::StoredAndWsTransmissibleF64;
-use crate::worker::network_helpers::ws_server::ws_channels_holder::{
-    WsChannelsHolder, WsChannelsHolderHashMap,
-};
+use crate::worker::network_helpers::ws_server::holders::helper_functions::HolderHashMap;
+use crate::worker::network_helpers::ws_server::holders::ws_channels_holder::WsChannelsHolder;
+use crate::worker::network_helpers::ws_server::ws_channels::WsChannels;
 use crate::worker::network_helpers::ws_server::ws_server::WsServer;
 use std::collections::HashMap;
 use std::sync::mpsc::Sender;
@@ -50,7 +50,7 @@ impl Worker {
         pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
         index_price: Arc<Mutex<StoredAndWsTransmissibleF64>>,
         index_pairs: Vec<(String, String)>,
-        ws_channels_holder: &WsChannelsHolderHashMap,
+        ws_channels_holder: &HolderHashMap<WsChannels>,
         percent_change_interval_sec: u64,
     ) {
         let mut repositories = repositories.unwrap_or_default();
@@ -86,7 +86,7 @@ impl Worker {
         ws_answer_timeout_ms: u64,
         index_price_repository: Option<RepositoryForF64ByTimestamp>,
         pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
-        ws_channels_holder: WsChannelsHolderHashMap,
+        ws_channels_holder: HolderHashMap<WsChannels>,
         graceful_shutdown: Arc<Mutex<bool>>,
     ) {
         if ws {
