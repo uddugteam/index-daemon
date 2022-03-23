@@ -28,6 +28,16 @@ impl WsRequest {
     fn parse_u64(object: &Map<String, serde_json::Value>, key: &str) -> Option<u64> {
         object.get(key)?.as_u64()
     }
+
+    fn swap<T, E>(value: Option<Result<T, E>>) -> Result<Option<T>, E> {
+        match value {
+            Some(value) => match value {
+                Ok(value) => Ok(Some(value)),
+                Err(e) => Err(e),
+            },
+            None => Ok(None),
+        }
+    }
 }
 
 impl TryFrom<JsonRpcRequest> for WsRequest {
@@ -41,9 +51,8 @@ impl TryFrom<JsonRpcRequest> for WsRequest {
         let frequency_ms = Self::parse_u64(object, "frequency_ms");
         let percent_change_interval_sec = object
             .get("percent_change_interval")
-            .ok_or(e)?
-            .as_str()
-            .map(|v| parse(v).unwrap().as_secs());
+            .map(|v| v.as_str().map(|v| parse(v).unwrap().as_secs()).ok_or(e));
+        let percent_change_interval_sec = Self::swap(percent_change_interval_sec);
         let interval = object
             .get("interval")
             .cloned()
@@ -61,7 +70,7 @@ impl TryFrom<JsonRpcRequest> for WsRequest {
                     WsChannelName::IndexPrice => WorkerChannels::IndexPrice {
                         id,
                         frequency_ms,
-                        percent_change_interval_sec,
+                        percent_change_interval_sec: percent_change_interval_sec?,
                     },
                     WsChannelName::IndexPriceCandles => {
                         let interval = interval??;
@@ -87,7 +96,7 @@ impl TryFrom<JsonRpcRequest> for WsRequest {
                         id,
                         coins,
                         frequency_ms,
-                        percent_change_interval_sec,
+                        percent_change_interval_sec: percent_change_interval_sec?,
                     },
                     WsChannelName::CoinAveragePriceCandles => {
                         let interval = interval??;
@@ -116,14 +125,14 @@ impl TryFrom<JsonRpcRequest> for WsRequest {
                         coins,
                         exchanges,
                         frequency_ms,
-                        percent_change_interval_sec,
+                        percent_change_interval_sec: percent_change_interval_sec?,
                     },
                     WsChannelName::CoinExchangeVolume => MarketChannels::CoinExchangeVolume {
                         id,
                         coins,
                         exchanges,
                         frequency_ms,
-                        percent_change_interval_sec,
+                        percent_change_interval_sec: percent_change_interval_sec?,
                     },
                     _ => unreachable!(),
                 };

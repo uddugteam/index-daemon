@@ -1,5 +1,6 @@
 use crate::repository::repositories::MarketRepositoriesByMarketValue;
 use crate::worker::market_helpers::market_value::MarketValue;
+use crate::worker::market_helpers::percent_change::PercentChangeByInterval;
 use crate::worker::market_helpers::stored_and_ws_transmissible_f64::StoredAndWsTransmissibleF64;
 use crate::worker::network_helpers::ws_server::holders::helper_functions::HolderHashMap;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
@@ -19,10 +20,11 @@ pub struct ExchangePairInfo {
 impl ExchangePairInfo {
     pub fn new(
         repositories: Option<MarketRepositoriesByMarketValue>,
+        percent_change_holder: &HolderHashMap<PercentChangeByInterval>,
+        percent_change_interval_sec: u64,
         ws_channels_holder: &HolderHashMap<WsChannels>,
         market_name: String,
         pair: (String, String),
-        percent_change_interval_sec: u64,
     ) -> Self {
         let mut repositories = repositories.unwrap_or_default();
 
@@ -33,7 +35,7 @@ impl ExchangePairInfo {
                 Some(market_name.clone()),
                 Some(pair.clone()),
                 Arc::clone(
-                    ws_channels_holder
+                    percent_change_holder
                         .get(&(
                             market_name.clone(),
                             MarketValue::PairExchangePrice,
@@ -42,6 +44,15 @@ impl ExchangePairInfo {
                         .unwrap(),
                 ),
                 percent_change_interval_sec,
+                Arc::clone(
+                    ws_channels_holder
+                        .get(&(
+                            market_name.clone(),
+                            MarketValue::PairExchangePrice,
+                            Some(pair.clone()),
+                        ))
+                        .unwrap(),
+                ),
             ),
             last_trade_volume: 0.0,
             total_volume: StoredAndWsTransmissibleF64::new(
@@ -50,11 +61,20 @@ impl ExchangePairInfo {
                 Some(market_name.clone()),
                 Some(pair.clone()),
                 Arc::clone(
+                    percent_change_holder
+                        .get(&(
+                            market_name.clone(),
+                            MarketValue::PairExchangeVolume,
+                            Some(pair.clone()),
+                        ))
+                        .unwrap(),
+                ),
+                percent_change_interval_sec,
+                Arc::clone(
                     ws_channels_holder
                         .get(&(market_name, MarketValue::PairExchangeVolume, Some(pair)))
                         .unwrap(),
                 ),
-                percent_change_interval_sec,
             ),
             total_ask: 0.0,
             total_bid: 0.0,

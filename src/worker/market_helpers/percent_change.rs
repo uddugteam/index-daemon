@@ -1,3 +1,4 @@
+use crate::config_scheme::config_scheme::ConfigScheme;
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 
@@ -39,6 +40,12 @@ impl PercentChangeByInterval {
         } else {
             None
         }
+    }
+}
+
+impl From<ConfigScheme> for PercentChangeByInterval {
+    fn from(config: ConfigScheme) -> Self {
+        Self::new_with(config.service.percent_change_interval_sec)
     }
 }
 

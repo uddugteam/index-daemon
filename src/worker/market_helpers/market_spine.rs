@@ -2,6 +2,7 @@ use crate::repository::repositories::MarketRepositoriesByMarketValue;
 use crate::worker::market_helpers::exchange_pair_info::ExchangePairInfo;
 use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::market_helpers::pair_average_price::StoredAndWsTransmissibleF64ByPairTuple;
+use crate::worker::market_helpers::percent_change::PercentChangeByInterval;
 use crate::worker::market_helpers::stored_and_ws_transmissible_f64::StoredAndWsTransmissibleF64;
 use crate::worker::network_helpers::ws_server::holders::helper_functions::HolderHashMap;
 use crate::worker::network_helpers::ws_server::ws_channels::WsChannels;
@@ -102,17 +103,19 @@ impl MarketSpine {
         pair_string: String,
         exchange_pair: (String, String),
         repositories: Option<MarketRepositoriesByMarketValue>,
-        ws_channels_holder: &HolderHashMap<WsChannels>,
+        percent_change_holder: &HolderHashMap<PercentChangeByInterval>,
         percent_change_interval_sec: u64,
+        ws_channels_holder: &HolderHashMap<WsChannels>,
     ) {
         self.exchange_pairs.insert(
             pair_string.clone(),
             ExchangePairInfo::new(
                 repositories,
+                percent_change_holder,
+                percent_change_interval_sec,
                 ws_channels_holder,
                 self.name.clone(),
                 exchange_pair.clone(),
-                percent_change_interval_sec,
             ),
         );
         self.pairs

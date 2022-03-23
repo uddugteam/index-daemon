@@ -2,7 +2,6 @@ use crate::repository::repositories::RepositoryForF64ByTimestamp;
 use crate::worker::helper_functions::{date_time_from_timestamp_sec, strip_usd};
 use crate::worker::market_helpers::percent_change::PercentChangeByInterval;
 use crate::worker::network_helpers::ws_server::candles::Candle;
-use crate::worker::network_helpers::ws_server::channels::market_channels::MarketChannels;
 use crate::worker::network_helpers::ws_server::channels::worker_channels::WorkerChannels;
 use crate::worker::network_helpers::ws_server::channels::ws_channel_subscription_request::WsChannelSubscriptionRequest;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
@@ -15,7 +14,7 @@ use std::sync::{Arc, Mutex};
 pub struct StoredAndWsTransmissibleF64 {
     value: Option<f64>,
     timestamp: DateTime<Utc>,
-    percent_change: PercentChangeByInterval,
+    percent_change: Arc<Mutex<PercentChangeByInterval>>,
     percent_change_interval_sec: u64,
     pub repository: Option<RepositoryForF64ByTimestamp>,
     ws_channels: Arc<Mutex<WsChannels>>,
@@ -30,8 +29,9 @@ impl StoredAndWsTransmissibleF64 {
         ws_channel_names: Vec<WsChannelName>,
         market_name: Option<String>,
         pair: Option<(String, String)>,
-        ws_channels: Arc<Mutex<WsChannels>>,
+        percent_change: Arc<Mutex<PercentChangeByInterval>>,
         percent_change_interval_sec: u64,
+        ws_channels: Arc<Mutex<WsChannels>>,
     ) -> Self {
         for ws_channel_name in &ws_channel_names {
             if ws_channel_name.is_worker_channel() {
@@ -56,7 +56,7 @@ impl StoredAndWsTransmissibleF64 {
         Self {
             value: None,
             timestamp: MIN_DATETIME,
-            percent_change: PercentChangeByInterval::new_with(percent_change_interval_sec),
+            percent_change,
             percent_change_interval_sec,
             repository,
             ws_channels,
@@ -78,18 +78,18 @@ impl StoredAndWsTransmissibleF64 {
             let _ = repository.insert(self.timestamp, value);
         }
 
-        self.percent_change.set(value, self.timestamp);
+        self.percent_change
+            .lock()
+            .unwrap()
+            .set(value, self.timestamp);
 
         self.send();
     }
 
-    pub fn add_percent_change_interval(&mut self, percent_change_interval_sec: u64) {
-        self.percent_change
-            .add_percent_change_interval(percent_change_interval_sec);
-    }
-
     fn get_percent_change(&self, percent_change_interval_sec: u64) -> Option<f64> {
         self.percent_change
+            .lock()
+            .unwrap()
             .get_percent_change(percent_change_interval_sec)
     }
 
@@ -120,77 +120,41 @@ impl StoredAndWsTransmissibleF64 {
         let mut responses = HashMap::new();
 
         for (key, request) in channels {
-            let response_payload = match request {
-                WsChannelSubscriptionRequest::WorkerChannels(channel) => match channel {
-                    WorkerChannels::IndexPrice {
-                        percent_change_interval_sec,
-                        ..
-                    } => {
-                        let percent_change_interval_sec =
-                            percent_change_interval_sec.unwrap_or(self.percent_change_interval_sec);
-                        let percent_change = self.get_percent_change(percent_change_interval_sec);
+            let percent_change_interval_sec = match request.get_percent_change_interval_sec() {
+                Some(v) if v != 0 => v,
+                _ => self.percent_change_interval_sec,
+            };
+            let percent_change = self.get_percent_change(percent_change_interval_sec);
 
-                        WsChannelResponsePayload::IndexPrice {
-                            value,
-                            timestamp,
-                            percent_change_interval_sec,
-                            percent_change,
-                        }
-                    }
-                    WorkerChannels::CoinAveragePrice {
-                        percent_change_interval_sec,
-                        ..
-                    } => {
-                        let percent_change_interval_sec =
-                            percent_change_interval_sec.unwrap_or(self.percent_change_interval_sec);
-                        let percent_change = self.get_percent_change(percent_change_interval_sec);
-
-                        WsChannelResponsePayload::CoinAveragePrice {
-                            coin: strip_usd(self.pair.as_ref()?)?,
-                            value,
-                            timestamp,
-                            percent_change_interval_sec,
-                            percent_change,
-                        }
-                    }
-                    _ => unreachable!(),
+            let response_payload = match request.get_method() {
+                WsChannelName::IndexPrice => WsChannelResponsePayload::IndexPrice {
+                    value,
+                    timestamp,
+                    percent_change_interval_sec,
+                    percent_change,
                 },
-                WsChannelSubscriptionRequest::MarketChannels(channel) => match channel {
-                    MarketChannels::CoinExchangePrice {
-                        percent_change_interval_sec,
-                        ..
-                    } => {
-                        let percent_change_interval_sec =
-                            percent_change_interval_sec.unwrap_or(self.percent_change_interval_sec);
-                        let percent_change = self.get_percent_change(percent_change_interval_sec);
-
-                        WsChannelResponsePayload::CoinExchangePrice {
-                            coin: strip_usd(self.pair.as_ref()?)?,
-                            exchange: market_name.clone().unwrap(),
-                            value,
-                            timestamp,
-                            percent_change_interval_sec,
-                            percent_change,
-                        }
-                    }
-                    MarketChannels::CoinExchangeVolume {
-                        percent_change_interval_sec,
-                        ..
-                    } => {
-                        let percent_change_interval_sec =
-                            percent_change_interval_sec.unwrap_or(self.percent_change_interval_sec);
-                        let percent_change = self.get_percent_change(percent_change_interval_sec);
-
-                        WsChannelResponsePayload::CoinExchangeVolume {
-                            coin: strip_usd(self.pair.as_ref()?)?,
-                            exchange: market_name.clone().unwrap(),
-                            value,
-                            timestamp,
-                            percent_change_interval_sec,
-                            percent_change,
-                        }
-                    }
-                    _ => unreachable!(),
+                WsChannelName::CoinAveragePrice => WsChannelResponsePayload::CoinAveragePrice {
+                    coin: strip_usd(self.pair.as_ref()?)?,
+                    value,
+                    timestamp,
+                    percent_change_interval_sec,
+                    percent_change,
+                },
+                WsChannelName::CoinExchangePrice => WsChannelResponsePayload::CoinExchangePrice {
+                    coin: strip_usd(self.pair.as_ref()?)?,
+                    exchange: market_name.clone().unwrap(),
+                    value,
+                    timestamp,
+                    percent_change_interval_sec,
+                    percent_change,
+                },
+                WsChannelName::CoinExchangeVolume => WsChannelResponsePayload::CoinExchangeVolume {
+                    coin: strip_usd(self.pair.as_ref()?)?,
+                    exchange: market_name.clone().unwrap(),
+                    value,
+                    timestamp,
+                    percent_change_interval_sec,
+                    percent_change,
                 },
                 _ => unreachable!(),
             };

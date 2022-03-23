@@ -8,6 +8,7 @@ use crate::worker::network_helpers::ws_server::channels::ws_channel_unsubscribe:
 use crate::worker::network_helpers::ws_server::f64_snapshot::F64Snapshots;
 use crate::worker::network_helpers::ws_server::hepler_functions::ws_send_response;
 use crate::worker::network_helpers::ws_server::holders::helper_functions::HolderKey;
+use crate::worker::network_helpers::ws_server::holders::percent_change_holder::PercentChangeByIntervalHolder;
 use crate::worker::network_helpers::ws_server::holders::ws_channels_holder::WsChannelsHolder;
 use crate::worker::network_helpers::ws_server::jsonrpc_request::{JsonRpcId, JsonRpcRequest};
 use crate::worker::network_helpers::ws_server::requests::ws_method_request::WsMethodRequest;
@@ -40,6 +41,7 @@ const JSONRPC_ERROR_INVALID_PARAMS: i64 = -32602;
 const JSONRPC_ERROR_INTERNAL_ERROR: i64 = -32603;
 
 pub struct WsServer {
+    pub percent_change_holder: PercentChangeByIntervalHolder,
     pub ws_channels_holder: WsChannelsHolder,
     pub ws_addr: String,
     pub ws_answer_timeout_ms: u64,
@@ -80,6 +82,7 @@ impl WsServer {
     }
 
     fn subscribe_stage_2(
+        percent_change_holder: &mut PercentChangeByIntervalHolder,
         ws_channels_holder: &mut WsChannelsHolder,
         broadcast_recipient: &Tx,
         conn_id: String,
@@ -90,8 +93,13 @@ impl WsServer {
     ) {
         let sub_id = request.get_id();
         let method = request.get_method();
+        let percent_change_interval_sec = request.get_percent_change_interval_sec();
 
-        if ws_channels_holder.contains_key(&key) {
+        if percent_change_holder.contains_key(&key) && ws_channels_holder.contains_key(&key) {
+            if let Some(percent_change_interval_sec) = percent_change_interval_sec {
+                percent_change_holder.add(&key, percent_change_interval_sec);
+            }
+
             let response_sender = WsChannelResponseSender::new(
                 broadcast_recipient.clone(),
                 request,
@@ -111,6 +119,7 @@ impl WsServer {
     }
 
     fn subscribe_stage_1(
+        percent_change_holder: &mut PercentChangeByIntervalHolder,
         ws_channels_holder: &mut WsChannelsHolder,
         broadcast_recipient: &Tx,
         conn_id: String,
@@ -138,13 +147,19 @@ impl WsServer {
             None => vec![None],
         };
 
-        Self::unsubscribe(ws_channels_holder, conn_id.clone(), request.clone().into());
+        Self::unsubscribe(
+            percent_change_holder,
+            ws_channels_holder,
+            conn_id.clone(),
+            request.clone().into(),
+        );
 
         for exchange in exchanges {
             for pair in pairs.clone() {
                 let key = (exchange.to_string(), market_value, pair);
 
                 Self::subscribe_stage_2(
+                    percent_change_holder,
                     ws_channels_holder,
                     broadcast_recipient,
                     conn_id.clone(),
@@ -160,7 +175,9 @@ impl WsServer {
         }
     }
 
+    /// TODO: Add percent change interval removal
     fn unsubscribe(
+        _percent_change_holder: &mut PercentChangeByIntervalHolder,
         ws_channels_holder: &mut WsChannelsHolder,
         conn_id: String,
         request: WsChannelUnsubscribe,
@@ -173,6 +190,7 @@ impl WsServer {
 
     /// Function adds new channel or removes existing channel (depends on `action`)
     fn process_channel_action_request(
+        mut percent_change_holder: PercentChangeByIntervalHolder,
         mut ws_channels_holder: WsChannelsHolder,
         broadcast_recipient: Tx,
         conn_id: String,
@@ -182,6 +200,7 @@ impl WsServer {
         match action {
             WsChannelAction::Subscribe(request) => {
                 Self::subscribe_stage_1(
+                    &mut percent_change_holder,
                     &mut ws_channels_holder,
                     &broadcast_recipient,
                     conn_id,
@@ -190,7 +209,12 @@ impl WsServer {
                 );
             }
             WsChannelAction::Unsubscribe(request) => {
-                Self::unsubscribe(&mut ws_channels_holder, conn_id, request);
+                Self::unsubscribe(
+                    &mut percent_change_holder,
+                    &mut ws_channels_holder,
+                    conn_id,
+                    request,
+                );
             }
         }
     }
@@ -442,6 +466,7 @@ impl WsServer {
     /// -- -- if request is `channel`, call `Self::process_channel_action_request`
     /// -- else - send error response (call `Self::send_error`)
     fn process_ws_channel_request(
+        percent_change_holder: PercentChangeByIntervalHolder,
         ws_channels_holder: WsChannelsHolder,
         client_addr: &SocketAddr,
         broadcast_recipient: Tx,
@@ -462,6 +487,7 @@ impl WsServer {
                     );
 
                     Self::process_channel_action_request(
+                        percent_change_holder,
                         ws_channels_holder,
                         broadcast_recipient,
                         conn_id,
@@ -496,6 +522,7 @@ impl WsServer {
     /// Function parses request, then calls `Self::process_ws_channel_request` in a separate thread
     fn process_jsonrpc_request(
         request: String,
+        percent_change_holder: &PercentChangeByIntervalHolder,
         ws_channels_holder: &WsChannelsHolder,
         peer_map: &PeerMap,
         client_addr: SocketAddr,
@@ -515,6 +542,7 @@ impl WsServer {
                     let request = Self::parse_ws_request(request);
 
                     let conn_id_2 = conn_id.to_string();
+                    let percent_change_holder_2 = percent_change_holder.clone();
                     let ws_channels_holder_2 = ws_channels_holder.clone();
                     let index_price_repository_2 = index_price_repository.clone();
                     let pair_average_price_2 = pair_average_price.clone();
@@ -527,6 +555,7 @@ impl WsServer {
                         .name(thread_name)
                         .spawn(move || {
                             Self::process_ws_channel_request(
+                                percent_change_holder_2,
                                 ws_channels_holder_2,
                                 &client_addr,
                                 broadcast_recipient,
@@ -559,6 +588,7 @@ impl WsServer {
     /// Function handles one connection - function is executing until client is disconnected.
     /// Function listens for requests and process them (calls `Self::process_jsonrpc_request`)
     async fn handle_connection(
+        percent_change_holder: PercentChangeByIntervalHolder,
         ws_channels_holder: WsChannelsHolder,
         peer_map: PeerMap,
         raw_stream: TcpStream,
@@ -586,6 +616,7 @@ impl WsServer {
                 let broadcast_incoming = incoming.try_for_each(|request| {
                     Self::process_jsonrpc_request(
                         request.to_string(),
+                        &percent_change_holder,
                         &ws_channels_holder,
                         &peer_map,
                         client_addr,
@@ -633,6 +664,7 @@ impl WsServer {
             let conn_id = Uuid::new_v4().to_string();
 
             let _ = task::spawn(Self::handle_connection(
+                self.percent_change_holder.clone(),
                 self.ws_channels_holder.clone(),
                 state.clone(),
                 stream,

@@ -10,8 +10,10 @@ use crate::worker::market_helpers::market::{market_factory, market_update, Marke
 use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
 use crate::worker::market_helpers::pair_average_price::StoredAndWsTransmissibleF64ByPairTuple;
+use crate::worker::market_helpers::percent_change::PercentChangeByInterval;
 use crate::worker::market_helpers::stored_and_ws_transmissible_f64::StoredAndWsTransmissibleF64;
 use crate::worker::network_helpers::ws_server::holders::helper_functions::HolderHashMap;
+use crate::worker::network_helpers::ws_server::holders::percent_change_holder::PercentChangeByIntervalHolder;
 use crate::worker::network_helpers::ws_server::holders::ws_channels_holder::WsChannelsHolder;
 use crate::worker::network_helpers::ws_server::ws_channels::WsChannels;
 use crate::worker::network_helpers::ws_server::ws_server::WsServer;
@@ -50,8 +52,9 @@ impl Worker {
         pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
         index_price: Arc<Mutex<StoredAndWsTransmissibleF64>>,
         index_pairs: Vec<(String, String)>,
-        ws_channels_holder: &HolderHashMap<WsChannels>,
+        percent_change_holder: &HolderHashMap<PercentChangeByInterval>,
         percent_change_interval_sec: u64,
+        ws_channels_holder: &HolderHashMap<WsChannels>,
     ) {
         let mut repositories = repositories.unwrap_or_default();
 
@@ -71,8 +74,9 @@ impl Worker {
                 market_spine,
                 exchange_pairs.clone(),
                 repositories.remove(market_name),
-                ws_channels_holder,
+                percent_change_holder,
                 percent_change_interval_sec,
+                ws_channels_holder,
             );
 
             self.markets.insert(market_name.to_string(), market);
@@ -86,10 +90,12 @@ impl Worker {
         ws_answer_timeout_ms: u64,
         index_price_repository: Option<RepositoryForF64ByTimestamp>,
         pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
+        percent_change_holder: HolderHashMap<PercentChangeByInterval>,
         ws_channels_holder: HolderHashMap<WsChannels>,
         graceful_shutdown: Arc<Mutex<bool>>,
     ) {
         if ws {
+            let percent_change_holder = PercentChangeByIntervalHolder::new(percent_change_holder);
             let ws_channels_holder = WsChannelsHolder::new(ws_channels_holder);
 
             let thread_name = "fn: start_ws".to_string();
@@ -97,6 +103,7 @@ impl Worker {
                 .name(thread_name)
                 .spawn(move || {
                     let ws_server = WsServer {
+                        percent_change_holder,
                         ws_channels_holder,
                         ws_addr,
                         ws_answer_timeout_ms,
@@ -143,6 +150,7 @@ impl Worker {
             index_price_repository,
             pair_average_price_repositories,
             market_repositories,
+            percent_change_holder,
             ws_channels_holder,
             pair_average_price,
             index_price,
@@ -181,8 +189,9 @@ impl Worker {
             pair_average_price.clone(),
             index_price,
             index_pairs,
-            &ws_channels_holder,
+            &percent_change_holder,
             percent_change_interval_sec,
+            &ws_channels_holder,
         );
         self.start_ws(
             ws,
@@ -190,6 +199,7 @@ impl Worker {
             ws_answer_timeout_ms,
             index_price_repository.clone(),
             pair_average_price,
+            percent_change_holder,
             ws_channels_holder,
             self.graceful_shutdown.clone(),
         );
