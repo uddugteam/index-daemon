@@ -21,6 +21,7 @@ impl ExchangePairInfo {
         ws_channels_holder: &WsChannelsHolderHashMap,
         market_name: String,
         pair: (String, String),
+        percent_change_interval_sec: u64,
     ) -> Self {
         let mut repositories = repositories.unwrap_or_default();
 
@@ -39,6 +40,7 @@ impl ExchangePairInfo {
                         ))
                         .unwrap(),
                 ),
+                percent_change_interval_sec,
             ),
             last_trade_volume: 0.0,
             total_volume: StoredAndWsTransmissibleF64::new(
@@ -51,6 +53,7 @@ impl ExchangePairInfo {
                         .get(&(market_name, MarketValue::PairExchangeVolume, Some(pair)))
                         .unwrap(),
                 ),
+                percent_change_interval_sec,
             ),
             total_ask: 0.0,
             total_bid: 0.0,

@@ -1,4 +1,4 @@
-use crate::config_scheme::market_config::MarketConfig;
+use crate::config_scheme::config_scheme::ConfigScheme;
 use crate::repository::repositories::WorkerRepositoriesByPairTuple;
 use crate::worker::market_helpers::market_value::MarketValue;
 use crate::worker::market_helpers::stored_and_ws_transmissible_f64::StoredAndWsTransmissibleF64;
@@ -11,13 +11,13 @@ pub type StoredAndWsTransmissibleF64ByPairTuple =
     HashMap<(String, String), Arc<Mutex<StoredAndWsTransmissibleF64>>>;
 
 pub fn make_pair_average_price(
-    market_config: &MarketConfig,
+    config: &ConfigScheme,
     mut repository: Option<WorkerRepositoriesByPairTuple>,
     ws_channels_holder: &WsChannelsHolderHashMap,
 ) -> StoredAndWsTransmissibleF64ByPairTuple {
     let mut hash_map = HashMap::new();
 
-    for exchange_pair in &market_config.exchange_pairs {
+    for exchange_pair in &config.market.exchange_pairs {
         let pair = exchange_pair.clone();
         let key = (
             "worker".to_string(),
@@ -37,6 +37,7 @@ pub fn make_pair_average_price(
             None,
             Some(pair.clone()),
             Arc::clone(ws_channels),
+            config.service.percent_change_interval_sec,
         )));
 
         hash_map.insert(pair, pair_average_price);

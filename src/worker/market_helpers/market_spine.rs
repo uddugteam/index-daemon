@@ -102,6 +102,7 @@ impl MarketSpine {
         exchange_pair: (String, String),
         repositories: Option<MarketRepositoriesByMarketValue>,
         ws_channels_holder: &WsChannelsHolderHashMap,
+        percent_change_interval_sec: u64,
     ) {
         self.exchange_pairs.insert(
             pair_string.clone(),
@@ -110,6 +111,7 @@ impl MarketSpine {
                 ws_channels_holder,
                 self.name.clone(),
                 exchange_pair.clone(),
+                percent_change_interval_sec,
             ),
         );
         self.pairs
@@ -385,6 +387,7 @@ pub mod test {
                     .unwrap()
             }),
             &ws_channels_holder,
+            config.service.percent_change_interval_sec,
         );
 
         assert!(spine.get_exchange_pairs().get(&pair_string).is_some());

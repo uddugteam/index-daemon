@@ -1,7 +1,8 @@
 use crate::config_scheme::helper_functions::{
     check_unexpected_configs, get_config_from_config_files, get_default_data_expire_sec,
-    get_default_data_expire_string, get_default_historical, get_default_host, get_default_port,
-    get_default_storage, set_log_level,
+    get_default_data_expire_string, get_default_historical, get_default_host,
+    get_default_percent_change_interval_sec, get_default_percent_change_interval_string,
+    get_default_port, get_default_storage, set_log_level,
 };
 use crate::config_scheme::storage::Storage;
 use clap::ArgMatches;
@@ -16,6 +17,7 @@ pub struct ServiceConfig {
     pub storage: Option<Storage>,
     pub historical_storage_frequency_ms: u64,
     pub data_expire_sec: u64,
+    pub percent_change_interval_sec: u64,
 }
 
 impl ServiceConfig {
@@ -85,6 +87,15 @@ impl ServiceConfig {
         .as_secs();
         assert!(data_expire_sec > 0);
 
+        let percent_change_interval_sec = parse(
+            &service_config
+                .get_str("percent_change_interval")
+                .unwrap_or(get_default_percent_change_interval_string()),
+        )
+        .unwrap()
+        .as_secs();
+        assert!(percent_change_interval_sec > 0);
+
         let received_configs = HashMap::from([
             ("ws", vec!["ws_host", "ws_port", "ws_answer_timeout_ms"]),
             (
@@ -102,6 +113,7 @@ impl ServiceConfig {
             storage,
             historical_storage_frequency_ms,
             data_expire_sec,
+            percent_change_interval_sec,
         }
     }
 }
@@ -116,6 +128,7 @@ impl Default for ServiceConfig {
             storage: get_default_storage(get_default_historical()),
             historical_storage_frequency_ms: 20,
             data_expire_sec: get_default_data_expire_sec(),
+            percent_change_interval_sec: get_default_percent_change_interval_sec(),
         }
     }
 }

@@ -31,13 +31,16 @@ impl RepositoriesPrepared {
         let ws_channels_holder = WsChannelsHolder::make_hashmap(&config.market);
 
         let pair_average_price = make_pair_average_price(
-            &config.market,
+            config,
             pair_average_price_repositories.clone(),
             &ws_channels_holder,
         );
 
-        let index_price =
-            Self::make_index_price(index_price_repository.clone(), &ws_channels_holder);
+        let index_price = Self::make_index_price(
+            index_price_repository.clone(),
+            &ws_channels_holder,
+            config.service.percent_change_interval_sec,
+        );
 
         Self {
             index_price_repository,
@@ -52,6 +55,7 @@ impl RepositoriesPrepared {
     fn make_index_price(
         index_repository: Option<RepositoryForF64ByTimestamp>,
         ws_channels_holder: &WsChannelsHolderHashMap,
+        percent_change_interval_sec: u64,
     ) -> Arc<Mutex<StoredAndWsTransmissibleF64>> {
         let key = ("worker".to_string(), MarketValue::IndexPrice, None);
         let ws_channels = ws_channels_holder.get(&key).unwrap();
@@ -62,6 +66,7 @@ impl RepositoriesPrepared {
             None,
             None,
             Arc::clone(ws_channels),
+            percent_change_interval_sec,
         )))
     }
 }

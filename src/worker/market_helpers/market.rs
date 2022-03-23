@@ -29,6 +29,7 @@ pub fn market_factory(
     exchange_pairs: Vec<(String, String)>,
     repositories: Option<MarketRepositoriesByPairTuple>,
     ws_channels_holder: &WsChannelsHolderHashMap,
+    percent_change_interval_sec: u64,
 ) -> Arc<Mutex<dyn Market + Send>> {
     let mut repositories = repositories.unwrap_or_default();
 
@@ -66,6 +67,7 @@ pub fn market_factory(
             exchange_pair.clone(),
             repositories.remove(&exchange_pair),
             ws_channels_holder,
+            percent_change_interval_sec,
         );
     }
 
@@ -296,6 +298,7 @@ pub trait Market {
         exchange_pair: (String, String),
         repositories: Option<MarketRepositoriesByMarketValue>,
         ws_channels_holder: &WsChannelsHolderHashMap,
+        percent_change_interval_sec: u64,
     ) {
         let pair_string = self.make_pair(get_pair_ref(&exchange_pair));
         self.get_spine_mut().add_exchange_pair(
@@ -303,6 +306,7 @@ pub trait Market {
             exchange_pair,
             repositories,
             ws_channels_holder,
+            percent_change_interval_sec,
         );
     }
 

@@ -51,6 +51,7 @@ impl Worker {
         index_price: Arc<Mutex<StoredAndWsTransmissibleF64>>,
         index_pairs: Vec<(String, String)>,
         ws_channels_holder: &WsChannelsHolderHashMap,
+        percent_change_interval_sec: u64,
     ) {
         let mut repositories = repositories.unwrap_or_default();
 
@@ -71,6 +72,7 @@ impl Worker {
                 exchange_pairs.clone(),
                 repositories.remove(market_name),
                 ws_channels_holder,
+                percent_change_interval_sec,
             );
 
             self.markets.insert(market_name.to_string(), market);
@@ -147,7 +149,9 @@ impl Worker {
         } = RepositoriesPrepared::make(&config);
 
         let ConfigScheme {
-            market, service, ..
+            market,
+            service,
+            matches: _,
         } = config;
         let MarketConfig {
             markets,
@@ -163,6 +167,7 @@ impl Worker {
             storage: _,
             historical_storage_frequency_ms: _,
             data_expire_sec,
+            percent_change_interval_sec,
         } = service;
 
         let markets = markets.iter().map(|v| v.as_ref()).collect();
@@ -177,6 +182,7 @@ impl Worker {
             index_price,
             index_pairs,
             &ws_channels_holder,
+            percent_change_interval_sec,
         );
         self.start_ws(
             ws,
@@ -284,6 +290,7 @@ pub mod test {
             index_price,
             config.market.index_pairs,
             &ws_channels_holder,
+            config.service.percent_change_interval_sec,
         );
 
         assert_eq!(markets.len(), worker.markets.len());
