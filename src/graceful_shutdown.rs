@@ -4,7 +4,7 @@ use signal_hook::{
     iterator::Signals,
     low_level,
 };
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 use std::thread;
 
 const SIGNALS: &[c_int] = &[SIGINT, SIGQUIT, SIGTERM];
@@ -23,8 +23,8 @@ fn start_force_shutdown_listener() {
         .unwrap();
 }
 
-pub fn start_graceful_shutdown_listener() -> Arc<Mutex<bool>> {
-    let graceful_shutdown = Arc::new(Mutex::new(false));
+pub fn start_graceful_shutdown_listener() -> Arc<RwLock<bool>> {
+    let graceful_shutdown = Arc::new(RwLock::new(false));
     let graceful_shutdown_2 = Arc::clone(&graceful_shutdown);
 
     let thread_name = "fn: start_graceful_shutdown_listener".to_string();
@@ -40,7 +40,7 @@ pub fn start_graceful_shutdown_listener() -> Arc<Mutex<bool>> {
                 println!("Gracefully stopping... (press Ctrl+C again to force)");
                 start_force_shutdown_listener();
 
-                *graceful_shutdown_2.lock().unwrap() = true;
+                *graceful_shutdown_2.write().unwrap() = true;
             }
         })
         .unwrap();

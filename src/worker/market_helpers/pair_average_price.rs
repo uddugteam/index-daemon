@@ -7,10 +7,10 @@ use crate::worker::network_helpers::ws_server::holders::helper_functions::Holder
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
 use crate::worker::network_helpers::ws_server::ws_channels::WsChannels;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 
 pub type StoredAndWsTransmissibleF64ByPairTuple =
-    HashMap<(String, String), Arc<Mutex<StoredAndWsTransmissibleF64>>>;
+    HashMap<(String, String), Arc<RwLock<StoredAndWsTransmissibleF64>>>;
 
 pub fn make_pair_average_price(
     config: &ConfigScheme,
@@ -30,7 +30,7 @@ pub fn make_pair_average_price(
         let percent_change = percent_change_holder.get(&key).unwrap();
         let ws_channels = ws_channels_holder.get(&key).unwrap();
 
-        let pair_average_price = Arc::new(Mutex::new(StoredAndWsTransmissibleF64::new(
+        let pair_average_price = Arc::new(RwLock::new(StoredAndWsTransmissibleF64::new(
             repository
                 .as_mut()
                 .map(|v| v.remove(exchange_pair).unwrap()),

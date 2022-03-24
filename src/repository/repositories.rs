@@ -5,9 +5,9 @@ use crate::repository::repository::Repository;
 use crate::worker::market_helpers::market_value::MarketValue;
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 
-pub type RepositoryForF64ByTimestamp = Box<dyn Repository<DateTime<Utc>, f64> + Send>;
+pub type RepositoryForF64ByTimestamp = Box<dyn Repository<DateTime<Utc>, f64> + Send + Sync>;
 pub type WorkerRepositoriesByPairTuple = HashMap<(String, String), RepositoryForF64ByTimestamp>;
 pub type MarketRepositoriesByMarketValue = HashMap<MarketValue, RepositoryForF64ByTimestamp>;
 pub type MarketRepositoriesByPairTuple = HashMap<(String, String), MarketRepositoriesByMarketValue>;
@@ -60,7 +60,7 @@ impl Repositories {
 
     pub fn make_pair_average_price_sled(
         config: &ConfigScheme,
-        tree: Arc<Mutex<vsdbsled::Db>>,
+        tree: Arc<RwLock<vsdbsled::Db>>,
     ) -> WorkerRepositoriesByPairTuple {
         let market_config = &config.market;
         let service_config = &config.service;
@@ -88,7 +88,7 @@ impl Repositories {
 
     fn make_market_repositories_sled(
         config: &ConfigScheme,
-        tree: Arc<Mutex<vsdbsled::Db>>,
+        tree: Arc<RwLock<vsdbsled::Db>>,
     ) -> MarketRepositoriesByMarketName {
         let market_config = &config.market;
         let service_config = &config.service;
@@ -134,7 +134,7 @@ impl Repositories {
 
     pub fn make_index_repository_sled(
         config: &ConfigScheme,
-        tree: Arc<Mutex<vsdbsled::Db>>,
+        tree: Arc<RwLock<vsdbsled::Db>>,
     ) -> RepositoryForF64ByTimestamp {
         let service_config = &config.service;
 

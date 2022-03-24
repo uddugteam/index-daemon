@@ -8,14 +8,14 @@ use crate::worker::network_helpers::ws_server::holders::helper_functions::Holder
 use crate::worker::network_helpers::ws_server::ws_channels::WsChannels;
 use std::collections::HashMap;
 use std::sync::mpsc::Sender;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 use std::thread::{self, JoinHandle};
 
 pub const EPS: f64 = 0.00001;
 
 pub struct MarketSpine {
     pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
-    index_price: Arc<Mutex<StoredAndWsTransmissibleF64>>,
+    index_price: Arc<RwLock<StoredAndWsTransmissibleF64>>,
     pub tx: Sender<JoinHandle<()>>,
     pub rest_timeout_sec: u64,
     pub name: String,
@@ -25,18 +25,18 @@ pub struct MarketSpine {
     index_pairs: Vec<(String, String)>,
     pairs: HashMap<String, (String, String)>,
     pub channels: Vec<MarketChannels>,
-    pub graceful_shutdown: Arc<Mutex<bool>>,
+    pub graceful_shutdown: Arc<RwLock<bool>>,
 }
 impl MarketSpine {
     pub fn new(
         pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
-        index_price: Arc<Mutex<StoredAndWsTransmissibleF64>>,
+        index_price: Arc<RwLock<StoredAndWsTransmissibleF64>>,
         index_pairs: Vec<(String, String)>,
         tx: Sender<JoinHandle<()>>,
         rest_timeout_sec: u64,
         name: String,
         channels: Vec<MarketChannels>,
-        graceful_shutdown: Arc<Mutex<bool>>,
+        graceful_shutdown: Arc<RwLock<bool>>,
     ) -> Self {
         let channels = match name.as_str() {
             "poloniex" | "kucoin" => {
@@ -178,7 +178,7 @@ impl MarketSpine {
         let thread = thread::Builder::new()
             .name(thread_name)
             .spawn(move || {
-                if let Ok(mut pair_average_price_2) = pair_average_price_2.lock() {
+                if let Ok(mut pair_average_price_2) = pair_average_price_2.write() {
                     let old_avg = pair_average_price_2.get().unwrap_or(new_price);
 
                     let new_avg = (new_price + old_avg) / 2.0;
@@ -206,7 +206,7 @@ impl MarketSpine {
         pair: (String, String),
         tx: Sender<JoinHandle<()>>,
         pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
-        index_price: Arc<Mutex<StoredAndWsTransmissibleF64>>,
+        index_price: Arc<RwLock<StoredAndWsTransmissibleF64>>,
         index_pairs: Vec<(String, String)>,
     ) {
         let thread_name = format!(
@@ -222,7 +222,7 @@ impl MarketSpine {
                     let value = pair_average_price
                         .get(&index_pair)
                         .unwrap()
-                        .lock()
+                        .read()
                         .unwrap()
                         .get();
 
@@ -238,7 +238,7 @@ impl MarketSpine {
 
                     info!("new index price: {}", avg);
 
-                    index_price.lock().unwrap().set(avg);
+                    index_price.write().unwrap().set(avg);
                 }
             })
             .unwrap();
@@ -327,13 +327,13 @@ pub mod test {
     use crate::worker::market_helpers::market_spine::MarketSpine;
     use crate::worker::worker::test::make_worker;
     use std::sync::mpsc::Receiver;
-    use std::sync::{Arc, Mutex};
+    use std::sync::{Arc, RwLock};
     use std::thread::JoinHandle;
 
     pub fn make_spine(market_name: Option<&str>) -> (MarketSpine, Receiver<JoinHandle<()>>) {
         let market_name = market_name.unwrap_or("binance").to_string();
         let (_worker, tx, rx) = make_worker();
-        let graceful_shutdown = Arc::new(Mutex::new(false));
+        let graceful_shutdown = Arc::new(RwLock::new(false));
 
         let config = ConfigScheme::default();
         let RepositoriesPrepared {

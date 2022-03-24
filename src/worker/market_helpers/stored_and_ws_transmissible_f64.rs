@@ -9,15 +9,15 @@ use crate::worker::network_helpers::ws_server::ws_channel_response_payload::WsCh
 use crate::worker::network_helpers::ws_server::ws_channels::WsChannels;
 use chrono::{DateTime, Utc, MIN_DATETIME};
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 
 pub struct StoredAndWsTransmissibleF64 {
     value: Option<f64>,
     timestamp: DateTime<Utc>,
-    percent_change: Arc<Mutex<PercentChangeByInterval>>,
+    percent_change: Arc<RwLock<PercentChangeByInterval>>,
     percent_change_interval_sec: u64,
     pub repository: Option<RepositoryForF64ByTimestamp>,
-    ws_channels: Arc<Mutex<WsChannels>>,
+    ws_channels: Arc<RwLock<WsChannels>>,
     ws_channel_names: Vec<WsChannelName>,
     market_name: Option<String>,
     pair: Option<(String, String)>,
@@ -29,9 +29,9 @@ impl StoredAndWsTransmissibleF64 {
         ws_channel_names: Vec<WsChannelName>,
         market_name: Option<String>,
         pair: Option<(String, String)>,
-        percent_change: Arc<Mutex<PercentChangeByInterval>>,
+        percent_change: Arc<RwLock<PercentChangeByInterval>>,
         percent_change_interval_sec: u64,
-        ws_channels: Arc<Mutex<WsChannels>>,
+        ws_channels: Arc<RwLock<WsChannels>>,
     ) -> Self {
         for ws_channel_name in &ws_channel_names {
             if ws_channel_name.is_worker_channel() {
@@ -79,7 +79,7 @@ impl StoredAndWsTransmissibleF64 {
         }
 
         self.percent_change
-            .lock()
+            .write()
             .unwrap()
             .set(value, self.timestamp);
 
@@ -88,7 +88,7 @@ impl StoredAndWsTransmissibleF64 {
 
     fn get_percent_change(&self, percent_change_interval_sec: u64) -> Option<f64> {
         self.percent_change
-            .lock()
+            .read()
             .unwrap()
             .get_percent_change(percent_change_interval_sec)
     }
@@ -115,7 +115,7 @@ impl StoredAndWsTransmissibleF64 {
     fn send_ws_response_1(&self, ws_channel_name: WsChannelName, value: f64) -> Option<()> {
         let market_name = self.market_name.as_ref().map(|v| v.to_string());
         let timestamp = self.timestamp;
-        let mut ws_channels = self.ws_channels.lock().ok()?;
+        let mut ws_channels = self.ws_channels.write().ok()?;
         let channels = ws_channels.get_channels_by_method(ws_channel_name);
         let mut responses = HashMap::new();
 
@@ -169,7 +169,7 @@ impl StoredAndWsTransmissibleF64 {
 
     fn send_ws_response_2(&self, ws_channel_name: WsChannelName) -> Option<()> {
         let repository = self.repository.as_ref()?;
-        let mut ws_channels = self.ws_channels.lock().ok()?;
+        let mut ws_channels = self.ws_channels.write().ok()?;
         let channels = ws_channels.get_channels_by_method(ws_channel_name);
         let mut responses = HashMap::new();
 

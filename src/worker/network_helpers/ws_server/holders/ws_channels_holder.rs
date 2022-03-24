@@ -22,7 +22,7 @@ impl WsChannelsHolder {
             let (conn_id, response_sender) = value;
 
             ws_channels
-                .lock()
+                .write()
                 .unwrap()
                 .add_channel(conn_id, response_sender);
         }
@@ -30,7 +30,7 @@ impl WsChannelsHolder {
 
     pub fn remove(&self, ws_channels_key: &(String, WsChannelName)) {
         for ws_channels in self.0.values() {
-            ws_channels.lock().unwrap().remove_channel(ws_channels_key);
+            ws_channels.write().unwrap().remove_channel(ws_channels_key);
         }
     }
 }

@@ -2,12 +2,12 @@ use crate::repository::repository::Repository;
 use crate::worker::helper_functions::date_time_from_timestamp_sec;
 use chrono::{DateTime, Utc, MIN_DATETIME};
 use std::str;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 
 #[derive(Clone)]
 pub struct F64ByTimestampSled {
     entity_name: String,
-    repository: Arc<Mutex<vsdbsled::Db>>,
+    repository: Arc<RwLock<vsdbsled::Db>>,
     frequency_ms: u64,
     last_insert_timestamp: DateTime<Utc>,
 }
@@ -15,7 +15,7 @@ pub struct F64ByTimestampSled {
 impl F64ByTimestampSled {
     pub fn new(
         entity_name: String,
-        repository: Arc<Mutex<vsdbsled::Db>>,
+        repository: Arc<RwLock<vsdbsled::Db>>,
         frequency_ms: u64,
     ) -> Self {
         Self {
@@ -58,7 +58,7 @@ impl Repository<DateTime<Utc>, f64> for F64ByTimestampSled {
         let key = self.stringify_primary(primary);
 
         self.repository
-            .lock()
+            .read()
             .unwrap()
             .get(key)
             .map(|v| v.map(|v| f64::from_ne_bytes(v[0..8].try_into().unwrap())))
@@ -77,7 +77,7 @@ impl Repository<DateTime<Utc>, f64> for F64ByTimestampSled {
         let mut errors = Vec::new();
 
         self.repository
-            .lock()
+            .read()
             .unwrap()
             .range(key_from..key_to)
             .for_each(|v| match v {
@@ -114,12 +114,12 @@ impl Repository<DateTime<Utc>, f64> for F64ByTimestampSled {
 
             let res = self
                 .repository
-                .lock()
+                .read()
                 .unwrap()
                 .insert(key, new_value.to_ne_bytes())
                 .map(|_| ())
                 .map_err(|e| e.to_string());
-            let _ = self.repository.lock().unwrap().flush();
+            let _ = self.repository.read().unwrap().flush();
 
             Some(res)
         } else {
@@ -131,14 +131,14 @@ impl Repository<DateTime<Utc>, f64> for F64ByTimestampSled {
     fn delete(&mut self, primary: DateTime<Utc>) {
         let key = self.stringify_primary(primary);
 
-        if let Ok(repository) = self.repository.lock() {
+        if let Ok(repository) = self.repository.read() {
             let _ = repository.remove(key);
             let _ = repository.flush();
         }
     }
 
     fn delete_multiple(&mut self, primary: &[DateTime<Utc>]) {
-        if let Ok(repository) = self.repository.lock() {
+        if let Ok(repository) = self.repository.read() {
             for &key in primary {
                 let key = self.stringify_primary(key);
 

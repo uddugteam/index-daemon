@@ -13,7 +13,7 @@ use crate::worker::network_helpers::ws_server::holders::helper_functions::make_h
 use crate::worker::network_helpers::ws_server::holders::helper_functions::HolderHashMap;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
 use crate::worker::network_helpers::ws_server::ws_channels::WsChannels;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 
 pub struct RepositoriesPrepared {
     pub index_price_repository: Option<RepositoryForF64ByTimestamp>,
@@ -22,7 +22,7 @@ pub struct RepositoriesPrepared {
     pub percent_change_holder: HolderHashMap<PercentChangeByInterval>,
     pub ws_channels_holder: HolderHashMap<WsChannels>,
     pub pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
-    pub index_price: Arc<Mutex<StoredAndWsTransmissibleF64>>,
+    pub index_price: Arc<RwLock<StoredAndWsTransmissibleF64>>,
 }
 
 impl RepositoriesPrepared {
@@ -63,12 +63,12 @@ impl RepositoriesPrepared {
         percent_change_holder: &HolderHashMap<PercentChangeByInterval>,
         percent_change_interval_sec: u64,
         ws_channels_holder: &HolderHashMap<WsChannels>,
-    ) -> Arc<Mutex<StoredAndWsTransmissibleF64>> {
+    ) -> Arc<RwLock<StoredAndWsTransmissibleF64>> {
         let key = ("worker".to_string(), MarketValue::IndexPrice, None);
         let percent_change = percent_change_holder.get(&key).unwrap();
         let ws_channels = ws_channels_holder.get(&key).unwrap();
 
-        Arc::new(Mutex::new(StoredAndWsTransmissibleF64::new(
+        Arc::new(RwLock::new(StoredAndWsTransmissibleF64::new(
             index_repository,
             vec![WsChannelName::IndexPrice, WsChannelName::IndexPriceCandles],
             None,

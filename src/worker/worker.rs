@@ -19,18 +19,18 @@ use crate::worker::network_helpers::ws_server::ws_channels::WsChannels;
 use crate::worker::network_helpers::ws_server::ws_server::WsServer;
 use std::collections::HashMap;
 use std::sync::mpsc::Sender;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 use std::thread::{self, JoinHandle};
 use std::time;
 
 pub struct Worker {
     tx: Sender<JoinHandle<()>>,
-    graceful_shutdown: Arc<Mutex<bool>>,
+    graceful_shutdown: Arc<RwLock<bool>>,
     markets: HashMap<String, Arc<Mutex<dyn Market + Send>>>,
 }
 
 impl Worker {
-    pub fn new(tx: Sender<JoinHandle<()>>, graceful_shutdown: Arc<Mutex<bool>>) -> Self {
+    pub fn new(tx: Sender<JoinHandle<()>>, graceful_shutdown: Arc<RwLock<bool>>) -> Self {
         Self {
             tx,
             graceful_shutdown,
@@ -39,7 +39,7 @@ impl Worker {
     }
 
     fn is_graceful_shutdown(&self) -> bool {
-        *self.graceful_shutdown.lock().unwrap()
+        *self.graceful_shutdown.read().unwrap()
     }
 
     fn configure(
@@ -50,7 +50,7 @@ impl Worker {
         rest_timeout_sec: u64,
         repositories: Option<MarketRepositoriesByMarketName>,
         pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
-        index_price: Arc<Mutex<StoredAndWsTransmissibleF64>>,
+        index_price: Arc<RwLock<StoredAndWsTransmissibleF64>>,
         index_pairs: Vec<(String, String)>,
         percent_change_holder: &HolderHashMap<PercentChangeByInterval>,
         percent_change_interval_sec: u64,
@@ -92,7 +92,7 @@ impl Worker {
         pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
         percent_change_holder: HolderHashMap<PercentChangeByInterval>,
         ws_channels_holder: HolderHashMap<WsChannels>,
-        graceful_shutdown: Arc<Mutex<bool>>,
+        graceful_shutdown: Arc<RwLock<bool>>,
     ) {
         if ws {
             let percent_change_holder = PercentChangeByIntervalHolder::new(percent_change_holder);
@@ -242,14 +242,14 @@ pub mod test {
     use ntest::timeout;
     use serial_test::serial;
     use std::sync::mpsc::{Receiver, Sender};
-    use std::sync::{mpsc, Arc, Mutex};
+    use std::sync::{mpsc, Arc, RwLock};
     use std::thread;
     use std::thread::JoinHandle;
     use std::time;
 
     pub fn make_worker() -> (Worker, Sender<JoinHandle<()>>, Receiver<JoinHandle<()>>) {
         let (tx, rx) = mpsc::channel();
-        let graceful_shutdown = Arc::new(Mutex::new(false));
+        let graceful_shutdown = Arc::new(RwLock::new(false));
         let worker = Worker::new(tx.clone(), graceful_shutdown);
 
         (worker, tx, rx)

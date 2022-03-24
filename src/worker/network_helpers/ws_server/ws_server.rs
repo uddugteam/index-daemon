@@ -30,11 +30,11 @@ use futures::{
     future, pin_mut,
     prelude::*,
 };
-use std::{collections::HashMap, io, net::SocketAddr, sync::Arc, sync::Mutex, thread, time};
+use std::{collections::HashMap, io, net::SocketAddr, sync::Arc, sync::RwLock, thread, time};
 use uuid::Uuid;
 
 type Tx = UnboundedSender<Message>;
-type PeerMap = Arc<Mutex<HashMap<SocketAddr, Tx>>>;
+type PeerMap = Arc<RwLock<HashMap<SocketAddr, Tx>>>;
 
 const JSONRPC_ERROR_INVALID_REQUEST: i64 = -32600;
 const JSONRPC_ERROR_INVALID_PARAMS: i64 = -32602;
@@ -47,7 +47,7 @@ pub struct WsServer {
     pub ws_answer_timeout_ms: u64,
     pub index_price_repository: Option<RepositoryForF64ByTimestamp>,
     pub pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
-    pub graceful_shutdown: Arc<Mutex<bool>>,
+    pub graceful_shutdown: Arc<RwLock<bool>>,
 }
 
 impl WsServer {
@@ -231,7 +231,7 @@ impl WsServer {
 
                 for (pair_tuple, repository) in pair_average_price {
                     if let Some(coin) = strip_usd(&pair_tuple) {
-                        if let Some(value) = repository.lock().unwrap().get() {
+                        if let Some(value) = repository.read().unwrap().get() {
                             let value = CoinPrice { coin, value };
 
                             if let Ok(v) = res.as_mut() {
@@ -301,7 +301,7 @@ impl WsServer {
                     .unwrap_or_else(Utc::now);
 
                 if let Some(repository) = pair_average_price.get(&pair_tuple) {
-                    if let Some(repository) = &repository.lock().unwrap().repository {
+                    if let Some(repository) = &repository.read().unwrap().repository {
                         match repository.read_range(from, to) {
                             Ok(values) => {
                                 let response = match request {
@@ -530,9 +530,9 @@ impl WsServer {
         ws_answer_timeout_ms: u64,
         index_price_repository: &mut Option<RepositoryForF64ByTimestamp>,
         pair_average_price: &mut StoredAndWsTransmissibleF64ByPairTuple,
-        _graceful_shutdown: &Arc<Mutex<bool>>,
+        _graceful_shutdown: &Arc<RwLock<bool>>,
     ) {
-        let peers = peer_map.lock().unwrap();
+        let peers = peer_map.read().unwrap();
 
         if let Some(broadcast_recipient) = peers.get(&client_addr).cloned() {
             match Self::parse_jsonrpc_request(&request) {
@@ -597,7 +597,7 @@ impl WsServer {
         ws_answer_timeout_ms: u64,
         mut index_price_repository: Option<RepositoryForF64ByTimestamp>,
         mut pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
-        graceful_shutdown: Arc<Mutex<bool>>,
+        graceful_shutdown: Arc<RwLock<bool>>,
     ) {
         match async_tungstenite::accept_async(raw_stream).await {
             Ok(ws_stream) => {
@@ -608,7 +608,7 @@ impl WsServer {
 
                 // Insert the write part of this peer to the peer map.
                 let (tx, rx) = unbounded();
-                peer_map.lock().unwrap().insert(client_addr, tx);
+                peer_map.write().unwrap().insert(client_addr, tx);
 
                 let (outgoing, incoming) = ws_stream.split();
 
@@ -635,7 +635,7 @@ impl WsServer {
                 future::select(broadcast_incoming, receive_from_others).await;
 
                 // The client is already disconnected on this line
-                peer_map.lock().unwrap().remove(&client_addr);
+                peer_map.write().unwrap().remove(&client_addr);
             }
             Err(e) => {
                 error!(
@@ -648,7 +648,7 @@ impl WsServer {
 
     /// Function listens and establishes connections. Function never ends.
     async fn run(self) -> Result<(), io::Error> {
-        let state = PeerMap::new(Mutex::new(HashMap::new()));
+        let state = PeerMap::new(RwLock::new(HashMap::new()));
 
         // Create the event loop and TCP listener we'll accept connections on.
         let try_socket = TcpListener::bind(&self.ws_addr).await;
@@ -657,7 +657,7 @@ impl WsServer {
 
         // Let's spawn the handling of each connection in a separate task.
         while let Ok((stream, client_addr)) = listener.accept().await {
-            if *self.graceful_shutdown.lock().unwrap() {
+            if *self.graceful_shutdown.read().unwrap() {
                 break;
             }
 

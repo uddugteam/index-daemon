@@ -160,7 +160,7 @@ fn is_graceful_shutdown(market: &Arc<Mutex<dyn Market + Send>>) -> bool {
         .unwrap()
         .get_spine()
         .graceful_shutdown
-        .lock()
+        .read()
         .unwrap()
 }
 

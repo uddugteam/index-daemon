@@ -19,7 +19,7 @@ impl PercentChangeByIntervalHolder {
     pub fn add(&self, holder_key: &HolderKey, percent_change_interval_sec: u64) {
         if let Some(percent_change) = self.0.get(holder_key) {
             percent_change
-                .lock()
+                .write()
                 .unwrap()
                 .add_percent_change_interval(percent_change_interval_sec);
         }
