@@ -72,15 +72,11 @@ impl TryFrom<JsonRpcRequest> for WsRequest {
                         frequency_ms,
                         percent_change_interval_sec: percent_change_interval_sec?,
                     },
-                    WsChannelName::IndexPriceCandles => {
-                        let interval = interval??;
-
-                        WorkerChannels::IndexPriceCandles {
-                            id,
-                            frequency_ms,
-                            interval,
-                        }
-                    }
+                    WsChannelName::IndexPriceCandles => WorkerChannels::IndexPriceCandles {
+                        id,
+                        frequency_ms,
+                        interval: interval??,
+                    },
                     _ => unreachable!(),
                 };
 
@@ -99,13 +95,11 @@ impl TryFrom<JsonRpcRequest> for WsRequest {
                         percent_change_interval_sec: percent_change_interval_sec?,
                     },
                     WsChannelName::CoinAveragePriceCandles => {
-                        let interval = interval??;
-
                         WorkerChannels::CoinAveragePriceCandles {
                             id,
                             coins,
                             frequency_ms,
-                            interval,
+                            interval: interval??,
                         }
                     }
                     _ => unreachable!(),
