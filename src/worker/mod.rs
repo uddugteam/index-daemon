@@ -1,3 +1,4 @@
+pub mod db_cleaner;
 pub mod defaults;
 pub mod helper_functions;
 pub mod market_helpers;

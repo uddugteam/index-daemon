@@ -3,6 +3,8 @@ use crate::worker::defaults::{COINS, FIATS, MARKETS};
 use crate::worker::market_helpers::market_channels::MarketChannels;
 use clap::ArgMatches;
 use env_logger::Builder;
+use parse_duration::parse;
+use std::collections::HashMap;
 
 pub fn get_config_file_path(matches: &ArgMatches, key: &str) -> Option<String> {
     matches.value_of(key).map(|v| v.to_string())
@@ -81,6 +83,22 @@ pub fn get_default_storage(historical: bool) -> Option<Storage> {
     }
 }
 
+pub fn get_default_data_expire_string() -> String {
+    "1 month".to_string()
+}
+pub fn get_default_data_expire_sec() -> u64 {
+    parse(&get_default_data_expire_string()).unwrap().as_secs()
+}
+
+pub fn get_default_percent_change_interval_string() -> String {
+    "1 minute".to_string()
+}
+pub fn get_default_percent_change_interval_sec() -> u64 {
+    parse(&get_default_percent_change_interval_string())
+        .unwrap()
+        .as_secs()
+}
+
 pub fn make_pairs(coins: Vec<String>, fiats: Option<Vec<&str>>) -> Vec<(String, String)> {
     let mut pairs = Vec::new();
 
@@ -131,4 +149,22 @@ pub fn has_no_duplicates<T: PartialEq>(set: &[T]) -> bool {
     }
 
     true
+}
+
+pub fn check_unexpected_configs(
+    service_config: config::Config,
+    received_configs: HashMap<&str, Vec<&str>>,
+) -> Result<(), String> {
+    for (config_name, keys) in received_configs {
+        for key in keys {
+            if service_config.get_str(key).is_ok() {
+                return Err(format!(
+                    "Got unexpected config. service_config: {}. That config is allowed only if {}=1",
+                    key, config_name,
+                ));
+            }
+        }
+    }
+
+    Ok(())
 }

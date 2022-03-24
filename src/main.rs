@@ -1,7 +1,7 @@
 use crate::config_scheme::config_scheme::ConfigScheme;
 use crate::graceful_shutdown::start_graceful_shutdown_listener;
 use crate::helper_functions::fill_historical_data;
-use crate::worker::worker::Worker;
+use crate::worker::worker::start_worker;
 use std::sync::mpsc;
 
 #[macro_use]
@@ -24,8 +24,7 @@ fn main() {
     fill_historical_data(&config);
 
     let (tx, rx) = mpsc::channel();
-    let mut worker = Worker::new(tx, graceful_shutdown);
-    worker.start(config);
+    start_worker(config, tx, graceful_shutdown);
 
     for received_thread in rx {
         let _ = received_thread.join();

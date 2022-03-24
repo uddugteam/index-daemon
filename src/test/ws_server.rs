@@ -9,7 +9,7 @@ use serde_json::json;
 use serial_test::serial;
 use std::collections::HashMap;
 use std::sync::mpsc::{Receiver, Sender};
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::{mpsc, Arc, RwLock};
 use std::thread;
 use std::thread::JoinHandle;
 use std::time;
@@ -26,7 +26,7 @@ fn start_application(
     // To prevent DDoS attack on exchanges
     thread::sleep(time::Duration::from_millis(3000));
 
-    let graceful_shutdown = Arc::new(Mutex::new(false));
+    let graceful_shutdown = Arc::new(RwLock::new(false));
 
     let mut config = ConfigScheme::default();
     config.service.ws = true;

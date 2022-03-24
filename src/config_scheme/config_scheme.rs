@@ -2,7 +2,7 @@ use crate::config_scheme::market_config::MarketConfig;
 use crate::config_scheme::service_config::ServiceConfig;
 use clap::{App, Arg, ArgMatches, ValueHint};
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct ConfigScheme {
     pub market: MarketConfig,
     pub service: ServiceConfig,

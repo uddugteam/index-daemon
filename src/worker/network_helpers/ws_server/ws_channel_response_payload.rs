@@ -31,12 +31,16 @@ pub enum WsChannelResponsePayload {
         value: f64,
         #[serde(with = "ser_date_into_timestamp")]
         timestamp: DateTime<Utc>,
+        percent_change_interval_sec: u64,
+        percent_change: Option<f64>,
     },
     CoinAveragePrice {
         coin: String,
         value: f64,
         #[serde(with = "ser_date_into_timestamp")]
         timestamp: DateTime<Utc>,
+        percent_change_interval_sec: u64,
+        percent_change: Option<f64>,
     },
     CoinExchangePrice {
         coin: String,
@@ -44,6 +48,8 @@ pub enum WsChannelResponsePayload {
         value: f64,
         #[serde(with = "ser_date_into_timestamp")]
         timestamp: DateTime<Utc>,
+        percent_change_interval_sec: u64,
+        percent_change: Option<f64>,
     },
     CoinExchangeVolume {
         coin: String,
@@ -51,6 +57,8 @@ pub enum WsChannelResponsePayload {
         value: f64,
         #[serde(with = "ser_date_into_timestamp")]
         timestamp: DateTime<Utc>,
+        percent_change_interval_sec: u64,
+        percent_change: Option<f64>,
     },
     IndexPriceHistorical {
         values: F64Snapshots,

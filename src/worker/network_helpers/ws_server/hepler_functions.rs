@@ -1,8 +1,6 @@
-use crate::worker::network_helpers::ws_server::interval::Interval;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
 use crate::worker::network_helpers::ws_server::ws_channel_response::WsChannelResponse;
 use async_tungstenite::tungstenite::protocol::Message;
-use chrono::{DateTime, Utc, MIN_DATETIME};
 use futures::channel::mpsc::{TrySendError, UnboundedSender};
 
 type Tx = UnboundedSender<Message>;
@@ -10,6 +8,7 @@ type Tx = UnboundedSender<Message>;
 pub fn add_jsonrpc_version_and_method(response: &mut String, method: Option<WsChannelName>) {
     let mut value: serde_json::Value = serde_json::from_str(response).unwrap();
     let object = value.as_object_mut().unwrap();
+
     object.insert(
         "jsonrpc".to_string(),
         serde_json::Value::from("2.0".to_string()),
@@ -36,25 +35,4 @@ pub fn ws_send_response(
     let response = Message::from(response);
 
     broadcast_recipient.unbounded_send(response)
-}
-
-pub fn thin_by_interval(
-    values: Vec<(DateTime<Utc>, f64)>,
-    interval: Interval,
-) -> Vec<(DateTime<Utc>, f64)> {
-    let interval = interval.into_seconds() as i64;
-
-    let mut res = Vec::new();
-
-    let mut next_timestamp = MIN_DATETIME.timestamp();
-    for value in values {
-        let curr_timestamp = value.0.timestamp();
-
-        if curr_timestamp >= next_timestamp {
-            res.push(value);
-            next_timestamp = curr_timestamp + interval;
-        }
-    }
-
-    res
 }

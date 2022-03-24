@@ -1,45 +1,57 @@
 use crate::config_scheme::config_scheme::ConfigScheme;
 use crate::repository::repositories::{
     MarketRepositoriesByMarketName, Repositories, RepositoryForF64ByTimestamp,
+    WorkerRepositoriesByPairTuple,
 };
 use crate::worker::market_helpers::market_value::MarketValue;
 use crate::worker::market_helpers::pair_average_price::{
     make_pair_average_price, StoredAndWsTransmissibleF64ByPairTuple,
 };
+use crate::worker::market_helpers::percent_change::PercentChangeByInterval;
 use crate::worker::market_helpers::stored_and_ws_transmissible_f64::StoredAndWsTransmissibleF64;
+use crate::worker::network_helpers::ws_server::holders::helper_functions::make_holder_hashmap;
+use crate::worker::network_helpers::ws_server::holders::helper_functions::HolderHashMap;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
-use crate::worker::network_helpers::ws_server::ws_channels_holder::{
-    WsChannelsHolder, WsChannelsHolderHashMap,
-};
-use std::sync::{Arc, Mutex};
+use crate::worker::network_helpers::ws_server::ws_channels::WsChannels;
+use std::sync::{Arc, RwLock};
 
 pub struct RepositoriesPrepared {
     pub index_price_repository: Option<RepositoryForF64ByTimestamp>,
+    pub pair_average_price_repositories: Option<WorkerRepositoriesByPairTuple>,
     pub market_repositories: Option<MarketRepositoriesByMarketName>,
-    pub ws_channels_holder: WsChannelsHolderHashMap,
+    pub percent_change_holder: HolderHashMap<PercentChangeByInterval>,
+    pub ws_channels_holder: HolderHashMap<WsChannels>,
     pub pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
-    pub index_price: Arc<Mutex<StoredAndWsTransmissibleF64>>,
+    pub index_price: Arc<RwLock<StoredAndWsTransmissibleF64>>,
 }
 
 impl RepositoriesPrepared {
     pub fn make(config: &ConfigScheme) -> Self {
-        let (pair_average_price_repository, market_repositories, index_price_repository) =
+        let (pair_average_price_repositories, market_repositories, index_price_repository) =
             Repositories::optionize_fields(Repositories::new(config));
 
-        let ws_channels_holder = WsChannelsHolder::make_hashmap(&config.market);
+        let percent_change_holder = make_holder_hashmap::<PercentChangeByInterval>(config);
+        let ws_channels_holder = make_holder_hashmap::<WsChannels>(config);
 
         let pair_average_price = make_pair_average_price(
-            &config.market,
-            pair_average_price_repository,
+            config,
+            pair_average_price_repositories.clone(),
+            &percent_change_holder,
             &ws_channels_holder,
         );
 
-        let index_price =
-            Self::make_index_price(index_price_repository.clone(), &ws_channels_holder);
+        let index_price = Self::make_index_price(
+            index_price_repository.clone(),
+            &percent_change_holder,
+            config.service.percent_change_interval_sec,
+            &ws_channels_holder,
+        );
 
         Self {
             index_price_repository,
+            pair_average_price_repositories,
             market_repositories,
+            percent_change_holder,
             ws_channels_holder,
             pair_average_price,
             index_price,
@@ -48,16 +60,21 @@ impl RepositoriesPrepared {
 
     fn make_index_price(
         index_repository: Option<RepositoryForF64ByTimestamp>,
-        ws_channels_holder: &WsChannelsHolderHashMap,
-    ) -> Arc<Mutex<StoredAndWsTransmissibleF64>> {
+        percent_change_holder: &HolderHashMap<PercentChangeByInterval>,
+        percent_change_interval_sec: u64,
+        ws_channels_holder: &HolderHashMap<WsChannels>,
+    ) -> Arc<RwLock<StoredAndWsTransmissibleF64>> {
         let key = ("worker".to_string(), MarketValue::IndexPrice, None);
+        let percent_change = percent_change_holder.get(&key).unwrap();
         let ws_channels = ws_channels_holder.get(&key).unwrap();
 
-        Arc::new(Mutex::new(StoredAndWsTransmissibleF64::new(
+        Arc::new(RwLock::new(StoredAndWsTransmissibleF64::new(
             index_repository,
             vec![WsChannelName::IndexPrice, WsChannelName::IndexPriceCandles],
             None,
             None,
+            Arc::clone(percent_change),
+            percent_change_interval_sec,
             Arc::clone(ws_channels),
         )))
     }

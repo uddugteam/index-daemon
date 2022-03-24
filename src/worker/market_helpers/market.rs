@@ -4,6 +4,7 @@ use crate::repository::repositories::{
 use crate::worker::helper_functions::get_pair_ref;
 use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
+use crate::worker::market_helpers::percent_change::PercentChangeByInterval;
 use crate::worker::markets::binance::Binance;
 use crate::worker::markets::bitfinex::Bitfinex;
 use crate::worker::markets::bybit::Bybit;
@@ -18,7 +19,8 @@ use crate::worker::markets::kucoin::Kucoin;
 use crate::worker::markets::okcoin::Okcoin;
 use crate::worker::markets::poloniex::Poloniex;
 use crate::worker::network_helpers::ws_client::WsClient;
-use crate::worker::network_helpers::ws_server::ws_channels_holder::WsChannelsHolderHashMap;
+use crate::worker::network_helpers::ws_server::holders::helper_functions::HolderHashMap;
+use crate::worker::network_helpers::ws_server::ws_channels::WsChannels;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -28,7 +30,9 @@ pub fn market_factory(
     mut spine: MarketSpine,
     exchange_pairs: Vec<(String, String)>,
     repositories: Option<MarketRepositoriesByPairTuple>,
-    ws_channels_holder: &WsChannelsHolderHashMap,
+    percent_change_holder: &HolderHashMap<PercentChangeByInterval>,
+    percent_change_interval_sec: u64,
+    ws_channels_holder: &HolderHashMap<WsChannels>,
 ) -> Arc<Mutex<dyn Market + Send>> {
     let mut repositories = repositories.unwrap_or_default();
 
@@ -65,6 +69,8 @@ pub fn market_factory(
         market.lock().unwrap().add_exchange_pair(
             exchange_pair.clone(),
             repositories.remove(&exchange_pair),
+            percent_change_holder,
+            percent_change_interval_sec,
             ws_channels_holder,
         );
     }
@@ -154,7 +160,7 @@ fn is_graceful_shutdown(market: &Arc<Mutex<dyn Market + Send>>) -> bool {
         .unwrap()
         .get_spine()
         .graceful_shutdown
-        .lock()
+        .read()
         .unwrap()
 }
 
@@ -295,13 +301,17 @@ pub trait Market {
         &mut self,
         exchange_pair: (String, String),
         repositories: Option<MarketRepositoriesByMarketValue>,
-        ws_channels_holder: &WsChannelsHolderHashMap,
+        percent_change_holder: &HolderHashMap<PercentChangeByInterval>,
+        percent_change_interval_sec: u64,
+        ws_channels_holder: &HolderHashMap<WsChannels>,
     ) {
         let pair_string = self.make_pair(get_pair_ref(&exchange_pair));
         self.get_spine_mut().add_exchange_pair(
             pair_string,
             exchange_pair,
             repositories,
+            percent_change_holder,
+            percent_change_interval_sec,
             ws_channels_holder,
         );
     }
@@ -446,6 +456,7 @@ mod test {
 
         let RepositoriesPrepared {
             index_price_repository: _,
+            pair_average_price_repositories: _,
             market_repositories,
             ws_channels_holder,
             pair_average_price: _,
@@ -477,6 +488,7 @@ mod test {
 
         let RepositoriesPrepared {
             index_price_repository: _,
+            pair_average_price_repositories: _,
             market_repositories,
             ws_channels_holder,
             pair_average_price: _,

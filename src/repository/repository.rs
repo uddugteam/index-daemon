@@ -6,6 +6,7 @@ pub trait Repository<T, U>: DynClone {
     fn read_range(&self, primary_from: T, primary_to: T) -> Result<Vec<(T, U)>, String>;
     fn insert(&mut self, primary: T, new_value: U) -> Option<Result<(), String>>;
     fn delete(&mut self, primary: T);
+    fn delete_multiple(&mut self, primary: &[T]);
 }
 
 clone_trait_object!(Repository<DateTime<Utc>, f64>);

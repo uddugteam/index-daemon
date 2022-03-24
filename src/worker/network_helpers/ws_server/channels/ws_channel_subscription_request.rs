@@ -75,6 +75,33 @@ impl WsChannelSubscriptionRequest {
         }
     }
 
+    pub fn get_percent_change_interval_sec(&self) -> Option<u64> {
+        match self {
+            Self::WorkerChannels(channel) => match channel {
+                WorkerChannels::IndexPrice {
+                    percent_change_interval_sec,
+                    ..
+                }
+                | WorkerChannels::CoinAveragePrice {
+                    percent_change_interval_sec,
+                    ..
+                } => *percent_change_interval_sec,
+                WorkerChannels::IndexPriceCandles { .. }
+                | WorkerChannels::CoinAveragePriceCandles { .. } => None,
+            },
+            Self::MarketChannels(channel) => match channel {
+                MarketChannels::CoinExchangePrice {
+                    percent_change_interval_sec,
+                    ..
+                }
+                | MarketChannels::CoinExchangeVolume {
+                    percent_change_interval_sec,
+                    ..
+                } => *percent_change_interval_sec,
+            },
+        }
+    }
+
     pub fn get_method(&self) -> WsChannelName {
         match self {
             Self::WorkerChannels(channel) => match channel {

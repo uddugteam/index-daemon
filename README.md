@@ -26,6 +26,9 @@ You can get cli params description by calling program with "-h" cli param.
 - **ws_answer_timeout_ms** - u64 (min - 100, default - 100). Timeout in ms between websocket answers.
 - **historical** - string ("1" - on, default - off). Turn on historical data storage.
 - **storage** - string. Variants: sled. Default: sled.
+- **historical_storage_frequency_ms** - u64 (min - 10, default - 20). Frequency of putting data into DB.
+- **data_expire** - string. DB data lifetime. Format: number and word, e.g., "5mi", "3mo", "1y" etc. Default: 1 month.
+- **percent_change_interval** - string. Percent change interval. Format: number and word, e.g., "5mi", "3mo", "1y" etc. Default: 1 minute.
 
 #### market_config
 
@@ -74,6 +77,9 @@ Websocket server configs are described above (section _Configs -> service_config
 
 #### index_price
 
+- **frequency_ms** - optional
+- **percent_change_interval** - same as _service_config -> percent_change_interval_. Optional.
+
 subscription request json example:
 
 ```json
@@ -83,12 +89,16 @@ subscription request json example:
   "method": "index_price",
   "params": {
     "coins": ["BTC", "ETH"],
-    "frequency_ms": 100
+    "frequency_ms": 100,
+    "percent_change_interval": "1mi"
   }
 }
 ```
 
 #### coin_average_price
+
+- **frequency_ms** - optional
+- **percent_change_interval** - same as _service_config -> percent_change_interval_. Optional.
 
 subscription request json example:
 
@@ -99,12 +109,16 @@ subscription request json example:
   "method": "coin_average_price",
   "params": {
     "coins": ["BTC", "ETH"],
-    "frequency_ms": 100
+    "frequency_ms": 100,
+    "percent_change_interval": "1mi"
   }
 }
 ```
 
 #### coin_exchange_price
+
+- **frequency_ms** - optional
+- **percent_change_interval** - same as _service_config -> percent_change_interval_. Optional.
 
 subscription request json example:
 
@@ -116,12 +130,16 @@ subscription request json example:
   "params": {
     "coins": ["BTC", "ETH"],
     "exchanges": ["binance", "coinbase"],
-    "frequency_ms": 100
+    "frequency_ms": 100,
+    "percent_change_interval": "1mi"
   }
 }
 ```
 
 #### coin_exchange_volume
+
+- **frequency_ms** - optional
+- **percent_change_interval** - same as _service_config -> percent_change_interval_. Optional.
 
 subscription request json example:
 
@@ -133,12 +151,15 @@ subscription request json example:
   "params": {
     "coins": ["BTC", "ETH"],
     "exchanges": ["binance", "coinbase"],
-    "frequency_ms": 100
+    "frequency_ms": 100,
+    "percent_change_interval": "1mi"
   }
 }
 ```
 
 #### index_price_candles
+
+- **frequency_ms** - optional
 
 subscription request json example:
 
@@ -155,6 +176,8 @@ subscription request json example:
 ```
 
 #### coin_average_price_candles
+
+- **frequency_ms** - optional
 
 subscription request json example:
 
@@ -190,7 +213,7 @@ request json example:
 
 - **interval** - interval between snapshots. Variants: second, minute, hour, day, week, month.
 - **from** - timestamp from
-- **to** - timestamp to
+- **to** - timestamp to. Optional.
 
 request json example:
 
@@ -211,7 +234,7 @@ request json example:
 
 - **interval** - interval between snapshots. Variants: second, minute, hour, day, week, month.
 - **from** - timestamp from
-- **to** - timestamp to
+- **to** - timestamp to. Optional.
 
 request json example:
 
@@ -233,7 +256,7 @@ request json example:
 
 - **interval** - interval between snapshots. Variants: second, minute, hour, day, week, month.
 - **from** - timestamp from
-- **to** - timestamp to
+- **to** - timestamp to. Optional.
 
 request json example:
 
@@ -254,7 +277,7 @@ request json example:
 
 - **interval** - interval between snapshots. Variants: second, minute, hour, day, week, month.
 - **from** - timestamp from
-- **to** - timestamp to
+- **to** - timestamp to. Optional.
 
 request json example:
 

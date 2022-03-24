@@ -2,18 +2,20 @@ use crate::repository::repositories::MarketRepositoriesByMarketValue;
 use crate::worker::market_helpers::exchange_pair_info::ExchangePairInfo;
 use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::market_helpers::pair_average_price::StoredAndWsTransmissibleF64ByPairTuple;
+use crate::worker::market_helpers::percent_change::PercentChangeByInterval;
 use crate::worker::market_helpers::stored_and_ws_transmissible_f64::StoredAndWsTransmissibleF64;
-use crate::worker::network_helpers::ws_server::ws_channels_holder::WsChannelsHolderHashMap;
+use crate::worker::network_helpers::ws_server::holders::helper_functions::HolderHashMap;
+use crate::worker::network_helpers::ws_server::ws_channels::WsChannels;
 use std::collections::HashMap;
 use std::sync::mpsc::Sender;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 use std::thread::{self, JoinHandle};
 
 pub const EPS: f64 = 0.00001;
 
 pub struct MarketSpine {
     pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
-    index_price: Arc<Mutex<StoredAndWsTransmissibleF64>>,
+    index_price: Arc<RwLock<StoredAndWsTransmissibleF64>>,
     pub tx: Sender<JoinHandle<()>>,
     pub rest_timeout_sec: u64,
     pub name: String,
@@ -23,18 +25,18 @@ pub struct MarketSpine {
     index_pairs: Vec<(String, String)>,
     pairs: HashMap<String, (String, String)>,
     pub channels: Vec<MarketChannels>,
-    pub graceful_shutdown: Arc<Mutex<bool>>,
+    pub graceful_shutdown: Arc<RwLock<bool>>,
 }
 impl MarketSpine {
     pub fn new(
         pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
-        index_price: Arc<Mutex<StoredAndWsTransmissibleF64>>,
+        index_price: Arc<RwLock<StoredAndWsTransmissibleF64>>,
         index_pairs: Vec<(String, String)>,
         tx: Sender<JoinHandle<()>>,
         rest_timeout_sec: u64,
         name: String,
         channels: Vec<MarketChannels>,
-        graceful_shutdown: Arc<Mutex<bool>>,
+        graceful_shutdown: Arc<RwLock<bool>>,
     ) -> Self {
         let channels = match name.as_str() {
             "poloniex" | "kucoin" => {
@@ -101,12 +103,16 @@ impl MarketSpine {
         pair_string: String,
         exchange_pair: (String, String),
         repositories: Option<MarketRepositoriesByMarketValue>,
-        ws_channels_holder: &WsChannelsHolderHashMap,
+        percent_change_holder: &HolderHashMap<PercentChangeByInterval>,
+        percent_change_interval_sec: u64,
+        ws_channels_holder: &HolderHashMap<WsChannels>,
     ) {
         self.exchange_pairs.insert(
             pair_string.clone(),
             ExchangePairInfo::new(
                 repositories,
+                percent_change_holder,
+                percent_change_interval_sec,
                 ws_channels_holder,
                 self.name.clone(),
                 exchange_pair.clone(),
@@ -130,7 +136,7 @@ impl MarketSpine {
                 .get(pair)
                 .unwrap()
                 .total_volume
-                .get_value()
+                .get()
                 .unwrap_or(0.0)
         } else {
             0.0
@@ -144,7 +150,7 @@ impl MarketSpine {
                 .get(pair)
                 .unwrap()
                 .total_volume
-                .get_value()
+                .get()
                 .unwrap_or(0.0);
 
             if (old_value - value).abs() > EPS {
@@ -152,7 +158,7 @@ impl MarketSpine {
                     .get_mut(pair)
                     .unwrap()
                     .total_volume
-                    .set_new_value(value);
+                    .set(value);
             }
         }
     }
@@ -172,14 +178,14 @@ impl MarketSpine {
         let thread = thread::Builder::new()
             .name(thread_name)
             .spawn(move || {
-                if let Ok(mut pair_average_price_2) = pair_average_price_2.lock() {
-                    let old_avg = pair_average_price_2.get_value().unwrap_or(new_price);
+                if let Ok(mut pair_average_price_2) = pair_average_price_2.write() {
+                    let old_avg = pair_average_price_2.get().unwrap_or(new_price);
 
                     let new_avg = (new_price + old_avg) / 2.0;
 
                     info!("new {}-{} average trade price: {}", pair.0, pair.1, new_avg);
 
-                    pair_average_price_2.set_new_value(new_avg);
+                    pair_average_price_2.set(new_avg);
 
                     Self::recalculate_index_price(
                         market_name_2,
@@ -200,7 +206,7 @@ impl MarketSpine {
         pair: (String, String),
         tx: Sender<JoinHandle<()>>,
         pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
-        index_price: Arc<Mutex<StoredAndWsTransmissibleF64>>,
+        index_price: Arc<RwLock<StoredAndWsTransmissibleF64>>,
         index_pairs: Vec<(String, String)>,
     ) {
         let thread_name = format!(
@@ -216,9 +222,9 @@ impl MarketSpine {
                     let value = pair_average_price
                         .get(&index_pair)
                         .unwrap()
-                        .lock()
+                        .read()
                         .unwrap()
-                        .get_value();
+                        .get();
 
                     if let Some(value) = value {
                         count += 1;
@@ -232,7 +238,7 @@ impl MarketSpine {
 
                     info!("new index price: {}", avg);
 
-                    index_price.lock().unwrap().set_new_value(avg);
+                    index_price.write().unwrap().set(avg);
                 }
             })
             .unwrap();
@@ -262,7 +268,7 @@ impl MarketSpine {
             .get(pair)
             .unwrap()
             .last_trade_price
-            .get_value()
+            .get()
             .unwrap_or(0.0);
 
         // If new value is a Real price
@@ -285,7 +291,7 @@ impl MarketSpine {
             .get_mut(pair)
             .unwrap()
             .last_trade_price
-            .set_new_value(value);
+            .set(value);
 
         let pair_tuple = self.pairs.get(pair).unwrap().clone();
         self.recalculate_pair_average_price(pair_tuple, value);
@@ -321,17 +327,18 @@ pub mod test {
     use crate::worker::market_helpers::market_spine::MarketSpine;
     use crate::worker::worker::test::make_worker;
     use std::sync::mpsc::Receiver;
-    use std::sync::{Arc, Mutex};
+    use std::sync::{Arc, RwLock};
     use std::thread::JoinHandle;
 
     pub fn make_spine(market_name: Option<&str>) -> (MarketSpine, Receiver<JoinHandle<()>>) {
         let market_name = market_name.unwrap_or("binance").to_string();
         let (_worker, tx, rx) = make_worker();
-        let graceful_shutdown = Arc::new(Mutex::new(false));
+        let graceful_shutdown = Arc::new(RwLock::new(false));
 
         let config = ConfigScheme::default();
         let RepositoriesPrepared {
             index_price_repository: _,
+            pair_average_price_repositories: _,
             market_repositories: _,
             ws_channels_holder: _,
             pair_average_price,
@@ -365,6 +372,7 @@ pub mod test {
 
         let RepositoriesPrepared {
             index_price_repository: _,
+            pair_average_price_repositories: _,
             market_repositories,
             ws_channels_holder,
             pair_average_price: _,
@@ -383,6 +391,7 @@ pub mod test {
                     .unwrap()
             }),
             &ws_channels_holder,
+            config.service.percent_change_interval_sec,
         );
 
         assert!(spine.get_exchange_pairs().get(&pair_string).is_some());

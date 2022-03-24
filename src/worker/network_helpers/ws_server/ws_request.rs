@@ -6,6 +6,7 @@ use crate::worker::network_helpers::ws_server::channels::ws_channel_unsubscribe:
 use crate::worker::network_helpers::ws_server::jsonrpc_request::JsonRpcRequest;
 use crate::worker::network_helpers::ws_server::requests::ws_method_request::WsMethodRequest;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
+use parse_duration::parse;
 use serde_json::Map;
 
 #[derive(Debug)]
@@ -27,6 +28,16 @@ impl WsRequest {
     fn parse_u64(object: &Map<String, serde_json::Value>, key: &str) -> Option<u64> {
         object.get(key)?.as_u64()
     }
+
+    fn swap<T, E>(value: Option<Result<T, E>>) -> Result<Option<T>, E> {
+        match value {
+            Some(value) => match value {
+                Ok(value) => Ok(Some(value)),
+                Err(e) => Err(e),
+            },
+            None => Ok(None),
+        }
+    }
 }
 
 impl TryFrom<JsonRpcRequest> for WsRequest {
@@ -38,6 +49,10 @@ impl TryFrom<JsonRpcRequest> for WsRequest {
         let object = request.params.as_object().ok_or(e)?;
         let coins = Self::parse_vec_of_str(object, "coins").ok_or(e);
         let frequency_ms = Self::parse_u64(object, "frequency_ms");
+        let percent_change_interval_sec = object
+            .get("percent_change_interval")
+            .map(|v| v.as_str().map(|v| parse(v).unwrap().as_secs()).ok_or(e));
+        let percent_change_interval_sec = Self::swap(percent_change_interval_sec);
         let interval = object
             .get("interval")
             .cloned()
@@ -52,16 +67,16 @@ impl TryFrom<JsonRpcRequest> for WsRequest {
             }
             WsChannelName::IndexPrice | WsChannelName::IndexPriceCandles => {
                 let res = match request.method {
-                    WsChannelName::IndexPrice => WorkerChannels::IndexPrice { id, frequency_ms },
-                    WsChannelName::IndexPriceCandles => {
-                        let interval = interval??;
-
-                        WorkerChannels::IndexPriceCandles {
-                            id,
-                            frequency_ms,
-                            interval,
-                        }
-                    }
+                    WsChannelName::IndexPrice => WorkerChannels::IndexPrice {
+                        id,
+                        frequency_ms,
+                        percent_change_interval_sec: percent_change_interval_sec?,
+                    },
+                    WsChannelName::IndexPriceCandles => WorkerChannels::IndexPriceCandles {
+                        id,
+                        frequency_ms,
+                        interval: interval??,
+                    },
                     _ => unreachable!(),
                 };
 
@@ -77,15 +92,14 @@ impl TryFrom<JsonRpcRequest> for WsRequest {
                         id,
                         coins,
                         frequency_ms,
+                        percent_change_interval_sec: percent_change_interval_sec?,
                     },
                     WsChannelName::CoinAveragePriceCandles => {
-                        let interval = interval??;
-
                         WorkerChannels::CoinAveragePriceCandles {
                             id,
                             coins,
                             frequency_ms,
-                            interval,
+                            interval: interval??,
                         }
                     }
                     _ => unreachable!(),
@@ -105,12 +119,14 @@ impl TryFrom<JsonRpcRequest> for WsRequest {
                         coins,
                         exchanges,
                         frequency_ms,
+                        percent_change_interval_sec: percent_change_interval_sec?,
                     },
                     WsChannelName::CoinExchangeVolume => MarketChannels::CoinExchangeVolume {
                         id,
                         coins,
                         exchanges,
                         frequency_ms,
+                        percent_change_interval_sec: percent_change_interval_sec?,
                     },
                     _ => unreachable!(),
                 };
