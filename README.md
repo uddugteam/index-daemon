@@ -88,7 +88,6 @@ subscription request json example:
   "jsonrpc": "2.0",
   "method": "index_price",
   "params": {
-    "coins": ["BTC", "ETH"],
     "frequency_ms": 100,
     "percent_change_interval": "1mi"
   }
