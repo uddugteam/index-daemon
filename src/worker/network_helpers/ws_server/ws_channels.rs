@@ -71,43 +71,6 @@ impl WsChannels {
         }
     }
 
-    pub fn send_general(&mut self, response_payload: WsChannelResponsePayload) {
-        let senders: HashMap<&(String, WsChannelName), &mut WsChannelResponseSender> =
-            match response_payload.get_coin() {
-                Some(coin) => self
-                    .0
-                    .iter_mut()
-                    .filter(|(_, v)| v.request.get_coins().is_some())
-                    .filter(|(_, v)| v.request.get_coins().unwrap().contains(&coin))
-                    .collect(),
-                None => self
-                    .0
-                    .iter_mut()
-                    .filter(|(_, v)| v.request.get_coins().is_none())
-                    .collect(),
-            };
-
-        let mut keys_to_remove = Vec::new();
-
-        if let Some(response_method) = response_payload.get_method() {
-            for (key, sender) in senders {
-                if key.1 == response_method {
-                    let send_result = Self::send_inner(sender, response_payload.clone());
-
-                    if send_result.is_err() {
-                        // Send msg error. The client is likely disconnected. We stop sending him messages.
-
-                        keys_to_remove.push(key.clone());
-                    }
-                }
-            }
-        }
-
-        for key in keys_to_remove {
-            self.0.remove(&key);
-        }
-    }
-
     pub fn add_channel(&mut self, conn_id: String, channel: WsChannelResponseSender) {
         let method = channel.request.get_method();
 
