@@ -10,7 +10,7 @@ pub enum WsChannelSubscriptionRequest {
 }
 
 impl WsChannelSubscriptionRequest {
-    pub fn get_id(&self) -> Option<JsonRpcId> {
+    pub fn get_id(&self) -> JsonRpcId {
         match self {
             Self::WorkerChannels(channel) => match channel {
                 WorkerChannels::IndexPrice { id, .. }

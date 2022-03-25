@@ -2,6 +2,7 @@ use crate::repository::repositories::RepositoryForF64ByTimestamp;
 use crate::worker::helper_functions::{date_time_from_timestamp_sec, strip_usd};
 use crate::worker::market_helpers::pair_average_price::StoredAndWsTransmissibleF64ByPairTuple;
 use crate::worker::network_helpers::ws_server::candles::Candles;
+use crate::worker::network_helpers::ws_server::channels::market_channels::MarketChannels;
 use crate::worker::network_helpers::ws_server::channels::ws_channel_action::WsChannelAction;
 use crate::worker::network_helpers::ws_server::channels::ws_channel_subscription_request::WsChannelSubscriptionRequest;
 use crate::worker::network_helpers::ws_server::channels::ws_channel_unsubscribe::WsChannelUnsubscribe;
@@ -110,7 +111,7 @@ impl WsServer {
         } else {
             Self::send_error(
                 broadcast_recipient,
-                sub_id,
+                Some(sub_id),
                 Some(method),
                 JSONRPC_ERROR_INVALID_PARAMS,
                 error_msg,
@@ -131,10 +132,14 @@ impl WsServer {
                 vec!["worker".to_string()],
                 "Parameter value is wrong: coin.",
             ),
-            WsChannelSubscriptionRequest::MarketChannels(request) => (
-                request.get_exchanges().to_vec(),
-                "One of two parameters is wrong: exchange, coin.",
-            ),
+            WsChannelSubscriptionRequest::MarketChannels(request) => {
+                let exchanges = match request {
+                    MarketChannels::CoinExchangePrice { exchanges, .. }
+                    | MarketChannels::CoinExchangeVolume { exchanges, .. } => exchanges.clone(),
+                };
+
+                (exchanges, "One of two parameters is wrong: exchange, coin.")
+            }
         };
 
         let market_value = request.get_method().get_market_value();
@@ -182,8 +187,8 @@ impl WsServer {
         conn_id: String,
         request: WsChannelUnsubscribe,
     ) {
-        let method = request.method;
-        let key = (conn_id, method);
+        let sub_id = request.id;
+        let key = (conn_id, sub_id);
 
         ws_channels_holder.remove(&key);
     }
@@ -221,7 +226,7 @@ impl WsServer {
 
     fn response_1(
         broadcast_recipient: Tx,
-        sub_id: Option<JsonRpcId>,
+        sub_id: JsonRpcId,
         request: WsMethodRequest,
         pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
     ) -> Option<()> {
@@ -244,7 +249,7 @@ impl WsServer {
                 match res {
                     Ok(coins) => {
                         let response = WsChannelResponse {
-                            id,
+                            id: Some(id),
                             result: WsChannelResponsePayload::AvailableCoins {
                                 coins,
                                 timestamp: Utc::now(),
@@ -259,7 +264,7 @@ impl WsServer {
                     Err(e) => {
                         Self::send_error(
                             &broadcast_recipient,
-                            sub_id,
+                            Some(sub_id),
                             Some(request.get_method()),
                             JSONRPC_ERROR_INTERNAL_ERROR,
                             e,
@@ -275,7 +280,7 @@ impl WsServer {
 
     fn response_2(
         broadcast_recipient: Tx,
-        sub_id: Option<JsonRpcId>,
+        sub_id: JsonRpcId,
         request: WsMethodRequest,
         pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
     ) -> Option<()> {
@@ -306,7 +311,7 @@ impl WsServer {
                             Ok(values) => {
                                 let response = match request {
                                     WsMethodRequest::CoinAveragePriceHistorical { .. } => WsChannelResponse {
-                                        id,
+                                        id:Some(id),
                                         result: WsChannelResponsePayload::CoinAveragePriceHistorical {
                                             coin,
                                             values: F64Snapshots::with_interval(
@@ -315,7 +320,7 @@ impl WsServer {
                                         },
                                     },
                                     WsMethodRequest::CoinAveragePriceCandlesHistorical { .. } => WsChannelResponse {
-                                        id,
+                                        id:Some(id),
                                         result: WsChannelResponsePayload::CoinAveragePriceCandlesHistorical {
                                             coin,
                                             values: Candles::calculate(values, interval),
@@ -338,7 +343,7 @@ impl WsServer {
 
                                 Self::send_error(
                                     &broadcast_recipient,
-                                    sub_id,
+                                    Some(sub_id),
                                     Some(request.get_method()),
                                     JSONRPC_ERROR_INTERNAL_ERROR,
                                     "Internal error. Read historical data error.".to_string(),
@@ -349,7 +354,7 @@ impl WsServer {
                 } else {
                     Self::send_error(
                         &broadcast_recipient,
-                        sub_id,
+                        Some(sub_id),
                         Some(request.get_method()),
                         JSONRPC_ERROR_INVALID_PARAMS,
                         format!("Coin {} not supported.", coin),
@@ -364,7 +369,7 @@ impl WsServer {
 
     fn response_3(
         broadcast_recipient: Tx,
-        sub_id: Option<JsonRpcId>,
+        sub_id: JsonRpcId,
         request: WsMethodRequest,
         index_price_repository: Option<RepositoryForF64ByTimestamp>,
     ) -> Option<()> {
@@ -392,14 +397,14 @@ impl WsServer {
                     Ok(values) => {
                         let response = match request {
                             WsMethodRequest::IndexPriceHistorical { .. } => WsChannelResponse {
-                                id,
+                                id: Some(id),
                                 result: WsChannelResponsePayload::IndexPriceHistorical {
                                     values: F64Snapshots::with_interval(values, interval),
                                 },
                             },
                             WsMethodRequest::IndexPriceCandlesHistorical { .. } => {
                                 WsChannelResponse {
-                                    id,
+                                    id: Some(id),
                                     result: WsChannelResponsePayload::IndexPriceCandlesHistorical {
                                         values: Candles::calculate(values, interval),
                                     },
@@ -422,7 +427,7 @@ impl WsServer {
 
                         Self::send_error(
                             &broadcast_recipient,
-                            sub_id,
+                            Some(sub_id),
                             Some(request.get_method()),
                             JSONRPC_ERROR_INTERNAL_ERROR,
                             "Internal error. Read historical data error.".to_string(),
@@ -439,7 +444,7 @@ impl WsServer {
     /// Prepares response data and sends to recipient
     fn do_response(
         broadcast_recipient: Tx,
-        sub_id: Option<JsonRpcId>,
+        sub_id: JsonRpcId,
         request: WsMethodRequest,
         index_price_repository: Option<RepositoryForF64ByTimestamp>,
         pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
@@ -471,7 +476,7 @@ impl WsServer {
         client_addr: &SocketAddr,
         broadcast_recipient: Tx,
         conn_id: String,
-        sub_id: Option<JsonRpcId>,
+        sub_id: JsonRpcId,
         method: WsChannelName,
         request: Result<WsRequest, String>,
         ws_answer_timeout_ms: u64,
@@ -510,7 +515,7 @@ impl WsServer {
             Err(e) => {
                 Self::send_error(
                     &broadcast_recipient,
-                    sub_id,
+                    Some(sub_id),
                     Some(method),
                     JSONRPC_ERROR_INVALID_REQUEST,
                     e,

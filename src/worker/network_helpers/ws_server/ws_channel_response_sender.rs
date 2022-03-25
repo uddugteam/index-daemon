@@ -49,7 +49,7 @@ impl WsChannelResponseSender {
             message: "Successfully subscribed.".to_string(),
         };
         let response = WsChannelResponse {
-            id: self.request.get_id(),
+            id: Some(self.request.get_id()),
             result: response_payload,
         };
 

@@ -1,7 +1,7 @@
 use crate::worker::network_helpers::ws_server::holders::helper_functions::{
     HolderHashMap, HolderKey,
 };
-use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
+use crate::worker::network_helpers::ws_server::jsonrpc_request::JsonRpcId;
 use crate::worker::network_helpers::ws_server::ws_channel_response_sender::WsChannelResponseSender;
 use crate::worker::network_helpers::ws_server::ws_channels::WsChannels;
 
@@ -28,7 +28,7 @@ impl WsChannelsHolder {
         }
     }
 
-    pub fn remove(&self, ws_channels_key: &(String, WsChannelName)) {
+    pub fn remove(&self, ws_channels_key: &(String, JsonRpcId)) {
         for ws_channels in self.0.values() {
             ws_channels.write().unwrap().remove_channel(ws_channels_key);
         }

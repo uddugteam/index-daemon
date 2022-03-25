@@ -316,11 +316,6 @@ pub trait Market {
         );
     }
 
-    fn get_total_volume(&self, first_currency: &str, second_currency: &str) -> f64 {
-        let pair: String = self.make_pair((first_currency, second_currency));
-        self.get_spine().get_total_volume(&pair)
-    }
-
     fn get_total_ask(&self, first_currency: &str, second_currency: &str) -> f64 {
         let pair: String = self.make_pair((first_currency, second_currency));
 
