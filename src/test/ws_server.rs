@@ -4,7 +4,7 @@ use crate::config_scheme::config_scheme::ConfigScheme;
 use crate::test::ws_server::ws_client_for_testing::WsClientForTesting;
 use crate::worker::market_helpers::market_channels::MarketChannels;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
-use crate::worker::worker::Worker;
+use crate::worker::worker::start_worker;
 use serde_json::json;
 use serial_test::serial;
 use std::collections::HashMap;
@@ -18,11 +18,7 @@ use uuid::Uuid;
 
 fn start_application(
     ws_addr: &str,
-) -> (
-    Receiver<JoinHandle<()>>,
-    Worker,
-    (Sender<String>, Receiver<String>),
-) {
+) -> (Receiver<JoinHandle<()>>, (Sender<String>, Receiver<String>)) {
     // To prevent DDoS attack on exchanges
     thread::sleep(time::Duration::from_millis(3000));
 
@@ -34,13 +30,12 @@ fn start_application(
     config.market.channels = vec![MarketChannels::Trades];
 
     let (tx, rx) = mpsc::channel();
-    let mut worker = Worker::new(tx, graceful_shutdown);
-    worker.start(config);
+    start_worker(config, tx, graceful_shutdown);
 
     // Give Websocket server time to start
     thread::sleep(time::Duration::from_millis(1000));
 
-    (rx, worker, mpsc::channel())
+    (rx, mpsc::channel())
 }
 
 fn make_request(
@@ -176,7 +171,7 @@ fn check_incoming_messages(
 /// TODO: Fix (not always working on github)
 fn test_ws_channels_response() {
     let ws_addr = "127.0.0.1:8000";
-    let (_rx, _worker, (incoming_msg_tx, incoming_msg_rx)) = start_application(ws_addr);
+    let (_rx, (incoming_msg_tx, incoming_msg_rx)) = start_application(ws_addr);
 
     let mut requests = Vec::new();
     let mut expected = Vec::new();
