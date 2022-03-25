@@ -28,7 +28,7 @@ impl WsChannelsHolder {
         }
     }
 
-    pub fn remove(&self, ws_channels_key: &(String, Option<JsonRpcId>)) {
+    pub fn remove(&self, ws_channels_key: &(String, JsonRpcId)) {
         for ws_channels in self.0.values() {
             ws_channels.write().unwrap().remove_channel(ws_channels_key);
         }

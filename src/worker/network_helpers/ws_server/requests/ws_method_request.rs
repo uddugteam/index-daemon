@@ -5,29 +5,29 @@ use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
 #[derive(Debug, Clone)]
 pub enum WsMethodRequest {
     AvailableCoins {
-        id: Option<JsonRpcId>,
+        id: JsonRpcId,
     },
     IndexPriceHistorical {
-        id: Option<JsonRpcId>,
+        id: JsonRpcId,
         interval: Interval,
         from: u64,
         to: Option<u64>,
     },
     IndexPriceCandlesHistorical {
-        id: Option<JsonRpcId>,
+        id: JsonRpcId,
         interval: Interval,
         from: u64,
         to: Option<u64>,
     },
     CoinAveragePriceHistorical {
-        id: Option<JsonRpcId>,
+        id: JsonRpcId,
         coin: String,
         interval: Interval,
         from: u64,
         to: Option<u64>,
     },
     CoinAveragePriceCandlesHistorical {
-        id: Option<JsonRpcId>,
+        id: JsonRpcId,
         coin: String,
         interval: Interval,
         from: u64,

@@ -9,7 +9,7 @@ pub enum JsonRpcId {
 
 #[derive(Deserialize)]
 pub struct JsonRpcRequest {
-    pub id: Option<JsonRpcId>,
+    pub id: JsonRpcId,
     pub method: WsChannelName,
     pub params: serde_json::Value,
 }

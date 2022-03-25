@@ -310,5 +310,5 @@ request json example:
 
 ## Notes
 
-- Field `id` of websocket requests must be unique. This field value can be string or integer.
+- Field `id` of websocket requests must be unique. This field is required. This field value can be string or integer.
 - There's only one fiat currency supported - `USD`, and it's hardcoded.

@@ -3,7 +3,7 @@ use crate::worker::network_helpers::ws_server::jsonrpc_request::JsonRpcId;
 
 #[derive(Debug, Clone)]
 pub struct WsChannelUnsubscribe {
-    pub id: Option<JsonRpcId>,
+    pub id: JsonRpcId,
 }
 
 impl From<WsChannelSubscriptionRequest> for WsChannelUnsubscribe {
