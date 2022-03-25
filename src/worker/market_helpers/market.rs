@@ -458,6 +458,7 @@ mod test {
             index_price_repository: _,
             pair_average_price_repositories: _,
             market_repositories,
+            percent_change_holder,
             ws_channels_holder,
             pair_average_price: _,
             index_price: _,
@@ -469,6 +470,8 @@ mod test {
             market_spine,
             config.market.exchange_pairs,
             market_repositories.map(|mut v| v.remove(&market_name).unwrap()),
+            &percent_change_holder,
+            config.service.percent_change_interval_sec,
             &ws_channels_holder,
         );
 
@@ -490,6 +493,7 @@ mod test {
             index_price_repository: _,
             pair_average_price_repositories: _,
             market_repositories,
+            percent_change_holder,
             ws_channels_holder,
             pair_average_price: _,
             index_price: _,
@@ -508,6 +512,8 @@ mod test {
                     .remove(&exchange_pair)
                     .unwrap()
             }),
+            &percent_change_holder,
+            config.service.percent_change_interval_sec,
             &ws_channels_holder,
         );
 

@@ -234,7 +234,7 @@ pub mod test {
     use crate::config_scheme::market_config::MarketConfig;
     use crate::config_scheme::repositories_prepared::RepositoriesPrepared;
     use crate::worker::market_helpers::market_channels::MarketChannels;
-    use crate::worker::worker::Worker;
+    use crate::worker::worker::{configure, start_worker};
     use ntest::timeout;
     use serial_test::serial;
     use std::sync::mpsc::{Receiver, Sender};
@@ -243,12 +243,15 @@ pub mod test {
     use std::thread::JoinHandle;
     use std::time;
 
-    pub fn make_worker() -> (Worker, Sender<JoinHandle<()>>, Receiver<JoinHandle<()>>) {
+    pub fn prepare_worker_params() -> (
+        Sender<JoinHandle<()>>,
+        Receiver<JoinHandle<()>>,
+        Arc<RwLock<bool>>,
+    ) {
         let (tx, rx) = mpsc::channel();
         let graceful_shutdown = Arc::new(RwLock::new(false));
-        let worker = Worker::new(tx.clone(), graceful_shutdown);
 
-        (worker, tx, rx)
+        (tx, rx, graceful_shutdown)
     }
 
     pub fn check_threads(mut thread_names: Vec<String>, rx: Receiver<JoinHandle<()>>) {
@@ -267,27 +270,28 @@ pub mod test {
     }
 
     fn test_configure(
-        markets: Vec<&str>,
+        market_names: Vec<&str>,
         exchange_pairs: Vec<(String, String)>,
         channels: Vec<MarketChannels>,
     ) {
-        let (mut worker, _, _) = make_worker();
+        let (tx, _, graceful_shutdown) = prepare_worker_params();
 
         let mut config = ConfigScheme::default();
-        config.market.markets = markets.iter().map(|v| v.to_string()).collect();
+        config.market.markets = market_names.iter().map(|v| v.to_string()).collect();
         config.market.exchange_pairs = exchange_pairs.clone();
 
         let RepositoriesPrepared {
             index_price_repository: _,
             pair_average_price_repositories: _,
             market_repositories,
+            percent_change_holder,
             ws_channels_holder,
             pair_average_price,
             index_price,
         } = RepositoriesPrepared::make(&config);
 
-        worker.configure(
-            markets.clone(),
+        let markets = configure(
+            market_names.clone(),
             exchange_pairs,
             channels,
             1,
@@ -295,16 +299,19 @@ pub mod test {
             pair_average_price,
             index_price,
             config.market.index_pairs,
-            &ws_channels_holder,
+            &percent_change_holder,
             config.service.percent_change_interval_sec,
+            &ws_channels_holder,
+            tx,
+            graceful_shutdown,
         );
 
-        assert_eq!(markets.len(), worker.markets.len());
+        assert_eq!(market_names.len(), markets.len());
 
-        for (market_name_key, market) in &worker.markets {
+        for (market_name_key, market) in &markets {
             let market_name = market.lock().unwrap().get_spine().name.clone();
             assert_eq!(market_name_key, &market_name);
-            assert!(markets.contains(&market_name.as_str()));
+            assert!(market_names.contains(&market_name.as_str()));
         }
     }
 
@@ -340,7 +347,7 @@ pub mod test {
         // To prevent DDoS attack on exchanges
         thread::sleep(time::Duration::from_millis(3000));
 
-        let (mut worker, _, rx) = make_worker();
+        let (tx, rx, graceful_shutdown) = prepare_worker_params();
 
         let mut thread_names = Vec::new();
         for market in &config.market.markets {
@@ -348,7 +355,7 @@ pub mod test {
             thread_names.push(thread_name);
         }
 
-        worker.start_worker(config);
+        start_worker(config, tx, graceful_shutdown);
         check_threads(thread_names, rx);
     }
 

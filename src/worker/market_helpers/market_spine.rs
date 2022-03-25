@@ -325,14 +325,14 @@ pub mod test {
     use crate::config_scheme::config_scheme::ConfigScheme;
     use crate::config_scheme::repositories_prepared::RepositoriesPrepared;
     use crate::worker::market_helpers::market_spine::MarketSpine;
-    use crate::worker::worker::test::make_worker;
+    use crate::worker::worker::test::prepare_worker_params;
     use std::sync::mpsc::Receiver;
     use std::sync::{Arc, RwLock};
     use std::thread::JoinHandle;
 
     pub fn make_spine(market_name: Option<&str>) -> (MarketSpine, Receiver<JoinHandle<()>>) {
         let market_name = market_name.unwrap_or("binance").to_string();
-        let (_worker, tx, rx) = make_worker();
+        let (tx, rx, _) = prepare_worker_params();
         let graceful_shutdown = Arc::new(RwLock::new(false));
 
         let config = ConfigScheme::default();
@@ -340,6 +340,7 @@ pub mod test {
             index_price_repository: _,
             pair_average_price_repositories: _,
             market_repositories: _,
+            percent_change_holder: _,
             ws_channels_holder: _,
             pair_average_price,
             index_price,
@@ -374,6 +375,7 @@ pub mod test {
             index_price_repository: _,
             pair_average_price_repositories: _,
             market_repositories,
+            percent_change_holder,
             ws_channels_holder,
             pair_average_price: _,
             index_price: _,
@@ -390,8 +392,9 @@ pub mod test {
                     .remove(&exchange_pair)
                     .unwrap()
             }),
-            &ws_channels_holder,
+            &percent_change_holder,
             config.service.percent_change_interval_sec,
+            &ws_channels_holder,
         );
 
         assert!(spine.get_exchange_pairs().get(&pair_string).is_some());
