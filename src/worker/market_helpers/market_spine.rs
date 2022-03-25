@@ -130,19 +130,6 @@ impl MarketSpine {
         self.unmask_pairs.get(a).map(|s| s.as_ref()).unwrap_or(a)
     }
 
-    pub fn get_total_volume(&self, pair: &str) -> f64 {
-        if self.exchange_pairs.contains_key(pair) {
-            self.exchange_pairs
-                .get(pair)
-                .unwrap()
-                .total_volume
-                .get()
-                .unwrap_or(0.0)
-        } else {
-            0.0
-        }
-    }
-
     pub fn set_total_volume(&mut self, pair: &str, value: f64) {
         if value != 0.0 {
             let old_value: f64 = self
