@@ -301,21 +301,14 @@ request json example:
 
 ```json
 {
-  "id": null,
+  "id": "some_id",
   "jsonrpc": "2.0",
   "method": "unsubscribe",
-  "params": {
-    "method": "coin_exchange_price"
-  }
+  "params": {}
 }
 ```
 
-### Description
+## Notes
 
-- There can be only one subscription per channel. If you subscribe twice, then, previous subscription is declined and new subscription is activated.
-- `id` must be unique or `null`.
-- `id` of `unsubscribe` request is ignored.
-
-## Note
-
-There's only one fiat currency supported - `USD`, and it's hardcoded.
+- Field `id` of websocket requests must be unique. This field value can be string or integer.
+- There's only one fiat currency supported - `USD`, and it's hardcoded.

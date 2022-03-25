@@ -1,12 +1,13 @@
 use crate::config_scheme::config_scheme::ConfigScheme;
 use crate::worker::network_helpers::ws_server::channels::ws_channel_subscription_request::WsChannelSubscriptionRequest;
+use crate::worker::network_helpers::ws_server::jsonrpc_request::JsonRpcId;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
 use crate::worker::network_helpers::ws_server::ws_channel_response::WsChannelResponse;
 use crate::worker::network_helpers::ws_server::ws_channel_response_payload::WsChannelResponsePayload;
 use crate::worker::network_helpers::ws_server::ws_channel_response_sender::WsChannelResponseSender;
 use std::collections::HashMap;
 
-pub struct WsChannels(HashMap<(String, WsChannelName), WsChannelResponseSender>);
+pub struct WsChannels(HashMap<(String, Option<JsonRpcId>), WsChannelResponseSender>);
 
 impl WsChannels {
     pub fn new() -> Self {
@@ -16,10 +17,10 @@ impl WsChannels {
     pub fn get_channels_by_method(
         &self,
         method: WsChannelName,
-    ) -> HashMap<&(String, WsChannelName), &WsChannelSubscriptionRequest> {
+    ) -> HashMap<&(String, Option<JsonRpcId>), &WsChannelSubscriptionRequest> {
         self.0
             .iter()
-            .filter(|(k, _)| k.1 == method)
+            .filter(|(_, v)| v.request.get_method() == method)
             .map(|(k, v)| (k, &v.request))
             .collect()
     }
@@ -50,7 +51,7 @@ impl WsChannels {
 
     pub fn send_individual(
         &mut self,
-        responses: HashMap<(String, WsChannelName), WsChannelResponsePayload>,
+        responses: HashMap<(String, Option<JsonRpcId>), WsChannelResponsePayload>,
     ) {
         let mut keys_to_remove = Vec::new();
 
@@ -72,16 +73,16 @@ impl WsChannels {
     }
 
     pub fn add_channel(&mut self, conn_id: String, channel: WsChannelResponseSender) {
-        let method = channel.request.get_method();
+        let sub_id = channel.request.get_id();
 
         if channel.send_succ_sub_notif().is_ok() {
-            self.0.insert((conn_id, method), channel);
+            self.0.insert((conn_id, sub_id), channel);
         } else {
             // Send msg error. The client is likely disconnected. Thus, we don't even establish subscription.
         }
     }
 
-    pub fn remove_channel(&mut self, key: &(String, WsChannelName)) {
+    pub fn remove_channel(&mut self, key: &(String, Option<JsonRpcId>)) {
         self.0.remove(key);
     }
 }

@@ -187,8 +187,8 @@ impl WsServer {
         conn_id: String,
         request: WsChannelUnsubscribe,
     ) {
-        let method = request.method;
-        let key = (conn_id, method);
+        let sub_id = request.id;
+        let key = (conn_id, sub_id);
 
         ws_channels_holder.remove(&key);
     }

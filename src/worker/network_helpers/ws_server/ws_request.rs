@@ -135,15 +135,9 @@ impl TryFrom<JsonRpcRequest> for WsRequest {
                     WsChannelSubscriptionRequest::MarketChannels(res),
                 )))
             }
-            WsChannelName::Unsubscribe => {
-                let method = object.get("method").ok_or(e)?;
-                let method = method.as_str().ok_or(e)?.to_string();
-                let method = method.parse().map_err(|_| e)?;
-
-                Ok(Self::Channel(WsChannelAction::Unsubscribe(
-                    WsChannelUnsubscribe { id, method },
-                )))
-            }
+            WsChannelName::Unsubscribe => Ok(Self::Channel(WsChannelAction::Unsubscribe(
+                WsChannelUnsubscribe { id },
+            ))),
             WsChannelName::IndexPriceHistorical
             | WsChannelName::IndexPriceCandlesHistorical
             | WsChannelName::CoinAveragePriceHistorical
