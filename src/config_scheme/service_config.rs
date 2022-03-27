@@ -1,13 +1,12 @@
 use crate::config_scheme::helper_functions::{
-    check_unexpected_configs, get_config_from_config_files, get_default_data_expire_sec,
-    get_default_data_expire_string, get_default_historical, get_default_host,
-    get_default_percent_change_interval_sec, get_default_percent_change_interval_string,
-    get_default_port, get_default_storage, set_log_level,
+    get_config_from_config_files, get_default_data_expire_sec, get_default_data_expire_string,
+    get_default_historical, get_default_host, get_default_percent_change_interval_sec,
+    get_default_percent_change_interval_string, get_default_port, get_default_storage,
+    set_log_level,
 };
 use crate::config_scheme::storage::Storage;
 use clap::ArgMatches;
 use parse_duration::parse;
-use std::collections::HashMap;
 
 #[derive(Clone)]
 pub struct ServiceConfig {
@@ -41,6 +40,16 @@ impl ServiceConfig {
         } else {
             default.ws
         };
+        let unexpected_configs = ["ws_host", "ws_port", "ws_answer_timeout_ms"];
+        if !ws {
+            for unexpected_config in unexpected_configs {
+                if service_config.get_str(unexpected_config).is_ok() {
+                    panic!(
+                        "Got unexpected config. service_config: {}. That config is allowed only if ws=1", unexpected_config,
+                    );
+                }
+            }
+        }
 
         let ws_host = service_config
             .get_str("ws_host")
@@ -62,6 +71,16 @@ impl ServiceConfig {
         } else {
             get_default_historical()
         };
+        let unexpected_configs = ["storage", "historical_storage_frequency_ms", "data_expire"];
+        if !historical {
+            for unexpected_config in unexpected_configs {
+                if service_config.get_str(unexpected_config).is_ok() {
+                    panic!(
+                        "Got unexpected config. service_config: {}. These configs are allowed only if historical=1", unexpected_config,
+                    );
+                }
+            }
+        }
 
         let storage = if historical {
             Some(
@@ -96,15 +115,6 @@ impl ServiceConfig {
         .unwrap()
         .as_secs();
         assert!(percent_change_interval_sec > 0);
-
-        let received_configs = HashMap::from([
-            ("ws", vec!["ws_host", "ws_port", "ws_answer_timeout_ms"]),
-            (
-                "historical",
-                vec!["storage", "historical_storage_frequency_ms", "data_expire"],
-            ),
-        ]);
-        check_unexpected_configs(service_config, received_configs).unwrap();
 
         Self {
             rest_timeout_sec,

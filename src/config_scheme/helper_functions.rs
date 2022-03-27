@@ -4,7 +4,6 @@ use crate::worker::market_helpers::market_channels::MarketChannels;
 use clap::ArgMatches;
 use env_logger::Builder;
 use parse_duration::parse;
-use std::collections::HashMap;
 
 pub fn get_config_file_path(matches: &ArgMatches, key: &str) -> Option<String> {
     matches.value_of(key).map(|v| v.to_string())
@@ -149,22 +148,4 @@ pub fn has_no_duplicates<T: PartialEq>(set: &[T]) -> bool {
     }
 
     true
-}
-
-pub fn check_unexpected_configs(
-    service_config: config::Config,
-    received_configs: HashMap<&str, Vec<&str>>,
-) -> Result<(), String> {
-    for (config_name, keys) in received_configs {
-        for key in keys {
-            if service_config.get_str(key).is_ok() {
-                return Err(format!(
-                    "Got unexpected config. service_config: {}. That config is allowed only if {}=1",
-                    key, config_name,
-                ));
-            }
-        }
-    }
-
-    Ok(())
 }
