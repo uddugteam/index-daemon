@@ -138,7 +138,8 @@ pub fn start_worker(
     config: ConfigScheme,
     tx: Sender<JoinHandle<()>>,
     graceful_shutdown: Arc<RwLock<bool>>,
-) {
+) -> RepositoriesPrepared {
+    let repositories_prepared = RepositoriesPrepared::make(&config);
     let RepositoriesPrepared {
         index_price_repository,
         pair_average_price_repositories,
@@ -147,7 +148,7 @@ pub fn start_worker(
         ws_channels_holder,
         index_price,
         pair_average_price,
-    } = RepositoriesPrepared::make(&config);
+    } = repositories_prepared.clone();
 
     let ConfigScheme {
         market,
@@ -210,7 +211,7 @@ pub fn start_worker(
 
     for (_market_name, market) in markets {
         if is_graceful_shutdown(&graceful_shutdown) {
-            return;
+            return repositories_prepared;
         }
 
         let thread_name = format!(
@@ -225,6 +226,8 @@ pub fn start_worker(
             .unwrap();
         let _ = tx.send(thread);
     }
+
+    repositories_prepared
 }
 
 #[cfg(test)]
