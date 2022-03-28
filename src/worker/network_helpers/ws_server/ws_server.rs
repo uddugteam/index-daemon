@@ -288,14 +288,14 @@ impl WsServer {
             WsMethodRequest::CoinAveragePriceHistorical {
                 id,
                 coin,
-                interval,
+                interval_sec,
                 from,
                 to,
             }
             | WsMethodRequest::CoinAveragePriceCandlesHistorical {
                 id,
                 coin,
-                interval,
+                interval_sec,
                 from,
                 to,
             } => {
@@ -315,7 +315,7 @@ impl WsServer {
                                         result: WsChannelResponsePayload::CoinAveragePriceHistorical {
                                             coin,
                                             values: F64Snapshots::with_interval(
-                                                values, interval,
+                                                values, interval_sec,
                                             ),
                                         },
                                     },
@@ -323,7 +323,7 @@ impl WsServer {
                                         id:Some(id),
                                         result: WsChannelResponsePayload::CoinAveragePriceCandlesHistorical {
                                             coin,
-                                            values: Candles::calculate(values, interval),
+                                            values: Candles::calculate(values, interval_sec),
                                         },
                                     },
                                     _ => unreachable!(),
@@ -376,13 +376,13 @@ impl WsServer {
         match request.clone() {
             WsMethodRequest::IndexPriceHistorical {
                 id,
-                interval,
+                interval_sec,
                 from,
                 to,
             }
             | WsMethodRequest::IndexPriceCandlesHistorical {
                 id,
-                interval,
+                interval_sec,
                 from,
                 to,
             } => {
@@ -399,14 +399,14 @@ impl WsServer {
                             WsMethodRequest::IndexPriceHistorical { .. } => WsChannelResponse {
                                 id: Some(id),
                                 result: WsChannelResponsePayload::IndexPriceHistorical {
-                                    values: F64Snapshots::with_interval(values, interval),
+                                    values: F64Snapshots::with_interval(values, interval_sec),
                                 },
                             },
                             WsMethodRequest::IndexPriceCandlesHistorical { .. } => {
                                 WsChannelResponse {
                                     id: Some(id),
                                     result: WsChannelResponsePayload::IndexPriceCandlesHistorical {
-                                        values: Candles::calculate(values, interval),
+                                        values: Candles::calculate(values, interval_sec),
                                     },
                                 }
                             }

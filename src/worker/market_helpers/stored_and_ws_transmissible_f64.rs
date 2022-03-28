@@ -178,11 +178,10 @@ impl StoredAndWsTransmissibleF64 {
 
             match request {
                 WsChannelSubscriptionRequest::WorkerChannels(channel) => match channel {
-                    WorkerChannels::IndexPriceCandles { interval, .. }
-                    | WorkerChannels::CoinAveragePriceCandles { interval, .. } => {
-                        let interval = interval.into_seconds() as i64;
-                        let from = self.timestamp.timestamp() - interval;
-                        let from = date_time_from_timestamp_sec(from as u64);
+                    WorkerChannels::IndexPriceCandles { interval_sec, .. }
+                    | WorkerChannels::CoinAveragePriceCandles { interval_sec, .. } => {
+                        let from = self.timestamp.timestamp() as u64 - interval_sec;
+                        let from = date_time_from_timestamp_sec(from);
 
                         if let Ok(values) = repository.read_range(from, to) {
                             if !values.is_empty() {

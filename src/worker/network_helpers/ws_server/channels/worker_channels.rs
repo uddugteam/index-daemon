@@ -1,4 +1,3 @@
-use crate::worker::network_helpers::ws_server::interval::Interval;
 use crate::worker::network_helpers::ws_server::jsonrpc_request::JsonRpcId;
 
 #[derive(Debug, Clone)]
@@ -11,7 +10,7 @@ pub enum WorkerChannels {
     IndexPriceCandles {
         id: JsonRpcId,
         frequency_ms: Option<u64>,
-        interval: Interval,
+        interval_sec: u64,
     },
     CoinAveragePrice {
         id: JsonRpcId,
@@ -23,6 +22,6 @@ pub enum WorkerChannels {
         id: JsonRpcId,
         coins: Vec<String>,
         frequency_ms: Option<u64>,
-        interval: Interval,
+        interval_sec: u64,
     },
 }

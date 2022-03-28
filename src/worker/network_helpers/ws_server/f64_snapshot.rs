@@ -1,4 +1,3 @@
-use crate::worker::network_helpers::ws_server::interval::Interval;
 use crate::worker::network_helpers::ws_server::ser_date_into_timestamp;
 use chrono::{DateTime, Utc, MIN_DATETIME};
 
@@ -6,8 +5,8 @@ use chrono::{DateTime, Utc, MIN_DATETIME};
 pub struct F64Snapshots(Vec<F64Snapshot>);
 
 impl F64Snapshots {
-    pub fn with_interval(values: Vec<(DateTime<Utc>, f64)>, interval: Interval) -> Self {
-        let values = Self::thin_by_interval(values, interval);
+    pub fn with_interval(values: Vec<(DateTime<Utc>, f64)>, interval_sec: u64) -> Self {
+        let values = Self::thin_by_interval(values, interval_sec);
         let values = values
             .into_iter()
             .map(|(timestamp, value)| F64Snapshot { value, timestamp })
@@ -18,19 +17,17 @@ impl F64Snapshots {
 
     fn thin_by_interval(
         values: Vec<(DateTime<Utc>, f64)>,
-        interval: Interval,
+        interval_sec: u64,
     ) -> Vec<(DateTime<Utc>, f64)> {
-        let interval = interval.into_seconds() as i64;
-
         let mut res = Vec::new();
 
-        let mut next_timestamp = MIN_DATETIME.timestamp();
+        let mut next_timestamp = MIN_DATETIME.timestamp() as u64;
         for value in values {
-            let curr_timestamp = value.0.timestamp();
+            let curr_timestamp = value.0.timestamp() as u64;
 
             if curr_timestamp >= next_timestamp {
                 res.push(value);
-                next_timestamp = curr_timestamp + interval;
+                next_timestamp = curr_timestamp + interval_sec;
             }
         }
 

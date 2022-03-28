@@ -159,6 +159,7 @@ subscription request json example:
 #### index_price_candles
 
 - **frequency_ms** - optional
+- **interval** - interval of candle. Format: number and word, e.g., "5mi", "3mo", "1y", etc.
 
 subscription request json example:
 
@@ -169,7 +170,7 @@ subscription request json example:
   "method": "index_price_candles",
   "params": {
     "frequency_ms": 50,
-    "interval": "day"
+    "interval": "1day"
   }
 }
 ```
@@ -177,6 +178,7 @@ subscription request json example:
 #### coin_average_price_candles
 
 - **frequency_ms** - optional
+- **interval** - interval of candle. Format: number and word, e.g., "5mi", "3mo", "1y", etc.
 
 subscription request json example:
 
@@ -188,7 +190,7 @@ subscription request json example:
   "params": {
     "coins": ["BTC", "ETH"],
     "frequency_ms": 50,
-    "interval": "day"
+    "interval": "1day"
   }
 }
 ```
@@ -210,7 +212,7 @@ request json example:
 
 #### index_price_historical
 
-- **interval** - interval between snapshots. Variants: second, minute, hour, day, week, month.
+- **interval** - interval between snapshots. Format: number and word, e.g., "5mi", "3mo", "1y", etc.
 - **from** - timestamp from
 - **to** - timestamp to. Optional.
 
@@ -222,7 +224,7 @@ request json example:
   "jsonrpc": "2.0",
   "method": "index_price_historical",
   "params": {
-    "interval": "day",
+    "interval": "1day",
     "from": 1643835600,
     "to": 1644440400
   }
@@ -231,7 +233,7 @@ request json example:
 
 #### coin_average_price_historical
 
-- **interval** - interval between snapshots. Variants: second, minute, hour, day, week, month.
+- **interval** - interval between snapshots. Format: number and word, e.g., "5mi", "3mo", "1y", etc.
 - **from** - timestamp from
 - **to** - timestamp to. Optional.
 
@@ -244,7 +246,7 @@ request json example:
   "method": "coin_average_price_historical",
   "params": {
     "coin": "BTC",
-    "interval": "day",
+    "interval": "1day",
     "from": 1643835600,
     "to": 1644440400
   }
@@ -253,7 +255,7 @@ request json example:
 
 #### index_price_candles_historical
 
-- **interval** - interval between snapshots. Variants: second, minute, hour, day, week, month.
+- **interval** - interval of candle. Format: number and word, e.g., "5mi", "3mo", "1y", etc.
 - **from** - timestamp from
 - **to** - timestamp to. Optional.
 
@@ -265,7 +267,7 @@ request json example:
   "jsonrpc": "2.0",
   "method": "index_price_candles_historical",
   "params": {
-    "interval": "day",
+    "interval": "1day",
     "from": 1577826000,
     "to": 1644872400
   }
@@ -274,7 +276,7 @@ request json example:
 
 #### coin_average_price_candles_historical
 
-- **interval** - interval between snapshots. Variants: second, minute, hour, day, week, month.
+- **interval** - interval of candle. Format: number and word, e.g., "5mi", "3mo", "1y", etc.
 - **from** - timestamp from
 - **to** - timestamp to. Optional.
 
@@ -287,7 +289,7 @@ request json example:
   "method": "coin_average_price_candles_historical",
   "params": {
     "coin": "BTC",
-    "interval": "day",
+    "interval": "1day",
     "from": 1643662800,
     "to": 1644872400
   }

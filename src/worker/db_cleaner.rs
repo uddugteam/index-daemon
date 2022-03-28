@@ -2,26 +2,26 @@ use crate::repository::repositories::{
     MarketRepositoriesByMarketName, RepositoryForF64ByTimestamp, WorkerRepositoriesByPairTuple,
 };
 use crate::worker::helper_functions::date_time_subtract_sec;
-use crate::worker::network_helpers::ws_server::interval::Interval;
 use chrono::{DateTime, Utc, MIN_DATETIME};
 use std::thread;
 
+/// Seconds in minute
+const INTERVAL_MINUTE: u64 = 60;
+
 fn pick_with_interval(
     values: Vec<DateTime<Utc>>,
-    interval: Interval,
+    interval_sec: u64,
 ) -> (Vec<DateTime<Utc>>, Vec<DateTime<Utc>>) {
-    let interval = interval.into_seconds() as i64;
-
     let mut keep = Vec::new();
     let mut discard = Vec::new();
 
-    let mut next_timestamp = MIN_DATETIME.timestamp();
+    let mut next_timestamp = MIN_DATETIME.timestamp() as u64;
     for value in values {
-        let curr_timestamp = value.timestamp();
+        let curr_timestamp = value.timestamp() as u64;
 
         if curr_timestamp >= next_timestamp {
             keep.push(value);
-            next_timestamp = curr_timestamp + interval;
+            next_timestamp = curr_timestamp + interval_sec;
         } else {
             discard.push(value);
         }
@@ -39,7 +39,7 @@ fn clear_repository(
     match repository.read_range(from, to) {
         Ok(res) => {
             let keys = res.into_iter().map(|(k, _)| k).collect();
-            let (_keep, discard) = pick_with_interval(keys, Interval::Minute);
+            let (_keep, discard) = pick_with_interval(keys, INTERVAL_MINUTE);
 
             repository.delete_multiple(&discard);
         }

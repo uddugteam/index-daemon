@@ -53,11 +53,11 @@ impl TryFrom<JsonRpcRequest> for WsRequest {
             .get("percent_change_interval")
             .map(|v| v.as_str().map(|v| parse(v).unwrap().as_secs()).ok_or(e));
         let percent_change_interval_sec = Self::swap(percent_change_interval_sec);
-        let interval = object
+        let interval_sec = object
             .get("interval")
-            .cloned()
             .ok_or(e)
-            .map(|v| serde_json::from_value(v).map_err(|_| e));
+            .map(|v| v.as_str().ok_or(e))
+            .map(|v| v.map(|v| parse(v).map(|v| v.as_secs()).map_err(|_| e)));
 
         match request.method {
             WsChannelName::AvailableCoins => {
@@ -75,7 +75,7 @@ impl TryFrom<JsonRpcRequest> for WsRequest {
                     WsChannelName::IndexPriceCandles => WorkerChannels::IndexPriceCandles {
                         id,
                         frequency_ms,
-                        interval: interval??,
+                        interval_sec: interval_sec???,
                     },
                     _ => unreachable!(),
                 };
@@ -99,7 +99,7 @@ impl TryFrom<JsonRpcRequest> for WsRequest {
                             id,
                             coins,
                             frequency_ms,
-                            interval: interval??,
+                            interval_sec: interval_sec???,
                         }
                     }
                     _ => unreachable!(),
@@ -143,21 +143,21 @@ impl TryFrom<JsonRpcRequest> for WsRequest {
             | WsChannelName::CoinAveragePriceHistorical
             | WsChannelName::CoinAveragePriceCandlesHistorical => {
                 let coin = object.get("coin").ok_or(e);
-                let interval = interval??;
+                let interval_sec = interval_sec???;
                 let from = Self::parse_u64(object, "from").ok_or(e)?;
                 let to = Self::parse_u64(object, "to").ok_or(e).ok();
 
                 let res = match request.method {
                     WsChannelName::IndexPriceHistorical => WsMethodRequest::IndexPriceHistorical {
                         id,
-                        interval,
+                        interval_sec,
                         from,
                         to,
                     },
                     WsChannelName::IndexPriceCandlesHistorical => {
                         WsMethodRequest::IndexPriceCandlesHistorical {
                             id,
-                            interval,
+                            interval_sec,
                             from,
                             to,
                         }
@@ -166,7 +166,7 @@ impl TryFrom<JsonRpcRequest> for WsRequest {
                         WsMethodRequest::CoinAveragePriceHistorical {
                             id,
                             coin: coin?.as_str().ok_or(e)?.to_string(),
-                            interval,
+                            interval_sec,
                             from,
                             to,
                         }
@@ -175,7 +175,7 @@ impl TryFrom<JsonRpcRequest> for WsRequest {
                         WsMethodRequest::CoinAveragePriceCandlesHistorical {
                             id,
                             coin: coin?.as_str().ok_or(e)?.to_string(),
-                            interval,
+                            interval_sec,
                             from,
                             to,
                         }

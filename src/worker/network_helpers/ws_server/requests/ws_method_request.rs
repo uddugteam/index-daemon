@@ -1,4 +1,3 @@
-use crate::worker::network_helpers::ws_server::interval::Interval;
 use crate::worker::network_helpers::ws_server::jsonrpc_request::JsonRpcId;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
 
@@ -9,27 +8,27 @@ pub enum WsMethodRequest {
     },
     IndexPriceHistorical {
         id: JsonRpcId,
-        interval: Interval,
+        interval_sec: u64,
         from: u64,
         to: Option<u64>,
     },
     IndexPriceCandlesHistorical {
         id: JsonRpcId,
-        interval: Interval,
+        interval_sec: u64,
         from: u64,
         to: Option<u64>,
     },
     CoinAveragePriceHistorical {
         id: JsonRpcId,
         coin: String,
-        interval: Interval,
+        interval_sec: u64,
         from: u64,
         to: Option<u64>,
     },
     CoinAveragePriceCandlesHistorical {
         id: JsonRpcId,
         coin: String,
-        interval: Interval,
+        interval_sec: u64,
         from: u64,
         to: Option<u64>,
     },
