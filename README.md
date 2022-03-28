@@ -27,8 +27,8 @@ You can get cli params description by calling program with "-h" cli param.
 - **historical** - string ("1" - on, default - off). Turn on historical data storage.
 - **storage** - string. Variants: sled. Default: sled.
 - **historical_storage_frequency_ms** - u64 (min - 10, default - 20). Frequency of putting data into DB.
-- **data_expire** - string. DB data lifetime. Format: number and word, e.g., "5mi", "3mo", "1y" etc. Default: 1 month.
-- **percent_change_interval** - string. Percent change interval. Format: number and word, e.g., "5mi", "3mo", "1y" etc. Default: 1 minute.
+- **data_expire** - string. DB data lifetime. Format: number and word, e.g., "5mi", "3mo", "1y", etc. Default: 1 month.
+- **percent_change_interval** - string. Percent change interval. Format: number and word, e.g., "5mi", "3mo", "1y", etc. Default: 1 minute.
 
 #### market_config
 
