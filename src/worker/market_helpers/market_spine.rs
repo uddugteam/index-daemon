@@ -329,8 +329,8 @@ pub mod test {
             market_repositories: _,
             percent_change_holder: _,
             ws_channels_holder: _,
-            pair_average_price,
             index_price,
+            pair_average_price,
         } = RepositoriesPrepared::make(&config);
 
         let spine = MarketSpine::new(
@@ -364,8 +364,8 @@ pub mod test {
             market_repositories,
             percent_change_holder,
             ws_channels_holder,
-            pair_average_price: _,
             index_price: _,
+            pair_average_price: _,
         } = RepositoriesPrepared::make(&config);
 
         let pair_string = "some_pair_string".to_string();

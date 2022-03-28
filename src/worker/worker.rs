@@ -145,8 +145,8 @@ pub fn start_worker(
         market_repositories,
         percent_change_holder,
         ws_channels_holder,
-        pair_average_price,
         index_price,
+        pair_average_price,
     } = RepositoriesPrepared::make(&config);
 
     let ConfigScheme {
@@ -286,8 +286,8 @@ pub mod test {
             market_repositories,
             percent_change_holder,
             ws_channels_holder,
-            pair_average_price,
             index_price,
+            pair_average_price,
         } = RepositoriesPrepared::make(&config);
 
         let markets = configure(

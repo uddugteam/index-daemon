@@ -21,8 +21,8 @@ pub struct RepositoriesPrepared {
     pub market_repositories: Option<MarketRepositoriesByMarketName>,
     pub percent_change_holder: HolderHashMap<PercentChangeByInterval>,
     pub ws_channels_holder: HolderHashMap<WsChannels>,
-    pub pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
     pub index_price: Arc<RwLock<StoredAndWsTransmissibleF64>>,
+    pub pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
 }
 
 impl RepositoriesPrepared {
@@ -53,8 +53,8 @@ impl RepositoriesPrepared {
             market_repositories,
             percent_change_holder,
             ws_channels_holder,
-            pair_average_price,
             index_price,
+            pair_average_price,
         }
     }
 
