@@ -103,7 +103,7 @@ fn start_ws(
                 ws_server.start();
             })
             .unwrap();
-        tx.send(thread).unwrap();
+        let _ = tx.send(thread);
     }
 }
 
@@ -131,7 +131,7 @@ fn start_db_cleaner(
             }
         })
         .unwrap();
-    tx.send(thread).unwrap();
+    let _ = tx.send(thread);
 }
 
 pub fn start_worker(
@@ -223,7 +223,7 @@ pub fn start_worker(
                 market_update(market);
             })
             .unwrap();
-        tx.send(thread).unwrap();
+        let _ = tx.send(thread);
     }
 }
 

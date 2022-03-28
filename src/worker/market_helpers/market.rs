@@ -242,7 +242,7 @@ pub fn market_update(market: Arc<Mutex<dyn Market + Send>>) {
                     })
                     .unwrap();
                 thread::sleep(time::Duration::from_millis(12000));
-                market.lock().unwrap().get_spine().tx.send(thread).unwrap();
+                let _ = market.lock().unwrap().get_spine().tx.send(thread);
             }
 
             if do_websocket {
@@ -268,7 +268,7 @@ pub fn market_update(market: Arc<Mutex<dyn Market + Send>>) {
                     })
                     .unwrap();
                 thread::sleep(time::Duration::from_millis(12000));
-                market.lock().unwrap().get_spine().tx.send(thread).unwrap();
+                let _ = market.lock().unwrap().get_spine().tx.send(thread);
             }
         }
     }

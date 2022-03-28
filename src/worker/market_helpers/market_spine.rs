@@ -185,7 +185,7 @@ impl MarketSpine {
                 }
             })
             .unwrap();
-        self.tx.send(thread).unwrap();
+        let _ = self.tx.send(thread);
     }
 
     fn recalculate_index_price(
@@ -229,7 +229,7 @@ impl MarketSpine {
                 }
             })
             .unwrap();
-        tx.send(thread).unwrap();
+        let _ = tx.send(thread);
     }
 
     pub fn set_last_trade_volume(&mut self, pair: &str, value: f64) {
