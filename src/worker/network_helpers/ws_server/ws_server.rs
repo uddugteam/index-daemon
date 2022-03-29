@@ -60,8 +60,11 @@ impl WsServer {
         serde_json::from_str(request)
     }
 
-    fn parse_ws_request(request: JsonRpcRequest) -> Result<WsRequest, String> {
-        request.try_into()
+    fn parse_ws_request(
+        request: JsonRpcRequest,
+        ws_answer_timeout_ms: u64,
+    ) -> Result<WsRequest, String> {
+        WsRequest::new(request, ws_answer_timeout_ms)
     }
 
     fn send_error(
@@ -88,7 +91,6 @@ impl WsServer {
         broadcast_recipient: &Tx,
         conn_id: String,
         request: WsChannelSubscriptionRequest,
-        ws_answer_timeout_ms: u64,
         key: HolderKey,
         error_msg: String,
     ) {
@@ -101,11 +103,8 @@ impl WsServer {
                 percent_change_holder.add(&key, percent_change_interval_sec);
             }
 
-            let response_sender = WsChannelResponseSender::new(
-                broadcast_recipient.clone(),
-                request,
-                ws_answer_timeout_ms,
-            );
+            let response_sender =
+                WsChannelResponseSender::new(broadcast_recipient.clone(), request);
 
             ws_channels_holder.add(&key, (conn_id, response_sender));
         } else {
@@ -125,7 +124,6 @@ impl WsServer {
         broadcast_recipient: &Tx,
         conn_id: String,
         request: WsChannelSubscriptionRequest,
-        ws_answer_timeout_ms: u64,
     ) {
         let (exchanges, error_msg) = match &request {
             WsChannelSubscriptionRequest::WorkerChannels(..) => (
@@ -169,7 +167,6 @@ impl WsServer {
                     broadcast_recipient,
                     conn_id.clone(),
                     request.clone(),
-                    ws_answer_timeout_ms,
                     key,
                     error_msg.to_string(),
                 );
@@ -200,7 +197,6 @@ impl WsServer {
         broadcast_recipient: Tx,
         conn_id: String,
         action: WsChannelAction,
-        ws_answer_timeout_ms: u64,
     ) {
         match action {
             WsChannelAction::Subscribe(request) => {
@@ -210,7 +206,6 @@ impl WsServer {
                     &broadcast_recipient,
                     conn_id,
                     request,
-                    ws_answer_timeout_ms,
                 );
             }
             WsChannelAction::Unsubscribe(request) => {
@@ -479,7 +474,6 @@ impl WsServer {
         sub_id: JsonRpcId,
         method: WsChannelName,
         request: Result<WsRequest, String>,
-        ws_answer_timeout_ms: u64,
         index_price_repository: Option<RepositoryForF64ByTimestamp>,
         pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
     ) {
@@ -497,7 +491,6 @@ impl WsServer {
                         broadcast_recipient,
                         conn_id,
                         request,
-                        ws_answer_timeout_ms,
                     );
                 }
                 WsRequest::Method(request) => {
@@ -544,7 +537,7 @@ impl WsServer {
                 Ok(request) => {
                     let sub_id = request.id.clone();
                     let method = request.method;
-                    let request = Self::parse_ws_request(request);
+                    let request = Self::parse_ws_request(request, ws_answer_timeout_ms);
 
                     let conn_id_2 = conn_id.to_string();
                     let percent_change_holder_2 = percent_change_holder.clone();
@@ -568,7 +561,6 @@ impl WsServer {
                                 sub_id,
                                 method,
                                 request,
-                                ws_answer_timeout_ms,
                                 index_price_repository_2,
                                 pair_average_price_2,
                             )

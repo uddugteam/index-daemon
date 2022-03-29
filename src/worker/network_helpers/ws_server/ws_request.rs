@@ -16,39 +16,20 @@ pub enum WsRequest {
 }
 
 impl WsRequest {
-    fn parse_vec_of_str(object: &Map<String, serde_json::Value>, key: &str) -> Option<Vec<String>> {
-        let mut items = Vec::new();
-        for item in object.get(key)?.as_array()? {
-            items.push(item.as_str()?.to_string());
-        }
-
-        Some(items)
-    }
-
-    fn parse_u64(object: &Map<String, serde_json::Value>, key: &str) -> Option<u64> {
-        object.get(key)?.as_u64()
-    }
-
-    fn swap<T, E>(value: Option<Result<T, E>>) -> Result<Option<T>, E> {
-        match value {
-            Some(value) => match value {
-                Ok(value) => Ok(Some(value)),
-                Err(e) => Err(e),
-            },
-            None => Ok(None),
-        }
-    }
-}
-
-impl TryFrom<JsonRpcRequest> for WsRequest {
-    type Error = String;
-
-    fn try_from(request: JsonRpcRequest) -> Result<Self, Self::Error> {
+    pub fn new(request: JsonRpcRequest, ws_answer_timeout_ms: u64) -> Result<Self, String> {
         let e = "Wrong params.";
         let id = request.id.clone();
         let object = request.params.as_object().ok_or(e)?;
         let coins = Self::parse_vec_of_str(object, "coins").ok_or(e);
-        let frequency_ms = Self::parse_u64(object, "frequency_ms");
+
+        let frequency_ms = Self::parse_u64(object, "frequency_ms").unwrap_or(ws_answer_timeout_ms);
+        if frequency_ms < ws_answer_timeout_ms {
+            return Err(format!(
+                "\"frequency_ms\" must be not less than {}",
+                ws_answer_timeout_ms,
+            ));
+        }
+
         let percent_change_interval_sec = object
             .get("percent_change_interval")
             .map(|v| v.as_str().map(|v| parse(v).unwrap().as_secs()).ok_or(e));
@@ -185,6 +166,29 @@ impl TryFrom<JsonRpcRequest> for WsRequest {
 
                 Ok(Self::Method(res))
             }
+        }
+    }
+
+    fn parse_vec_of_str(object: &Map<String, serde_json::Value>, key: &str) -> Option<Vec<String>> {
+        let mut items = Vec::new();
+        for item in object.get(key)?.as_array()? {
+            items.push(item.as_str()?.to_string());
+        }
+
+        Some(items)
+    }
+
+    fn parse_u64(object: &Map<String, serde_json::Value>, key: &str) -> Option<u64> {
+        object.get(key)?.as_u64()
+    }
+
+    fn swap<T, E>(value: Option<Result<T, E>>) -> Result<Option<T>, E> {
+        match value {
+            Some(value) => match value {
+                Ok(value) => Ok(Some(value)),
+                Err(e) => Err(e),
+            },
+            None => Ok(None),
         }
     }
 }

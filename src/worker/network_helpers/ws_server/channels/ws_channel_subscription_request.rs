@@ -41,7 +41,7 @@ impl WsChannelSubscriptionRequest {
         }
     }
 
-    pub fn get_frequency_ms(&self) -> Option<u64> {
+    pub fn get_frequency_ms(&self) -> u64 {
         match self {
             Self::WorkerChannels(channel) => match channel {
                 WorkerChannels::IndexPrice { frequency_ms, .. }
@@ -52,25 +52,6 @@ impl WsChannelSubscriptionRequest {
             Self::MarketChannels(channel) => match channel {
                 MarketChannels::CoinExchangePrice { frequency_ms, .. }
                 | MarketChannels::CoinExchangeVolume { frequency_ms, .. } => *frequency_ms,
-            },
-        }
-    }
-
-    pub fn set_frequency_ms(&mut self, new_value: u64) {
-        match self {
-            Self::WorkerChannels(channel) => match channel {
-                WorkerChannels::IndexPrice { frequency_ms, .. }
-                | WorkerChannels::IndexPriceCandles { frequency_ms, .. }
-                | WorkerChannels::CoinAveragePrice { frequency_ms, .. }
-                | WorkerChannels::CoinAveragePriceCandles { frequency_ms, .. } => {
-                    *frequency_ms = Some(new_value)
-                }
-            },
-            Self::MarketChannels(channel) => match channel {
-                MarketChannels::CoinExchangePrice { frequency_ms, .. }
-                | MarketChannels::CoinExchangeVolume { frequency_ms, .. } => {
-                    *frequency_ms = Some(new_value)
-                }
             },
         }
     }
