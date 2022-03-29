@@ -49,6 +49,7 @@ fn make_request(
     method: WsChannelName,
     coins: Option<&[String]>,
     exchanges: Option<&[String]>,
+    interval: Option<String>,
 ) -> String {
     let request = json!({
         "id": sub_id,
@@ -57,7 +58,7 @@ fn make_request(
         "params": {
           "coins": coins,
           "exchanges": exchanges,
-          "frequency_ms": 100u64
+          "interval": interval
         }
     });
 
@@ -172,6 +173,23 @@ fn check_subscriptions(
                         None
                     }
                 }
+                WsChannelName::IndexPriceCandles => {
+                    if let WsChannelSubscriptionRequest::WorkerChannels(
+                        WorkerChannels::IndexPriceCandles {
+                            id,
+                            frequency_ms: _,
+                            interval_sec,
+                        },
+                    ) = subscription_request
+                    {
+                        assert_eq!(id, sub_id_expected);
+                        assert_eq!(interval_sec, 86_400);
+
+                        Some(())
+                    } else {
+                        None
+                    }
+                }
                 WsChannelName::CoinAveragePrice => {
                     if let WsChannelSubscriptionRequest::WorkerChannels(
                         WorkerChannels::CoinAveragePrice {
@@ -212,7 +230,7 @@ fn test_worker_add_ws_channel_1() {
 
     let sub_id = JsonRpcId::Str(Uuid::new_v4().to_string());
     let method = WsChannelName::IndexPrice;
-    let request = make_request(&sub_id, method, None, None);
+    let request = make_request(&sub_id, method, None, None, None);
 
     ws_connect_and_subscribe(ws_addr, vec![request], incoming_msg_tx);
     check_subscriptions(repositories_prepared, vec![(sub_id, method, None)]);
@@ -226,9 +244,25 @@ fn test_worker_add_ws_channel_2() {
         start_application(ws_addr);
 
     let sub_id = JsonRpcId::Str(Uuid::new_v4().to_string());
+    let method = WsChannelName::IndexPriceCandles;
+    let interval = "1day".to_string();
+    let request = make_request(&sub_id, method, None, None, Some(interval));
+
+    ws_connect_and_subscribe(ws_addr, vec![request], incoming_msg_tx);
+    check_subscriptions(repositories_prepared, vec![(sub_id, method, None)]);
+}
+
+#[test]
+#[serial]
+fn test_worker_add_ws_channel_3() {
+    let ws_addr = "127.0.0.1:8003";
+    let (_rx, (incoming_msg_tx, _incoming_msg_rx), repositories_prepared) =
+        start_application(ws_addr);
+
+    let sub_id = JsonRpcId::Str(Uuid::new_v4().to_string());
     let method = WsChannelName::CoinAveragePrice;
     let coins = ["BTC".to_string(), "ETH".to_string()].to_vec();
-    let request = make_request(&sub_id, method, Some(&coins), None);
+    let request = make_request(&sub_id, method, Some(&coins), None, None);
 
     ws_connect_and_subscribe(ws_addr, vec![request], incoming_msg_tx);
     check_subscriptions(repositories_prepared, vec![(sub_id, method, Some(coins))]);
@@ -237,7 +271,7 @@ fn test_worker_add_ws_channel_2() {
 #[test]
 #[serial]
 fn test_worker_add_ws_channels() {
-    let ws_addr = "127.0.0.1:8003";
+    let ws_addr = "127.0.0.1:8004";
     let (_rx, (incoming_msg_tx, _incoming_msg_rx), repositories_prepared) =
         start_application(ws_addr);
 
@@ -246,14 +280,21 @@ fn test_worker_add_ws_channels() {
 
     let sub_id = JsonRpcId::Str(Uuid::new_v4().to_string());
     let method = WsChannelName::IndexPrice;
-    let request = make_request(&sub_id, method, None, None);
+    let request = make_request(&sub_id, method, None, None, None);
+    requests.push(request);
+    expected.push((sub_id, method, None));
+
+    let sub_id = JsonRpcId::Str(Uuid::new_v4().to_string());
+    let method = WsChannelName::IndexPriceCandles;
+    let interval = "1day".to_string();
+    let request = make_request(&sub_id, method, None, None, Some(interval));
     requests.push(request);
     expected.push((sub_id, method, None));
 
     let sub_id = JsonRpcId::Str(Uuid::new_v4().to_string());
     let method = WsChannelName::CoinAveragePrice;
     let coins = ["BTC".to_string(), "ETH".to_string()].to_vec();
-    let request = make_request(&sub_id, method, Some(&coins), None);
+    let request = make_request(&sub_id, method, Some(&coins), None, None);
     requests.push(request);
     expected.push((sub_id, method, Some(coins)));
 
