@@ -3,7 +3,7 @@ use crate::worker::network_helpers::ws_server::channels::worker_channels::Worker
 use crate::worker::network_helpers::ws_server::jsonrpc_request::JsonRpcId;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum WsChannelSubscriptionRequest {
     WorkerChannels(WorkerChannels),
     MarketChannels(MarketChannels),

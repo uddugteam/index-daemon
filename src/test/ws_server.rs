@@ -9,6 +9,7 @@ use crate::worker::network_helpers::ws_server::channels::ws_channel_subscription
 use crate::worker::network_helpers::ws_server::jsonrpc_request::JsonRpcId;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
 use crate::worker::worker::start_worker;
+use parse_duration::parse;
 use serde_json::json;
 use serial_test::serial;
 use std::sync::mpsc::{Receiver, Sender};
@@ -95,7 +96,7 @@ fn ws_connect_and_subscribe(
     thread::sleep(time::Duration::from_millis(1000));
 }
 
-fn zip_coins_with_usd(coins: Option<Vec<String>>) -> Vec<Option<(String, String)>> {
+fn zip_coins_with_usd(coins: Option<&[String]>) -> Vec<Option<(String, String)>> {
     if let Some(coins) = coins {
         let mut pairs = Vec::new();
 
@@ -114,7 +115,7 @@ fn get_subscription_requests(
     repositories_prepared: &RepositoriesPrepared,
     sub_id: &JsonRpcId,
     method: WsChannelName,
-    coins: Option<Vec<String>>,
+    coins: Option<&[String]>,
 ) -> Vec<WsChannelSubscriptionRequest> {
     let mut subscription_requests = Vec::new();
 
@@ -143,9 +144,13 @@ fn get_subscription_requests(
 
 fn check_subscriptions(
     repositories_prepared: RepositoriesPrepared,
-    subscriptions: Vec<(JsonRpcId, WsChannelName, Option<Vec<String>>)>,
+    subscriptions: Vec<WsChannelSubscriptionRequest>,
 ) {
-    for (sub_id_expected, method_expected, coins_expected) in subscriptions {
+    for subscription_request_expected in subscriptions {
+        let sub_id_expected = subscription_request_expected.get_id();
+        let method_expected = subscription_request_expected.get_method();
+        let coins_expected = subscription_request_expected.get_coins();
+
         let subscription_requests = get_subscription_requests(
             &repositories_prepared,
             &sub_id_expected,
@@ -154,69 +159,7 @@ fn check_subscriptions(
         );
 
         for subscription_request in subscription_requests {
-            let method_got = subscription_request.get_method();
-
-            let res = match method_expected {
-                WsChannelName::IndexPrice => {
-                    if let WsChannelSubscriptionRequest::WorkerChannels(
-                        WorkerChannels::IndexPrice {
-                            id,
-                            frequency_ms: _,
-                            percent_change_interval_sec: _,
-                        },
-                    ) = subscription_request
-                    {
-                        assert_eq!(id, sub_id_expected);
-
-                        Some(())
-                    } else {
-                        None
-                    }
-                }
-                WsChannelName::IndexPriceCandles => {
-                    if let WsChannelSubscriptionRequest::WorkerChannels(
-                        WorkerChannels::IndexPriceCandles {
-                            id,
-                            frequency_ms: _,
-                            interval_sec,
-                        },
-                    ) = subscription_request
-                    {
-                        assert_eq!(id, sub_id_expected);
-                        assert_eq!(interval_sec, 86_400);
-
-                        Some(())
-                    } else {
-                        None
-                    }
-                }
-                WsChannelName::CoinAveragePrice => {
-                    if let WsChannelSubscriptionRequest::WorkerChannels(
-                        WorkerChannels::CoinAveragePrice {
-                            id,
-                            coins,
-                            frequency_ms: _,
-                            percent_change_interval_sec: _,
-                        },
-                    ) = subscription_request
-                    {
-                        assert_eq!(id, sub_id_expected);
-                        assert_eq!(Some(coins), coins_expected);
-
-                        Some(())
-                    } else {
-                        None
-                    }
-                }
-                _ => unreachable!(),
-            };
-
-            if res.is_none() {
-                panic!(
-                    "Wrong request type. Expected: {:?}. Got: {:?}",
-                    method_expected, method_got,
-                );
-            }
+            assert_eq!(subscription_request_expected, subscription_request);
         }
     }
 }
@@ -231,9 +174,14 @@ fn test_worker_add_ws_channel_1() {
     let sub_id = JsonRpcId::Str(Uuid::new_v4().to_string());
     let method = WsChannelName::IndexPrice;
     let request = make_request(&sub_id, method, None, None, None);
+    let expected = WsChannelSubscriptionRequest::WorkerChannels(WorkerChannels::IndexPrice {
+        id: sub_id,
+        frequency_ms: Some(100),
+        percent_change_interval_sec: None,
+    });
 
     ws_connect_and_subscribe(ws_addr, vec![request], incoming_msg_tx);
-    check_subscriptions(repositories_prepared, vec![(sub_id, method, None)]);
+    check_subscriptions(repositories_prepared, vec![expected]);
 }
 
 #[test]
@@ -246,10 +194,16 @@ fn test_worker_add_ws_channel_2() {
     let sub_id = JsonRpcId::Str(Uuid::new_v4().to_string());
     let method = WsChannelName::IndexPriceCandles;
     let interval = "1day".to_string();
-    let request = make_request(&sub_id, method, None, None, Some(interval));
+    let request = make_request(&sub_id, method, None, None, Some(interval.clone()));
+    let expected =
+        WsChannelSubscriptionRequest::WorkerChannels(WorkerChannels::IndexPriceCandles {
+            id: sub_id,
+            frequency_ms: Some(100),
+            interval_sec: parse(&interval).unwrap().as_secs(),
+        });
 
     ws_connect_and_subscribe(ws_addr, vec![request], incoming_msg_tx);
-    check_subscriptions(repositories_prepared, vec![(sub_id, method, None)]);
+    check_subscriptions(repositories_prepared, vec![expected]);
 }
 
 #[test]
@@ -263,9 +217,15 @@ fn test_worker_add_ws_channel_3() {
     let method = WsChannelName::CoinAveragePrice;
     let coins = ["BTC".to_string(), "ETH".to_string()].to_vec();
     let request = make_request(&sub_id, method, Some(&coins), None, None);
+    let expected = WsChannelSubscriptionRequest::WorkerChannels(WorkerChannels::CoinAveragePrice {
+        id: sub_id,
+        coins,
+        frequency_ms: Some(100),
+        percent_change_interval_sec: None,
+    });
 
     ws_connect_and_subscribe(ws_addr, vec![request], incoming_msg_tx);
-    check_subscriptions(repositories_prepared, vec![(sub_id, method, Some(coins))]);
+    check_subscriptions(repositories_prepared, vec![expected]);
 }
 
 #[test]
@@ -276,28 +236,45 @@ fn test_worker_add_ws_channels() {
         start_application(ws_addr);
 
     let mut requests = Vec::new();
-    let mut expected = Vec::new();
+    let mut expecteds = Vec::new();
 
     let sub_id = JsonRpcId::Str(Uuid::new_v4().to_string());
     let method = WsChannelName::IndexPrice;
     let request = make_request(&sub_id, method, None, None, None);
     requests.push(request);
-    expected.push((sub_id, method, None));
+    let expected = WsChannelSubscriptionRequest::WorkerChannels(WorkerChannels::IndexPrice {
+        id: sub_id,
+        frequency_ms: Some(100),
+        percent_change_interval_sec: None,
+    });
+    expecteds.push(expected);
 
     let sub_id = JsonRpcId::Str(Uuid::new_v4().to_string());
     let method = WsChannelName::IndexPriceCandles;
     let interval = "1day".to_string();
-    let request = make_request(&sub_id, method, None, None, Some(interval));
+    let request = make_request(&sub_id, method, None, None, Some(interval.clone()));
     requests.push(request);
-    expected.push((sub_id, method, None));
+    let expected =
+        WsChannelSubscriptionRequest::WorkerChannels(WorkerChannels::IndexPriceCandles {
+            id: sub_id,
+            frequency_ms: Some(100),
+            interval_sec: parse(&interval).unwrap().as_secs(),
+        });
+    expecteds.push(expected);
 
     let sub_id = JsonRpcId::Str(Uuid::new_v4().to_string());
     let method = WsChannelName::CoinAveragePrice;
     let coins = ["BTC".to_string(), "ETH".to_string()].to_vec();
     let request = make_request(&sub_id, method, Some(&coins), None, None);
     requests.push(request);
-    expected.push((sub_id, method, Some(coins)));
+    let expected = WsChannelSubscriptionRequest::WorkerChannels(WorkerChannels::CoinAveragePrice {
+        id: sub_id,
+        coins,
+        frequency_ms: Some(100),
+        percent_change_interval_sec: None,
+    });
+    expecteds.push(expected);
 
     ws_connect_and_subscribe(ws_addr, requests, incoming_msg_tx);
-    check_subscriptions(repositories_prepared, expected);
+    check_subscriptions(repositories_prepared, expecteds);
 }
