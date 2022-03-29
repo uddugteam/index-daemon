@@ -158,8 +158,8 @@ fn check_subscriptions(
                     if let WsChannelSubscriptionRequest::WorkerChannels(
                         WorkerChannels::IndexPrice {
                             id,
-                            frequency_ms,
-                            percent_change_interval_sec,
+                            frequency_ms: _,
+                            percent_change_interval_sec: _,
                         },
                     ) = subscription_request
                     {
@@ -176,8 +176,8 @@ fn check_subscriptions(
                         WorkerChannels::CoinAveragePrice {
                             id,
                             coins,
-                            frequency_ms,
-                            percent_change_interval_sec,
+                            frequency_ms: _,
+                            percent_change_interval_sec: _,
                         },
                     ) = subscription_request
                     {
