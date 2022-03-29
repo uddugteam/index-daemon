@@ -153,7 +153,9 @@ fn check_subscriptions(
         );
 
         for subscription_request in subscription_requests {
-            match method_expected {
+            let method_got = subscription_request.get_method();
+
+            let res = match method_expected {
                 WsChannelName::IndexPrice => {
                     if let WsChannelSubscriptionRequest::WorkerChannels(
                         WorkerChannels::IndexPrice {
@@ -164,11 +166,10 @@ fn check_subscriptions(
                     ) = subscription_request
                     {
                         assert_eq!(id, sub_id_expected);
+
+                        Some(())
                     } else {
-                        panic!(
-                            "Wrong request type. Expected: {}. Got: {:?}",
-                            "WorkerChannels::IndexPrice", subscription_request,
-                        );
+                        None
                     }
                 }
                 WsChannelName::CoinAveragePrice => {
@@ -183,14 +184,20 @@ fn check_subscriptions(
                     {
                         assert_eq!(id, sub_id_expected);
                         assert_eq!(Some(coins), coins_expected);
+
+                        Some(())
                     } else {
-                        panic!(
-                            "Wrong request type. Expected: {}. Got: {:?}",
-                            "WorkerChannels::IndexPrice", subscription_request,
-                        );
+                        None
                     }
                 }
                 _ => unreachable!(),
+            };
+
+            if res.is_none() {
+                panic!(
+                    "Wrong request type. Expected: {:?}. Got: {:?}",
+                    method_expected, method_got,
+                );
             }
         }
     }
