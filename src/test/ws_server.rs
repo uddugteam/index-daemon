@@ -176,7 +176,7 @@ fn test_worker_add_ws_channel_1() {
     let request = make_request(&sub_id, method, None, None, None);
     let expected = WsChannelSubscriptionRequest::WorkerChannels(WorkerChannels::IndexPrice {
         id: sub_id,
-        frequency_ms: Some(100),
+        frequency_ms: 100,
         percent_change_interval_sec: None,
     });
 
@@ -198,7 +198,7 @@ fn test_worker_add_ws_channel_2() {
     let expected =
         WsChannelSubscriptionRequest::WorkerChannels(WorkerChannels::IndexPriceCandles {
             id: sub_id,
-            frequency_ms: Some(100),
+            frequency_ms: 100,
             interval_sec: parse(&interval).unwrap().as_secs(),
         });
 
@@ -220,7 +220,7 @@ fn test_worker_add_ws_channel_3() {
     let expected = WsChannelSubscriptionRequest::WorkerChannels(WorkerChannels::CoinAveragePrice {
         id: sub_id,
         coins,
-        frequency_ms: Some(100),
+        frequency_ms: 100,
         percent_change_interval_sec: None,
     });
 
@@ -244,7 +244,7 @@ fn test_worker_add_ws_channels() {
     requests.push(request);
     let expected = WsChannelSubscriptionRequest::WorkerChannels(WorkerChannels::IndexPrice {
         id: sub_id,
-        frequency_ms: Some(100),
+        frequency_ms: 100,
         percent_change_interval_sec: None,
     });
     expecteds.push(expected);
@@ -257,7 +257,7 @@ fn test_worker_add_ws_channels() {
     let expected =
         WsChannelSubscriptionRequest::WorkerChannels(WorkerChannels::IndexPriceCandles {
             id: sub_id,
-            frequency_ms: Some(100),
+            frequency_ms: 100,
             interval_sec: parse(&interval).unwrap().as_secs(),
         });
     expecteds.push(expected);
@@ -270,7 +270,7 @@ fn test_worker_add_ws_channels() {
     let expected = WsChannelSubscriptionRequest::WorkerChannels(WorkerChannels::CoinAveragePrice {
         id: sub_id,
         coins,
-        frequency_ms: Some(100),
+        frequency_ms: 100,
         percent_change_interval_sec: None,
     });
     expecteds.push(expected);
