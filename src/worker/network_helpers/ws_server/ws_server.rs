@@ -46,6 +46,7 @@ pub struct WsServer {
     pub ws_channels_holder: WsChannelsHolder,
     pub ws_addr: String,
     pub ws_answer_timeout_ms: u64,
+    pub percent_change_interval_sec: u64,
     pub index_price_repository: Option<RepositoryForF64ByTimestamp>,
     pub pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
     pub graceful_shutdown: Arc<RwLock<bool>>,
@@ -63,8 +64,9 @@ impl WsServer {
     fn parse_ws_request(
         request: JsonRpcRequest,
         ws_answer_timeout_ms: u64,
+        percent_change_interval_sec: u64,
     ) -> Result<WsRequest, String> {
-        WsRequest::new(request, ws_answer_timeout_ms)
+        WsRequest::new(request, ws_answer_timeout_ms, percent_change_interval_sec)
     }
 
     fn send_error(
@@ -526,6 +528,7 @@ impl WsServer {
         client_addr: SocketAddr,
         conn_id: &str,
         ws_answer_timeout_ms: u64,
+        percent_change_interval_sec: u64,
         index_price_repository: &mut Option<RepositoryForF64ByTimestamp>,
         pair_average_price: &mut StoredAndWsTransmissibleF64ByPairTuple,
         _graceful_shutdown: &Arc<RwLock<bool>>,
@@ -537,7 +540,11 @@ impl WsServer {
                 Ok(request) => {
                     let sub_id = request.id.clone();
                     let method = request.method;
-                    let request = Self::parse_ws_request(request, ws_answer_timeout_ms);
+                    let request = Self::parse_ws_request(
+                        request,
+                        ws_answer_timeout_ms,
+                        percent_change_interval_sec,
+                    );
 
                     let conn_id_2 = conn_id.to_string();
                     let percent_change_holder_2 = percent_change_holder.clone();
@@ -592,6 +599,7 @@ impl WsServer {
         client_addr: SocketAddr,
         conn_id: String,
         ws_answer_timeout_ms: u64,
+        percent_change_interval_sec: u64,
         mut index_price_repository: Option<RepositoryForF64ByTimestamp>,
         mut pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
         graceful_shutdown: Arc<RwLock<bool>>,
@@ -619,6 +627,7 @@ impl WsServer {
                         client_addr,
                         &conn_id,
                         ws_answer_timeout_ms,
+                        percent_change_interval_sec,
                         &mut index_price_repository,
                         &mut pair_average_price,
                         &graceful_shutdown,
@@ -668,6 +677,7 @@ impl WsServer {
                 client_addr,
                 conn_id,
                 self.ws_answer_timeout_ms,
+                self.percent_change_interval_sec,
                 self.index_price_repository.clone(),
                 self.pair_average_price.clone(),
                 Arc::clone(&self.graceful_shutdown),

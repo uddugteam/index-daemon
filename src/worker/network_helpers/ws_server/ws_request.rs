@@ -16,7 +16,11 @@ pub enum WsRequest {
 }
 
 impl WsRequest {
-    pub fn new(request: JsonRpcRequest, ws_answer_timeout_ms: u64) -> Result<Self, String> {
+    pub fn new(
+        request: JsonRpcRequest,
+        ws_answer_timeout_ms: u64,
+        percent_change_interval_sec: u64,
+    ) -> Result<Self, String> {
         let id = request.id.clone();
         let object = request
             .params
@@ -33,16 +37,19 @@ impl WsRequest {
             ));
         }
 
-        let percent_change_interval_sec = object.get("percent_change_interval").map(|v| {
-            v.as_str()
-                .map(|v| {
-                    parse(v)
-                        .map(|v| v.as_secs())
-                        .map_err(|_| "\"percent_change_interval\": invalid value")
-                })
-                .ok_or("\"percent_change_interval\" must be a string")?
-        });
-        let percent_change_interval_sec = Self::swap(percent_change_interval_sec);
+        let percent_change_interval_sec = object
+            .get("percent_change_interval")
+            .map(|v| {
+                v.as_str()
+                    .map(|v| {
+                        parse(v)
+                            .map(|v| v.as_secs())
+                            .map_err(|_| "\"percent_change_interval\": invalid value")
+                    })
+                    .ok_or("\"percent_change_interval\" must be a string")?
+            })
+            .unwrap_or(Ok(percent_change_interval_sec));
+
         let interval_sec = object
             .get("interval")
             .ok_or("\"interval\" is required")

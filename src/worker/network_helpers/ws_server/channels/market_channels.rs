@@ -7,13 +7,13 @@ pub enum MarketChannels {
         coins: Vec<String>,
         exchanges: Vec<String>,
         frequency_ms: u64,
-        percent_change_interval_sec: Option<u64>,
+        percent_change_interval_sec: u64,
     },
     CoinExchangeVolume {
         id: JsonRpcId,
         coins: Vec<String>,
         exchanges: Vec<String>,
         frequency_ms: u64,
-        percent_change_interval_sec: Option<u64>,
+        percent_change_interval_sec: u64,
     },
 }

@@ -66,7 +66,7 @@ impl WsChannelSubscriptionRequest {
                 | WorkerChannels::CoinAveragePrice {
                     percent_change_interval_sec,
                     ..
-                } => *percent_change_interval_sec,
+                } => Some(*percent_change_interval_sec),
                 WorkerChannels::IndexPriceCandles { .. }
                 | WorkerChannels::CoinAveragePriceCandles { .. } => None,
             },
@@ -78,7 +78,7 @@ impl WsChannelSubscriptionRequest {
                 | MarketChannels::CoinExchangeVolume {
                     percent_change_interval_sec,
                     ..
-                } => *percent_change_interval_sec,
+                } => Some(*percent_change_interval_sec),
             },
         }
     }

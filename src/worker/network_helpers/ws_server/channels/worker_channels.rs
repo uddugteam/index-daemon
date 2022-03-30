@@ -5,7 +5,7 @@ pub enum WorkerChannels {
     IndexPrice {
         id: JsonRpcId,
         frequency_ms: u64,
-        percent_change_interval_sec: Option<u64>,
+        percent_change_interval_sec: u64,
     },
     IndexPriceCandles {
         id: JsonRpcId,
@@ -16,7 +16,7 @@ pub enum WorkerChannels {
         id: JsonRpcId,
         coins: Vec<String>,
         frequency_ms: u64,
-        percent_change_interval_sec: Option<u64>,
+        percent_change_interval_sec: u64,
     },
     CoinAveragePriceCandles {
         id: JsonRpcId,
