@@ -1,5 +1,5 @@
 use crate::worker::market_helpers::market::{depth_helper_v1, parse_str_from_json_object, Market};
-use crate::worker::market_helpers::market_channels::MarketChannels;
+use crate::worker::market_helpers::market_channels::ExternalMarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
 
 pub struct Binance {
@@ -15,16 +15,16 @@ impl Market for Binance {
         &mut self.spine
     }
 
-    fn get_channel_text_view(&self, channel: MarketChannels) -> String {
+    fn get_channel_text_view(&self, channel: ExternalMarketChannels) -> String {
         match channel {
-            MarketChannels::Ticker => "ticker",
-            MarketChannels::Trades => "trade",
-            MarketChannels::Book => "depth20",
+            ExternalMarketChannels::Ticker => "ticker",
+            ExternalMarketChannels::Trades => "trade",
+            ExternalMarketChannels::Book => "depth20",
         }
         .to_string()
     }
 
-    fn get_websocket_url(&self, pair: &str, channel: MarketChannels) -> String {
+    fn get_websocket_url(&self, pair: &str, channel: ExternalMarketChannels) -> String {
         format!(
             "wss://stream.binance.com:9443/ws/{}@{}",
             pair,
@@ -32,7 +32,7 @@ impl Market for Binance {
         )
     }
 
-    fn get_websocket_on_open_msg(&self, _pair: &str, _channel: MarketChannels) -> Option<String> {
+    fn get_websocket_on_open_msg(&self, _pair: &str, _channel: ExternalMarketChannels) -> Option<String> {
         None
     }
 

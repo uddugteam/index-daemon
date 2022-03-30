@@ -1,5 +1,5 @@
 use crate::worker::market_helpers::market::{depth_helper_v2, Market};
-use crate::worker::market_helpers::market_channels::MarketChannels;
+use crate::worker::market_helpers::market_channels::ExternalMarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
 use reqwest::blocking::Client;
 
@@ -16,25 +16,25 @@ impl Market for Ftx {
         &mut self.spine
     }
 
-    fn get_channel_text_view(&self, channel: MarketChannels) -> String {
+    fn get_channel_text_view(&self, channel: ExternalMarketChannels) -> String {
         match channel {
-            MarketChannels::Ticker => {
+            ExternalMarketChannels::Ticker => {
                 // Ticker channel of market FTX is not implemented, because it has no useful info.
                 // Instead of websocket, we get needed info by REST API.
                 panic!("Ticker channel of market FTX is not implemented, because it has no useful info.");
                 // "ticker" 
             },
-            MarketChannels::Trades => "trades",
-            MarketChannels::Book => "orderbook",
+            ExternalMarketChannels::Trades => "trades",
+            ExternalMarketChannels::Book => "orderbook",
         }
         .to_string()
     }
 
-    fn get_websocket_url(&self, _pair: &str, _channel: MarketChannels) -> String {
+    fn get_websocket_url(&self, _pair: &str, _channel: ExternalMarketChannels) -> String {
         "wss://ftx.com/ws/".to_string()
     }
 
-    fn get_websocket_on_open_msg(&self, pair: &str, channel: MarketChannels) -> Option<String> {
+    fn get_websocket_on_open_msg(&self, pair: &str, channel: ExternalMarketChannels) -> Option<String> {
         Some(format!(
             "{{\"op\": \"subscribe\", \"channel\": \"{}\", \"market\": \"{}\"}}",
             self.get_channel_text_view(channel),

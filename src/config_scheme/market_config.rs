@@ -3,7 +3,7 @@ use crate::config_scheme::helper_functions::{
     get_default_markets, get_param_value_as_vec_of_string, has_no_duplicates, is_subset,
     make_exchange_pairs, make_pairs,
 };
-use crate::worker::market_helpers::market_channels::MarketChannels;
+use crate::worker::market_helpers::market_channels::ExternalMarketChannels;
 use clap::ArgMatches;
 
 #[derive(Clone)]
@@ -11,7 +11,7 @@ pub struct MarketConfig {
     pub markets: Vec<String>,
     pub exchange_pairs: Vec<(String, String)>,
     pub index_pairs: Vec<(String, String)>,
-    pub channels: Vec<MarketChannels>,
+    pub channels: Vec<ExternalMarketChannels>,
 }
 
 impl MarketConfig {

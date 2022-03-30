@@ -1,5 +1,5 @@
-use crate::worker::network_helpers::ws_server::channels::market_channels::MarketChannels;
-use crate::worker::network_helpers::ws_server::channels::worker_channels::WorkerChannels;
+use crate::worker::network_helpers::ws_server::channels::market_channels::LocalMarketChannels;
+use crate::worker::network_helpers::ws_server::channels::worker_channels::LocalWorkerChannels;
 use crate::worker::network_helpers::ws_server::channels::ws_channel_action::WsChannelAction;
 use crate::worker::network_helpers::ws_server::channels::ws_channel_subscription_request::WsChannelSubscriptionRequest;
 use crate::worker::network_helpers::ws_server::channels::ws_channel_unsubscribe::WsChannelUnsubscribe;
@@ -70,12 +70,12 @@ impl WsRequest {
             }
             WsChannelName::IndexPrice | WsChannelName::IndexPriceCandles => {
                 let res = match request.method {
-                    WsChannelName::IndexPrice => WorkerChannels::IndexPrice {
+                    WsChannelName::IndexPrice => LocalWorkerChannels::IndexPrice {
                         id,
                         frequency_ms,
                         percent_change_interval_sec: percent_change_interval_sec?,
                     },
-                    WsChannelName::IndexPriceCandles => WorkerChannels::IndexPriceCandles {
+                    WsChannelName::IndexPriceCandles => LocalWorkerChannels::IndexPriceCandles {
                         id,
                         frequency_ms,
                         interval_sec: interval_sec???,
@@ -84,21 +84,21 @@ impl WsRequest {
                 };
 
                 Ok(Self::Channel(WsChannelAction::Subscribe(
-                    WsChannelSubscriptionRequest::WorkerChannels(res),
+                    WsChannelSubscriptionRequest::Worker(res),
                 )))
             }
             WsChannelName::CoinAveragePrice | WsChannelName::CoinAveragePriceCandles => {
                 let coins = coins?;
 
                 let res = match request.method {
-                    WsChannelName::CoinAveragePrice => WorkerChannels::CoinAveragePrice {
+                    WsChannelName::CoinAveragePrice => LocalWorkerChannels::CoinAveragePrice {
                         id,
                         coins,
                         frequency_ms,
                         percent_change_interval_sec: percent_change_interval_sec?,
                     },
                     WsChannelName::CoinAveragePriceCandles => {
-                        WorkerChannels::CoinAveragePriceCandles {
+                        LocalWorkerChannels::CoinAveragePriceCandles {
                             id,
                             coins,
                             frequency_ms,
@@ -109,7 +109,7 @@ impl WsRequest {
                 };
 
                 Ok(Self::Channel(WsChannelAction::Subscribe(
-                    WsChannelSubscriptionRequest::WorkerChannels(res),
+                    WsChannelSubscriptionRequest::Worker(res),
                 )))
             }
             WsChannelName::CoinExchangePrice | WsChannelName::CoinExchangeVolume => {
@@ -117,14 +117,14 @@ impl WsRequest {
                 let exchanges = Self::parse_vec_of_str(object, "exchanges")?;
 
                 let res = match request.method {
-                    WsChannelName::CoinExchangePrice => MarketChannels::CoinExchangePrice {
+                    WsChannelName::CoinExchangePrice => LocalMarketChannels::CoinExchangePrice {
                         id,
                         coins,
                         exchanges,
                         frequency_ms,
                         percent_change_interval_sec: percent_change_interval_sec?,
                     },
-                    WsChannelName::CoinExchangeVolume => MarketChannels::CoinExchangeVolume {
+                    WsChannelName::CoinExchangeVolume => LocalMarketChannels::CoinExchangeVolume {
                         id,
                         coins,
                         exchanges,
@@ -135,7 +135,7 @@ impl WsRequest {
                 };
 
                 Ok(Self::Channel(WsChannelAction::Subscribe(
-                    WsChannelSubscriptionRequest::MarketChannels(res),
+                    WsChannelSubscriptionRequest::Market(res),
                 )))
             }
             WsChannelName::Unsubscribe => Ok(Self::Channel(WsChannelAction::Unsubscribe(

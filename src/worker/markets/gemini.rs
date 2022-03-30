@@ -3,7 +3,7 @@ use reqwest::blocking::Client;
 use crate::worker::market_helpers::market::{
     parse_str_from_json_array, parse_str_from_json_object, Market,
 };
-use crate::worker::market_helpers::market_channels::MarketChannels;
+use crate::worker::market_helpers::market_channels::ExternalMarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
 
 pub struct Gemini {
@@ -49,15 +49,15 @@ impl Market for Gemini {
         &mut self.spine
     }
 
-    fn get_channel_text_view(&self, _channel: MarketChannels) -> String {
+    fn get_channel_text_view(&self, _channel: ExternalMarketChannels) -> String {
         panic!("Market Gemini has no channels.");
     }
 
-    fn get_websocket_url(&self, _pair: &str, _channel: MarketChannels) -> String {
+    fn get_websocket_url(&self, _pair: &str, _channel: ExternalMarketChannels) -> String {
         "wss://api.gemini.com/v2/marketdata".to_string()
     }
 
-    fn get_websocket_on_open_msg(&self, pair: &str, _channel: MarketChannels) -> Option<String> {
+    fn get_websocket_on_open_msg(&self, pair: &str, _channel: ExternalMarketChannels) -> Option<String> {
         Some(format!("{{\"type\": \"subscribe\",\"subscriptions\":[{{\"name\":\"l2\",\"symbols\":[\"{}\"]}}]}}", pair))
     }
 

@@ -1,81 +1,82 @@
-use crate::worker::network_helpers::ws_server::channels::market_channels::MarketChannels;
-use crate::worker::network_helpers::ws_server::channels::worker_channels::WorkerChannels;
+use crate::worker::network_helpers::ws_server::channels::market_channels::LocalMarketChannels;
+use crate::worker::network_helpers::ws_server::channels::worker_channels::LocalWorkerChannels;
 use crate::worker::network_helpers::ws_server::jsonrpc_request::JsonRpcId;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum WsChannelSubscriptionRequest {
-    WorkerChannels(WorkerChannels),
-    MarketChannels(MarketChannels),
+    Worker(LocalWorkerChannels),
+    Market(LocalMarketChannels),
 }
 
 impl WsChannelSubscriptionRequest {
     pub fn get_id(&self) -> JsonRpcId {
         match self {
-            Self::WorkerChannels(channel) => match channel {
-                WorkerChannels::IndexPrice { id, .. }
-                | WorkerChannels::IndexPriceCandles { id, .. }
-                | WorkerChannels::CoinAveragePrice { id, .. }
-                | WorkerChannels::CoinAveragePriceCandles { id, .. } => id.clone(),
+            Self::Worker(channel) => match channel {
+                LocalWorkerChannels::IndexPrice { id, .. }
+                | LocalWorkerChannels::IndexPriceCandles { id, .. }
+                | LocalWorkerChannels::CoinAveragePrice { id, .. }
+                | LocalWorkerChannels::CoinAveragePriceCandles { id, .. } => id.clone(),
             },
-            Self::MarketChannels(channel) => match channel {
-                MarketChannels::CoinExchangePrice { id, .. }
-                | MarketChannels::CoinExchangeVolume { id, .. } => id.clone(),
+            Self::Market(channel) => match channel {
+                LocalMarketChannels::CoinExchangePrice { id, .. }
+                | LocalMarketChannels::CoinExchangeVolume { id, .. } => id.clone(),
             },
         }
     }
 
     pub fn get_coins(&self) -> Option<&[String]> {
         match self {
-            Self::WorkerChannels(channel) => match channel {
-                WorkerChannels::CoinAveragePrice { coins, .. }
-                | WorkerChannels::CoinAveragePriceCandles { coins, .. } => Some(coins),
-                WorkerChannels::IndexPrice { .. } | WorkerChannels::IndexPriceCandles { .. } => {
-                    None
-                }
+            Self::Worker(channel) => match channel {
+                LocalWorkerChannels::CoinAveragePrice { coins, .. }
+                | LocalWorkerChannels::CoinAveragePriceCandles { coins, .. } => Some(coins),
+                LocalWorkerChannels::IndexPrice { .. }
+                | LocalWorkerChannels::IndexPriceCandles { .. } => None,
             },
-            Self::MarketChannels(channel) => match channel {
-                MarketChannels::CoinExchangePrice { coins, .. }
-                | MarketChannels::CoinExchangeVolume { coins, .. } => Some(coins),
+            Self::Market(channel) => match channel {
+                LocalMarketChannels::CoinExchangePrice { coins, .. }
+                | LocalMarketChannels::CoinExchangeVolume { coins, .. } => Some(coins),
             },
         }
     }
 
     pub fn get_frequency_ms(&self) -> u64 {
         match self {
-            Self::WorkerChannels(channel) => match channel {
-                WorkerChannels::IndexPrice { frequency_ms, .. }
-                | WorkerChannels::IndexPriceCandles { frequency_ms, .. }
-                | WorkerChannels::CoinAveragePrice { frequency_ms, .. }
-                | WorkerChannels::CoinAveragePriceCandles { frequency_ms, .. } => *frequency_ms,
+            Self::Worker(channel) => match channel {
+                LocalWorkerChannels::IndexPrice { frequency_ms, .. }
+                | LocalWorkerChannels::IndexPriceCandles { frequency_ms, .. }
+                | LocalWorkerChannels::CoinAveragePrice { frequency_ms, .. }
+                | LocalWorkerChannels::CoinAveragePriceCandles { frequency_ms, .. } => {
+                    *frequency_ms
+                }
             },
-            Self::MarketChannels(channel) => match channel {
-                MarketChannels::CoinExchangePrice { frequency_ms, .. }
-                | MarketChannels::CoinExchangeVolume { frequency_ms, .. } => *frequency_ms,
+            Self::Market(channel) => match channel {
+                LocalMarketChannels::CoinExchangePrice { frequency_ms, .. }
+                | LocalMarketChannels::CoinExchangeVolume { frequency_ms, .. } => *frequency_ms,
             },
         }
     }
 
     pub fn get_percent_change_interval_sec(&self) -> Option<u64> {
         match self {
-            Self::WorkerChannels(channel) => match channel {
-                WorkerChannels::IndexPrice {
+            Self::Worker(channel) => match channel {
+                LocalWorkerChannels::IndexPrice {
                     percent_change_interval_sec,
                     ..
                 }
-                | WorkerChannels::CoinAveragePrice {
+                | LocalWorkerChannels::CoinAveragePrice {
                     percent_change_interval_sec,
                     ..
                 } => Some(*percent_change_interval_sec),
-                WorkerChannels::IndexPriceCandles { .. }
-                | WorkerChannels::CoinAveragePriceCandles { .. } => None,
+                LocalWorkerChannels::IndexPriceCandles { .. }
+                | LocalWorkerChannels::CoinAveragePriceCandles { .. } => None,
             },
-            Self::MarketChannels(channel) => match channel {
-                MarketChannels::CoinExchangePrice {
+            Self::Market(channel) => match channel {
+                LocalMarketChannels::CoinExchangePrice {
                     percent_change_interval_sec,
                     ..
                 }
-                | MarketChannels::CoinExchangeVolume {
+                | LocalMarketChannels::CoinExchangeVolume {
                     percent_change_interval_sec,
                     ..
                 } => Some(*percent_change_interval_sec),
@@ -85,17 +86,17 @@ impl WsChannelSubscriptionRequest {
 
     pub fn get_method(&self) -> WsChannelName {
         match self {
-            Self::WorkerChannels(channel) => match channel {
-                WorkerChannels::IndexPrice { .. } => WsChannelName::IndexPrice,
-                WorkerChannels::IndexPriceCandles { .. } => WsChannelName::IndexPriceCandles,
-                WorkerChannels::CoinAveragePrice { .. } => WsChannelName::CoinAveragePrice,
-                WorkerChannels::CoinAveragePriceCandles { .. } => {
+            Self::Worker(channel) => match channel {
+                LocalWorkerChannels::IndexPrice { .. } => WsChannelName::IndexPrice,
+                LocalWorkerChannels::IndexPriceCandles { .. } => WsChannelName::IndexPriceCandles,
+                LocalWorkerChannels::CoinAveragePrice { .. } => WsChannelName::CoinAveragePrice,
+                LocalWorkerChannels::CoinAveragePriceCandles { .. } => {
                     WsChannelName::CoinAveragePriceCandles
                 }
             },
-            Self::MarketChannels(channel) => match channel {
-                MarketChannels::CoinExchangePrice { .. } => WsChannelName::CoinExchangePrice,
-                MarketChannels::CoinExchangeVolume { .. } => WsChannelName::CoinExchangeVolume,
+            Self::Market(channel) => match channel {
+                LocalMarketChannels::CoinExchangePrice { .. } => WsChannelName::CoinExchangePrice,
+                LocalMarketChannels::CoinExchangeVolume { .. } => WsChannelName::CoinExchangeVolume,
             },
         }
     }

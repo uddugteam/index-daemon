@@ -1,5 +1,5 @@
 use crate::worker::market_helpers::market::{depth_helper_v2, Market};
-use crate::worker::market_helpers::market_channels::MarketChannels;
+use crate::worker::market_helpers::market_channels::ExternalMarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
 
 pub struct Huobi {
@@ -15,20 +15,20 @@ impl Market for Huobi {
         &mut self.spine
     }
 
-    fn get_channel_text_view(&self, channel: MarketChannels) -> String {
+    fn get_channel_text_view(&self, channel: ExternalMarketChannels) -> String {
         match channel {
-            MarketChannels::Ticker => "ticker",
-            MarketChannels::Trades => "trade.detail",
-            MarketChannels::Book => "depth.step0",
+            ExternalMarketChannels::Ticker => "ticker",
+            ExternalMarketChannels::Trades => "trade.detail",
+            ExternalMarketChannels::Book => "depth.step0",
         }
         .to_string()
     }
 
-    fn get_websocket_url(&self, _pair: &str, _channel: MarketChannels) -> String {
+    fn get_websocket_url(&self, _pair: &str, _channel: ExternalMarketChannels) -> String {
         "wss://api.huobi.pro/ws".to_string()
     }
 
-    fn get_websocket_on_open_msg(&self, pair: &str, channel: MarketChannels) -> Option<String> {
+    fn get_websocket_on_open_msg(&self, pair: &str, channel: ExternalMarketChannels) -> Option<String> {
         Some(format!(
             "{{\"sub\": \"market.{}.{}\"}}",
             pair,

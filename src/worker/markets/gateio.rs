@@ -1,7 +1,7 @@
 use rand::Rng;
 
 use crate::worker::market_helpers::market::{depth_helper_v1, parse_str_from_json_object, Market};
-use crate::worker::market_helpers::market_channels::MarketChannels;
+use crate::worker::market_helpers::market_channels::ExternalMarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
 
 pub struct Gateio {
@@ -24,22 +24,22 @@ impl Market for Gateio {
         .to_uppercase()
     }
 
-    fn get_channel_text_view(&self, channel: MarketChannels) -> String {
+    fn get_channel_text_view(&self, channel: ExternalMarketChannels) -> String {
         match channel {
-            MarketChannels::Ticker => "ticker.subscribe",
-            MarketChannels::Trades => "trades.subscribe",
-            MarketChannels::Book => "depth.subscribe",
+            ExternalMarketChannels::Ticker => "ticker.subscribe",
+            ExternalMarketChannels::Trades => "trades.subscribe",
+            ExternalMarketChannels::Book => "depth.subscribe",
         }
         .to_string()
     }
 
-    fn get_websocket_url(&self, _pair: &str, _channel: MarketChannels) -> String {
+    fn get_websocket_url(&self, _pair: &str, _channel: ExternalMarketChannels) -> String {
         "wss://ws.gate.io/v3/".to_string()
     }
 
-    fn get_websocket_on_open_msg(&self, pair: &str, channel: MarketChannels) -> Option<String> {
+    fn get_websocket_on_open_msg(&self, pair: &str, channel: ExternalMarketChannels) -> Option<String> {
         let id = rand::thread_rng().gen_range(10000..10000000);
-        let params = if let MarketChannels::Book = channel {
+        let params = if let ExternalMarketChannels::Book = channel {
             ", 5, \"0.0001\""
         } else {
             ""

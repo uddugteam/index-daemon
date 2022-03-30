@@ -1,5 +1,5 @@
 use crate::worker::market_helpers::market::{depth_helper_v1, parse_str_from_json_object, Market};
-use crate::worker::market_helpers::market_channels::MarketChannels;
+use crate::worker::market_helpers::market_channels::ExternalMarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
 
 pub struct Hitbtc {
@@ -15,20 +15,20 @@ impl Market for Hitbtc {
         &mut self.spine
     }
 
-    fn get_channel_text_view(&self, channel: MarketChannels) -> String {
+    fn get_channel_text_view(&self, channel: ExternalMarketChannels) -> String {
         match channel {
-            MarketChannels::Ticker => "ticker/1s",
-            MarketChannels::Trades => "trades",
-            MarketChannels::Book => "orderbook/full",
+            ExternalMarketChannels::Ticker => "ticker/1s",
+            ExternalMarketChannels::Trades => "trades",
+            ExternalMarketChannels::Book => "orderbook/full",
         }
         .to_string()
     }
 
-    fn get_websocket_url(&self, _pair: &str, _channel: MarketChannels) -> String {
+    fn get_websocket_url(&self, _pair: &str, _channel: ExternalMarketChannels) -> String {
         "wss://api.hitbtc.com/api/3/ws/public".to_string()
     }
 
-    fn get_websocket_on_open_msg(&self, pair: &str, channel: MarketChannels) -> Option<String> {
+    fn get_websocket_on_open_msg(&self, pair: &str, channel: ExternalMarketChannels) -> Option<String> {
         Some(format!(
             "{{\"method\": \"subscribe\", \"ch\": \"{}\", \"params\": {{\"symbols\": [\"{}\"]}} }}",
             self.get_channel_text_view(channel),

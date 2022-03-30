@@ -1,7 +1,7 @@
 use crate::worker::network_helpers::ws_server::jsonrpc_request::JsonRpcId;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub enum MarketChannels {
+pub enum LocalMarketChannels {
     CoinExchangePrice {
         id: JsonRpcId,
         coins: Vec<String>,

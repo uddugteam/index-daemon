@@ -2,7 +2,7 @@ use crate::repository::repositories::RepositoryForF64ByTimestamp;
 use crate::worker::helper_functions::{date_time_from_timestamp_sec, strip_usd};
 use crate::worker::market_helpers::percent_change::PercentChangeByInterval;
 use crate::worker::network_helpers::ws_server::candles::Candle;
-use crate::worker::network_helpers::ws_server::channels::worker_channels::WorkerChannels;
+use crate::worker::network_helpers::ws_server::channels::worker_channels::LocalWorkerChannels;
 use crate::worker::network_helpers::ws_server::channels::ws_channel_subscription_request::WsChannelSubscriptionRequest;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
 use crate::worker::network_helpers::ws_server::ws_channel_response_payload::WsChannelResponsePayload;
@@ -177,9 +177,9 @@ impl StoredAndWsTransmissibleF64 {
             let to = self.timestamp;
 
             match request {
-                WsChannelSubscriptionRequest::WorkerChannels(channel) => match channel {
-                    WorkerChannels::IndexPriceCandles { interval_sec, .. }
-                    | WorkerChannels::CoinAveragePriceCandles { interval_sec, .. } => {
+                WsChannelSubscriptionRequest::Worker(channel) => match channel {
+                    LocalWorkerChannels::IndexPriceCandles { interval_sec, .. }
+                    | LocalWorkerChannels::CoinAveragePriceCandles { interval_sec, .. } => {
                         let from = self.timestamp.timestamp() as u64 - interval_sec;
                         let from = date_time_from_timestamp_sec(from);
 
@@ -188,10 +188,10 @@ impl StoredAndWsTransmissibleF64 {
                                 let value = Candle::calculate(values, self.timestamp).unwrap();
 
                                 let response_payload = match channel {
-                                    WorkerChannels::IndexPriceCandles { .. } => {
+                                    LocalWorkerChannels::IndexPriceCandles { .. } => {
                                         WsChannelResponsePayload::IndexPriceCandles { value }
                                     }
-                                    WorkerChannels::CoinAveragePriceCandles { .. } => {
+                                    LocalWorkerChannels::CoinAveragePriceCandles { .. } => {
                                         WsChannelResponsePayload::CoinAveragePriceCandles {
                                             coin: strip_usd(self.pair.as_ref()?)?.clone(),
                                             value,

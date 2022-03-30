@@ -1,7 +1,7 @@
 use crate::worker::network_helpers::ws_server::jsonrpc_request::JsonRpcId;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub enum WorkerChannels {
+pub enum LocalWorkerChannels {
     IndexPrice {
         id: JsonRpcId,
         frequency_ms: u64,

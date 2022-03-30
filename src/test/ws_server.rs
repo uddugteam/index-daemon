@@ -3,8 +3,8 @@ mod ws_client_for_testing;
 use crate::config_scheme::config_scheme::ConfigScheme;
 use crate::config_scheme::repositories_prepared::RepositoriesPrepared;
 use crate::test::ws_server::ws_client_for_testing::WsClientForTesting;
-use crate::worker::market_helpers::market_channels::MarketChannels;
-use crate::worker::network_helpers::ws_server::channels::worker_channels::WorkerChannels;
+use crate::worker::market_helpers::market_channels::ExternalMarketChannels;
+use crate::worker::network_helpers::ws_server::channels::worker_channels::LocalWorkerChannels;
 use crate::worker::network_helpers::ws_server::channels::ws_channel_subscription_request::WsChannelSubscriptionRequest;
 use crate::worker::network_helpers::ws_server::jsonrpc_request::JsonRpcId;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
@@ -34,7 +34,7 @@ fn start_application(
     let mut config = ConfigScheme::default();
     config.service.ws = true;
     config.service.ws_addr = ws_addr.to_string();
-    config.market.channels = vec![MarketChannels::Trades];
+    config.market.channels = vec![ExternalMarketChannels::Trades];
 
     let (tx, rx) = mpsc::channel();
     let repositories_prepared = start_worker(config, tx, graceful_shutdown);
@@ -172,7 +172,7 @@ fn get_all_subscription_requests() -> Vec<(String, WsChannelSubscriptionRequest)
     let method = WsChannelName::IndexPrice;
     let percent_change_interval = "1minute".to_string();
     let request = make_request(&sub_id, method, None, None, None);
-    let expected = WsChannelSubscriptionRequest::WorkerChannels(WorkerChannels::IndexPrice {
+    let expected = WsChannelSubscriptionRequest::Worker(LocalWorkerChannels::IndexPrice {
         id: sub_id,
         frequency_ms: 100,
         percent_change_interval_sec: parse(&percent_change_interval).unwrap().as_secs(),
@@ -183,12 +183,11 @@ fn get_all_subscription_requests() -> Vec<(String, WsChannelSubscriptionRequest)
     let method = WsChannelName::IndexPriceCandles;
     let interval = "1day".to_string();
     let request = make_request(&sub_id, method, None, None, Some(interval.clone()));
-    let expected =
-        WsChannelSubscriptionRequest::WorkerChannels(WorkerChannels::IndexPriceCandles {
-            id: sub_id,
-            frequency_ms: 100,
-            interval_sec: parse(&interval).unwrap().as_secs(),
-        });
+    let expected = WsChannelSubscriptionRequest::Worker(LocalWorkerChannels::IndexPriceCandles {
+        id: sub_id,
+        frequency_ms: 100,
+        interval_sec: parse(&interval).unwrap().as_secs(),
+    });
     subscription_requests.push((request, expected));
 
     let sub_id = JsonRpcId::Str(Uuid::new_v4().to_string());
@@ -196,7 +195,7 @@ fn get_all_subscription_requests() -> Vec<(String, WsChannelSubscriptionRequest)
     let coins = vec!["BTC".to_string(), "ETH".to_string()];
     let percent_change_interval = "1minute".to_string();
     let request = make_request(&sub_id, method, Some(&coins), None, None);
-    let expected = WsChannelSubscriptionRequest::WorkerChannels(WorkerChannels::CoinAveragePrice {
+    let expected = WsChannelSubscriptionRequest::Worker(LocalWorkerChannels::CoinAveragePrice {
         id: sub_id,
         coins,
         frequency_ms: 100,
@@ -210,7 +209,7 @@ fn get_all_subscription_requests() -> Vec<(String, WsChannelSubscriptionRequest)
     let interval = "1day".to_string();
     let request = make_request(&sub_id, method, Some(&coins), None, Some(interval.clone()));
     let expected =
-        WsChannelSubscriptionRequest::WorkerChannels(WorkerChannels::CoinAveragePriceCandles {
+        WsChannelSubscriptionRequest::Worker(LocalWorkerChannels::CoinAveragePriceCandles {
             id: sub_id,
             coins,
             frequency_ms: 100,

@@ -1,5 +1,5 @@
 use crate::worker::market_helpers::market::Market;
-use crate::worker::market_helpers::market_channels::MarketChannels;
+use crate::worker::market_helpers::market_channels::ExternalMarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
 
 pub struct Bitfinex {
@@ -46,20 +46,20 @@ impl Market for Bitfinex {
             .to_uppercase()
     }
 
-    fn get_channel_text_view(&self, channel: MarketChannels) -> String {
+    fn get_channel_text_view(&self, channel: ExternalMarketChannels) -> String {
         match channel {
-            MarketChannels::Ticker => "ticker",
-            MarketChannels::Trades => "trades",
-            MarketChannels::Book => "book",
+            ExternalMarketChannels::Ticker => "ticker",
+            ExternalMarketChannels::Trades => "trades",
+            ExternalMarketChannels::Book => "book",
         }
         .to_string()
     }
 
-    fn get_websocket_url(&self, _pair: &str, _channel: MarketChannels) -> String {
+    fn get_websocket_url(&self, _pair: &str, _channel: ExternalMarketChannels) -> String {
         "wss://api-pub.bitfinex.com/ws/2".to_string()
     }
 
-    fn get_websocket_on_open_msg(&self, pair: &str, channel: MarketChannels) -> Option<String> {
+    fn get_websocket_on_open_msg(&self, pair: &str, channel: ExternalMarketChannels) -> Option<String> {
         Some(format!(
             "{{\"event\":\"subscribe\", \"channel\":\"{}\", \"symbol\":\"{}\"}}",
             self.get_channel_text_view(channel),

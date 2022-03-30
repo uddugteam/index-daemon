@@ -2,7 +2,7 @@ use crate::repository::repositories::{
     MarketRepositoriesByMarketValue, MarketRepositoriesByPairTuple,
 };
 use crate::worker::helper_functions::get_pair_ref;
-use crate::worker::market_helpers::market_channels::MarketChannels;
+use crate::worker::market_helpers::market_channels::ExternalMarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
 use crate::worker::market_helpers::percent_change::PercentChangeByInterval;
 use crate::worker::markets::binance::Binance;
@@ -83,7 +83,7 @@ pub fn market_factory(
 pub fn subscribe_channel(
     market: Arc<Mutex<dyn Market + Send>>,
     pair: String,
-    channel: MarketChannels,
+    channel: ExternalMarketChannels,
 ) {
     trace!(
         "called subscribe_channel(). Market: {}, pair: {}, channel: {:?}",
@@ -107,9 +107,9 @@ pub fn subscribe_channel(
         if let Ok(json) = serde_json::from_str(&info) {
             // This "match" returns value, but we shouldn't use it
             match channel {
-                MarketChannels::Ticker => market.lock().unwrap().parse_ticker_json(pair, json),
-                MarketChannels::Trades => market.lock().unwrap().parse_last_trade_json(pair, json),
-                MarketChannels::Book => market.lock().unwrap().parse_depth_json(pair, json),
+                ExternalMarketChannels::Ticker => market.lock().unwrap().parse_ticker_json(pair, json),
+                ExternalMarketChannels::Trades => market.lock().unwrap().parse_last_trade_json(pair, json),
+                ExternalMarketChannels::Book => market.lock().unwrap().parse_depth_json(pair, json),
             };
         } else {
             // Either parse json error or received string is not json
@@ -186,7 +186,7 @@ pub fn market_update(market: Arc<Mutex<dyn Market + Send>>) {
     let exchange_pairs_dummy = vec!["dummy".to_string()];
 
     for channel in channels {
-        let channel_is_ticker = matches!(channel, MarketChannels::Ticker);
+        let channel_is_ticker = matches!(channel, ExternalMarketChannels::Ticker);
 
         // Channel Ticker of Poloniex has different subscription system
         // - we can subscribe only for all exchange pairs together,
@@ -342,9 +342,9 @@ pub trait Market {
         bid_sum
     }
 
-    fn get_channel_text_view(&self, channel: MarketChannels) -> String;
-    fn get_websocket_url(&self, pair: &str, channel: MarketChannels) -> String;
-    fn get_websocket_on_open_msg(&self, pair: &str, channel: MarketChannels) -> Option<String>;
+    fn get_channel_text_view(&self, channel: ExternalMarketChannels) -> String;
+    fn get_websocket_url(&self, pair: &str, channel: ExternalMarketChannels) -> String;
+    fn get_websocket_on_open_msg(&self, pair: &str, channel: ExternalMarketChannels) -> Option<String>;
 
     fn get_pair_text_view(&self, pair: String) -> String {
         let pair_text_view = if self.get_spine().name == "poloniex" {
@@ -436,7 +436,7 @@ mod test {
     use crate::config_scheme::repositories_prepared::RepositoriesPrepared;
     use crate::worker::helper_functions::get_pair_ref;
     use crate::worker::market_helpers::market::{market_factory, market_update, Market};
-    use crate::worker::market_helpers::market_channels::MarketChannels;
+    use crate::worker::market_helpers::market_channels::ExternalMarketChannels;
     use crate::worker::market_helpers::market_spine::test::make_spine;
     use crate::worker::worker::test::check_threads;
     use ntest::timeout;
@@ -564,7 +564,7 @@ mod test {
     fn test_update() {
         let (market, rx) = make_market(None);
 
-        let channels = MarketChannels::get_all();
+        let channels = ExternalMarketChannels::get_all();
         let exchange_pairs: Vec<String> = market
             .lock()
             .unwrap()

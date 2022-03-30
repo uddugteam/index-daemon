@@ -1,5 +1,5 @@
 use crate::worker::market_helpers::market::{depth_helper_v1, parse_str_from_json_array, Market};
-use crate::worker::market_helpers::market_channels::MarketChannels;
+use crate::worker::market_helpers::market_channels::ExternalMarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
 
 pub struct Kraken {
@@ -22,20 +22,20 @@ impl Market for Kraken {
         .to_uppercase()
     }
 
-    fn get_channel_text_view(&self, channel: MarketChannels) -> String {
+    fn get_channel_text_view(&self, channel: ExternalMarketChannels) -> String {
         match channel {
-            MarketChannels::Ticker => "ticker",
-            MarketChannels::Trades => "trade",
-            MarketChannels::Book => "book",
+            ExternalMarketChannels::Ticker => "ticker",
+            ExternalMarketChannels::Trades => "trade",
+            ExternalMarketChannels::Book => "book",
         }
         .to_string()
     }
 
-    fn get_websocket_url(&self, _pair: &str, _channel: MarketChannels) -> String {
+    fn get_websocket_url(&self, _pair: &str, _channel: ExternalMarketChannels) -> String {
         "wss://ws.kraken.com".to_string()
     }
 
-    fn get_websocket_on_open_msg(&self, pair: &str, channel: MarketChannels) -> Option<String> {
+    fn get_websocket_on_open_msg(&self, pair: &str, channel: ExternalMarketChannels) -> Option<String> {
         Some(format!(
             "{{\"event\": \"subscribe\", \"pair\": [\"{}\"], \"subscription\": {{\"name\": \"{}\"}}}}",
             pair, self.get_channel_text_view(channel)

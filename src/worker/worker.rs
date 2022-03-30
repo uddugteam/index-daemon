@@ -7,7 +7,7 @@ use crate::repository::repositories::{
 };
 use crate::worker::db_cleaner::clear_db;
 use crate::worker::market_helpers::market::{market_factory, market_update, Market};
-use crate::worker::market_helpers::market_channels::MarketChannels;
+use crate::worker::market_helpers::market_channels::ExternalMarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
 use crate::worker::market_helpers::pair_average_price::StoredAndWsTransmissibleF64ByPairTuple;
 use crate::worker::market_helpers::percent_change::PercentChangeByInterval;
@@ -30,7 +30,7 @@ fn is_graceful_shutdown(graceful_shutdown: &Arc<RwLock<bool>>) -> bool {
 fn configure(
     market_names: Vec<&str>,
     exchange_pairs: Vec<(String, String)>,
-    channels: Vec<MarketChannels>,
+    channels: Vec<ExternalMarketChannels>,
     rest_timeout_sec: u64,
     repositories: Option<MarketRepositoriesByMarketName>,
     pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
@@ -239,7 +239,7 @@ pub mod test {
     use crate::config_scheme::helper_functions::make_exchange_pairs;
     use crate::config_scheme::market_config::MarketConfig;
     use crate::config_scheme::repositories_prepared::RepositoriesPrepared;
-    use crate::worker::market_helpers::market_channels::MarketChannels;
+    use crate::worker::market_helpers::market_channels::ExternalMarketChannels;
     use crate::worker::worker::{configure, start_worker};
     use ntest::timeout;
     use serial_test::serial;
@@ -278,7 +278,7 @@ pub mod test {
     fn test_configure(
         market_names: Vec<&str>,
         exchange_pairs: Vec<(String, String)>,
-        channels: Vec<MarketChannels>,
+        channels: Vec<ExternalMarketChannels>,
     ) {
         let (tx, _, graceful_shutdown) = prepare_worker_params();
 
@@ -334,7 +334,7 @@ pub mod test {
         let markets = vec!["binance", "bitfinex"];
         let coins = vec!["ABC".to_string(), "DEF".to_string(), "GHI".to_string()];
         let exchange_pairs = make_exchange_pairs(coins, Some(vec!["JKL"]));
-        let channels = vec![MarketChannels::Ticker];
+        let channels = vec![ExternalMarketChannels::Ticker];
 
         test_configure(markets, exchange_pairs, channels);
     }
@@ -384,7 +384,7 @@ pub mod test {
         let coins = vec!["ABC".to_string(), "DEF".to_string()];
         let exchange_pairs = make_exchange_pairs(coins, Some(vec!["GHI"]));
         let index_pairs = exchange_pairs.clone();
-        let channels = vec![MarketChannels::Ticker];
+        let channels = vec![ExternalMarketChannels::Ticker];
 
         let config = ConfigScheme {
             market: MarketConfig {

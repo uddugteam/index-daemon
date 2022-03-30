@@ -6,7 +6,7 @@ use crate::worker::defaults::POLONIEX_EXCHANGE_PAIRS;
 use crate::worker::market_helpers::market::{
     parse_str_from_json_array, parse_str_from_json_object, Market,
 };
-use crate::worker::market_helpers::market_channels::MarketChannels;
+use crate::worker::market_helpers::market_channels::ExternalMarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
 
 pub struct Poloniex {
@@ -120,14 +120,14 @@ impl Market for Poloniex {
         self.pair_codes.get(&pair).unwrap().clone()
     }
 
-    fn get_channel_text_view(&self, channel: MarketChannels) -> String {
+    fn get_channel_text_view(&self, channel: ExternalMarketChannels) -> String {
         match channel {
-            MarketChannels::Ticker => "1003",
-            MarketChannels::Trades => {
+            ExternalMarketChannels::Ticker => "1003",
+            ExternalMarketChannels::Trades => {
                 // There are no distinct Trades channel in Poloniex. We get Trades inside of Book channel.
                 panic!("Poloniex: Subscription to wrong channel: Trades.")
             }
-            MarketChannels::Book => {
+            ExternalMarketChannels::Book => {
                 // This string was intentionally left blank, because Poloniex don't have code for Book
                 // and we pass pair code instead of it (we do this in fn get_websocket_on_open_msg)
                 ""
@@ -136,12 +136,12 @@ impl Market for Poloniex {
         .to_string()
     }
 
-    fn get_websocket_url(&self, _pair: &str, _channel: MarketChannels) -> String {
+    fn get_websocket_url(&self, _pair: &str, _channel: ExternalMarketChannels) -> String {
         "wss://api2.poloniex.com".to_string()
     }
 
-    fn get_websocket_on_open_msg(&self, pair: &str, channel: MarketChannels) -> Option<String> {
-        let channel_text_view = if let MarketChannels::Book = channel {
+    fn get_websocket_on_open_msg(&self, pair: &str, channel: ExternalMarketChannels) -> Option<String> {
+        let channel_text_view = if let ExternalMarketChannels::Book = channel {
             pair.to_string()
         } else {
             self.get_channel_text_view(channel)

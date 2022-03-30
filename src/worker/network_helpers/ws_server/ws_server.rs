@@ -2,7 +2,7 @@ use crate::repository::repositories::RepositoryForF64ByTimestamp;
 use crate::worker::helper_functions::{date_time_from_timestamp_sec, strip_usd};
 use crate::worker::market_helpers::pair_average_price::StoredAndWsTransmissibleF64ByPairTuple;
 use crate::worker::network_helpers::ws_server::candles::Candles;
-use crate::worker::network_helpers::ws_server::channels::market_channels::MarketChannels;
+use crate::worker::network_helpers::ws_server::channels::market_channels::LocalMarketChannels;
 use crate::worker::network_helpers::ws_server::channels::ws_channel_action::WsChannelAction;
 use crate::worker::network_helpers::ws_server::channels::ws_channel_subscription_request::WsChannelSubscriptionRequest;
 use crate::worker::network_helpers::ws_server::channels::ws_channel_unsubscribe::WsChannelUnsubscribe;
@@ -128,14 +128,16 @@ impl WsServer {
         request: WsChannelSubscriptionRequest,
     ) {
         let (exchanges, error_msg) = match &request {
-            WsChannelSubscriptionRequest::WorkerChannels(..) => (
+            WsChannelSubscriptionRequest::Worker(..) => (
                 vec!["worker".to_string()],
                 "Parameter value is wrong: coin.",
             ),
-            WsChannelSubscriptionRequest::MarketChannels(request) => {
+            WsChannelSubscriptionRequest::Market(request) => {
                 let exchanges = match request {
-                    MarketChannels::CoinExchangePrice { exchanges, .. }
-                    | MarketChannels::CoinExchangeVolume { exchanges, .. } => exchanges.clone(),
+                    LocalMarketChannels::CoinExchangePrice { exchanges, .. }
+                    | LocalMarketChannels::CoinExchangeVolume { exchanges, .. } => {
+                        exchanges.clone()
+                    }
                 };
 
                 (exchanges, "One of two parameters is wrong: exchange, coin.")

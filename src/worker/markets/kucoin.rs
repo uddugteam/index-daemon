@@ -3,7 +3,7 @@ use std::thread;
 use std::time;
 
 use crate::worker::market_helpers::market::{depth_helper_v1, Market};
-use crate::worker::market_helpers::market_channels::MarketChannels;
+use crate::worker::market_helpers::market_channels::ExternalMarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
 
 pub struct Kucoin {
@@ -51,26 +51,26 @@ impl Market for Kucoin {
         &mut self.spine
     }
 
-    fn get_channel_text_view(&self, channel: MarketChannels) -> String {
+    fn get_channel_text_view(&self, channel: ExternalMarketChannels) -> String {
         match channel {
-            MarketChannels::Ticker => "market/snapshot",
-            MarketChannels::Trades => {
+            ExternalMarketChannels::Ticker => "market/snapshot",
+            ExternalMarketChannels::Trades => {
                 // TODO: Implement
                 // Implementation is too hard and requires Private API key
                 panic!("Trades channel for Kucoin is not implemented.");
             }
-            MarketChannels::Book => "spotMarket/level2Depth50",
+            ExternalMarketChannels::Book => "spotMarket/level2Depth50",
         }
         .to_string()
     }
 
-    fn get_websocket_url(&self, _pair: &str, _channel: MarketChannels) -> String {
+    fn get_websocket_url(&self, _pair: &str, _channel: ExternalMarketChannels) -> String {
         let token = Self::get_token();
 
         format!("wss://ws-api.kucoin.com/endpoint?token={}", token)
     }
 
-    fn get_websocket_on_open_msg(&self, pair: &str, channel: MarketChannels) -> Option<String> {
+    fn get_websocket_on_open_msg(&self, pair: &str, channel: ExternalMarketChannels) -> Option<String> {
         Some(format!(
             "{{\"type\": \"subscribe\", \"topic\": \"/{}:{}\"}}",
             self.get_channel_text_view(channel),

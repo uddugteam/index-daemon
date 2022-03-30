@@ -1,6 +1,6 @@
 use crate::config_scheme::storage::Storage;
 use crate::worker::defaults::{COINS, FIATS, MARKETS};
-use crate::worker::market_helpers::market_channels::MarketChannels;
+use crate::worker::market_helpers::market_channels::ExternalMarketChannels;
 use clap::ArgMatches;
 use env_logger::Builder;
 use parse_duration::parse;
@@ -58,8 +58,8 @@ pub fn get_default_exchange_pairs() -> Vec<(String, String)> {
     make_exchange_pairs(get_default_coins(), None)
 }
 
-pub fn get_default_channels() -> Vec<MarketChannels> {
-    MarketChannels::get_all().to_vec()
+pub fn get_default_channels() -> Vec<ExternalMarketChannels> {
+    ExternalMarketChannels::get_all().to_vec()
 }
 
 pub fn get_default_host() -> String {

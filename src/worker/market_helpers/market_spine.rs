@@ -1,6 +1,6 @@
 use crate::repository::repositories::MarketRepositoriesByMarketValue;
 use crate::worker::market_helpers::exchange_pair_info::ExchangePairInfo;
-use crate::worker::market_helpers::market_channels::MarketChannels;
+use crate::worker::market_helpers::market_channels::ExternalMarketChannels;
 use crate::worker::market_helpers::pair_average_price::StoredAndWsTransmissibleF64ByPairTuple;
 use crate::worker::market_helpers::percent_change::PercentChangeByInterval;
 use crate::worker::market_helpers::stored_and_ws_transmissible_f64::StoredAndWsTransmissibleF64;
@@ -24,7 +24,7 @@ pub struct MarketSpine {
     exchange_pairs: HashMap<String, ExchangePairInfo>,
     index_pairs: Vec<(String, String)>,
     pairs: HashMap<String, (String, String)>,
-    pub channels: Vec<MarketChannels>,
+    pub channels: Vec<ExternalMarketChannels>,
     pub graceful_shutdown: Arc<RwLock<bool>>,
 }
 impl MarketSpine {
@@ -35,7 +35,7 @@ impl MarketSpine {
         tx: Sender<JoinHandle<()>>,
         rest_timeout_sec: u64,
         name: String,
-        channels: Vec<MarketChannels>,
+        channels: Vec<ExternalMarketChannels>,
         graceful_shutdown: Arc<RwLock<bool>>,
     ) -> Self {
         let channels = match name.as_str() {
@@ -47,12 +47,12 @@ impl MarketSpine {
 
                 channels
                     .into_iter()
-                    .filter(|v| !matches!(v, MarketChannels::Trades))
+                    .filter(|v| !matches!(v, ExternalMarketChannels::Trades))
                     .collect()
             }
             "gemini" => {
                 // Market Gemini has no channels (i.e. has single general channel), so we parse channel data from its single channel
-                [MarketChannels::Ticker].to_vec()
+                [ExternalMarketChannels::Ticker].to_vec()
             }
             _ => channels,
         };
