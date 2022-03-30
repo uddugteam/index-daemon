@@ -177,7 +177,7 @@ fn test_worker_add_ws_channel_1() {
     let expected = WsChannelSubscriptionRequest::WorkerChannels(WorkerChannels::IndexPrice {
         id: sub_id,
         frequency_ms: 100,
-        percent_change_interval_sec: None,
+        percent_change_interval_sec: 60,
     });
 
     ws_connect_and_subscribe(ws_addr, vec![request], incoming_msg_tx);
@@ -221,7 +221,7 @@ fn test_worker_add_ws_channel_3() {
         id: sub_id,
         coins,
         frequency_ms: 100,
-        percent_change_interval_sec: None,
+        percent_change_interval_sec: 60,
     });
 
     ws_connect_and_subscribe(ws_addr, vec![request], incoming_msg_tx);
@@ -245,7 +245,7 @@ fn test_worker_add_ws_channels() {
     let expected = WsChannelSubscriptionRequest::WorkerChannels(WorkerChannels::IndexPrice {
         id: sub_id,
         frequency_ms: 100,
-        percent_change_interval_sec: None,
+        percent_change_interval_sec: 60,
     });
     expecteds.push(expected);
 
@@ -271,7 +271,7 @@ fn test_worker_add_ws_channels() {
         id: sub_id,
         coins,
         frequency_ms: 100,
-        percent_change_interval_sec: None,
+        percent_change_interval_sec: 60,
     });
     expecteds.push(expected);
 
