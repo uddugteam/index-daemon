@@ -164,12 +164,8 @@ fn check_subscriptions(
     }
 }
 
-#[test]
-#[serial]
-fn test_worker_add_ws_channel_1() {
-    let ws_addr = "127.0.0.1:8001";
-    let (_rx, (incoming_msg_tx, _incoming_msg_rx), repositories_prepared) =
-        start_application(ws_addr);
+fn get_all_subscription_requests() -> Vec<(String, WsChannelSubscriptionRequest)> {
+    let mut subscription_requests = Vec::new();
 
     let sub_id = JsonRpcId::Str(Uuid::new_v4().to_string());
     let method = WsChannelName::IndexPrice;
@@ -179,17 +175,7 @@ fn test_worker_add_ws_channel_1() {
         frequency_ms: 100,
         percent_change_interval_sec: 60,
     });
-
-    ws_connect_and_subscribe(ws_addr, vec![request], incoming_msg_tx);
-    check_subscriptions(repositories_prepared, vec![expected]);
-}
-
-#[test]
-#[serial]
-fn test_worker_add_ws_channel_2() {
-    let ws_addr = "127.0.0.1:8002";
-    let (_rx, (incoming_msg_tx, _incoming_msg_rx), repositories_prepared) =
-        start_application(ws_addr);
+    subscription_requests.push((request, expected));
 
     let sub_id = JsonRpcId::Str(Uuid::new_v4().to_string());
     let method = WsChannelName::IndexPriceCandles;
@@ -201,17 +187,7 @@ fn test_worker_add_ws_channel_2() {
             frequency_ms: 100,
             interval_sec: parse(&interval).unwrap().as_secs(),
         });
-
-    ws_connect_and_subscribe(ws_addr, vec![request], incoming_msg_tx);
-    check_subscriptions(repositories_prepared, vec![expected]);
-}
-
-#[test]
-#[serial]
-fn test_worker_add_ws_channel_3() {
-    let ws_addr = "127.0.0.1:8003";
-    let (_rx, (incoming_msg_tx, _incoming_msg_rx), repositories_prepared) =
-        start_application(ws_addr);
+    subscription_requests.push((request, expected));
 
     let sub_id = JsonRpcId::Str(Uuid::new_v4().to_string());
     let method = WsChannelName::CoinAveragePrice;
@@ -223,58 +199,50 @@ fn test_worker_add_ws_channel_3() {
         frequency_ms: 100,
         percent_change_interval_sec: 60,
     });
+    subscription_requests.push((request, expected));
 
-    ws_connect_and_subscribe(ws_addr, vec![request], incoming_msg_tx);
-    check_subscriptions(repositories_prepared, vec![expected]);
+    subscription_requests
 }
 
-#[test]
-#[serial]
-fn test_worker_add_ws_channels() {
-    let ws_addr = "127.0.0.1:8004";
-    let (_rx, (incoming_msg_tx, _incoming_msg_rx), repositories_prepared) =
-        start_application(ws_addr);
-
+fn get_all_subscription_requests_unzipped() -> (Vec<String>, Vec<WsChannelSubscriptionRequest>) {
     let mut requests = Vec::new();
     let mut expecteds = Vec::new();
 
-    let sub_id = JsonRpcId::Str(Uuid::new_v4().to_string());
-    let method = WsChannelName::IndexPrice;
-    let request = make_request(&sub_id, method, None, None, None);
-    requests.push(request);
-    let expected = WsChannelSubscriptionRequest::WorkerChannels(WorkerChannels::IndexPrice {
-        id: sub_id,
-        frequency_ms: 100,
-        percent_change_interval_sec: 60,
-    });
-    expecteds.push(expected);
+    for (request, expected) in get_all_subscription_requests() {
+        requests.push(request);
+        expecteds.push(expected);
+    }
 
-    let sub_id = JsonRpcId::Str(Uuid::new_v4().to_string());
-    let method = WsChannelName::IndexPriceCandles;
-    let interval = "1day".to_string();
-    let request = make_request(&sub_id, method, None, None, Some(interval.clone()));
-    requests.push(request);
-    let expected =
-        WsChannelSubscriptionRequest::WorkerChannels(WorkerChannels::IndexPriceCandles {
-            id: sub_id,
-            frequency_ms: 100,
-            interval_sec: parse(&interval).unwrap().as_secs(),
-        });
-    expecteds.push(expected);
+    (requests, expecteds)
+}
 
-    let sub_id = JsonRpcId::Str(Uuid::new_v4().to_string());
-    let method = WsChannelName::CoinAveragePrice;
-    let coins = ["BTC".to_string(), "ETH".to_string()].to_vec();
-    let request = make_request(&sub_id, method, Some(&coins), None, None);
-    requests.push(request);
-    let expected = WsChannelSubscriptionRequest::WorkerChannels(WorkerChannels::CoinAveragePrice {
-        id: sub_id,
-        coins,
-        frequency_ms: 100,
-        percent_change_interval_sec: 60,
-    });
-    expecteds.push(expected);
+#[test]
+#[serial]
+fn test_add_ws_channels_separately() {
+    let mut port = 8100;
+    for (request, expected) in get_all_subscription_requests() {
+        let ws_addr = format!("127.0.0.1:{}", port);
+        port += 1;
 
-    ws_connect_and_subscribe(ws_addr, requests, incoming_msg_tx);
+        let (_rx, (incoming_msg_tx, _incoming_msg_rx), repositories_prepared) =
+            start_application(&ws_addr);
+
+        ws_connect_and_subscribe(&ws_addr, vec![request], incoming_msg_tx);
+        check_subscriptions(repositories_prepared, vec![expected]);
+    }
+}
+
+#[test]
+#[serial]
+fn test_add_ws_channels_together() {
+    let port = 8200;
+    let ws_addr = format!("127.0.0.1:{}", port);
+
+    let (_rx, (incoming_msg_tx, _incoming_msg_rx), repositories_prepared) =
+        start_application(&ws_addr);
+
+    let (requests, expecteds) = get_all_subscription_requests_unzipped();
+
+    ws_connect_and_subscribe(&ws_addr, requests, incoming_msg_tx);
     check_subscriptions(repositories_prepared, expecteds);
 }
