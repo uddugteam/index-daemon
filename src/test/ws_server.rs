@@ -4,6 +4,7 @@ use crate::config_scheme::config_scheme::ConfigScheme;
 use crate::config_scheme::repositories_prepared::RepositoriesPrepared;
 use crate::test::ws_server::ws_client_for_testing::WsClientForTesting;
 use crate::worker::market_helpers::market_channels::ExternalMarketChannels;
+use crate::worker::network_helpers::ws_server::channels::market_channels::LocalMarketChannels;
 use crate::worker::network_helpers::ws_server::channels::worker_channels::LocalWorkerChannels;
 use crate::worker::network_helpers::ws_server::channels::ws_channel_subscription_request::WsChannelSubscriptionRequest;
 use crate::worker::network_helpers::ws_server::jsonrpc_request::JsonRpcId;
@@ -116,29 +117,42 @@ fn get_subscription_requests(
     sub_id: &JsonRpcId,
     method: WsChannelName,
     coins: Option<&[String]>,
+    exchanges: Option<&[String]>,
 ) -> Vec<WsChannelSubscriptionRequest> {
     let mut subscription_requests = Vec::new();
 
+    let exchanges = exchanges
+        .map(|v| v.to_vec())
+        .unwrap_or(vec!["worker".to_string()]);
     let pairs = zip_coins_with_usd(coins);
-    let pairs_len = pairs.len();
+    let expected_len = pairs.len() * exchanges.len();
     for pair in pairs {
-        let key = ("worker".to_string(), method.get_market_value(), pair);
-        let ws_channels = repositories_prepared
-            .ws_channels_holder
-            .get(&key)
-            .unwrap()
-            .read()
-            .unwrap();
+        for exchange in &exchanges {
+            let key = (
+                exchange.to_string(),
+                method.get_market_value(),
+                pair.clone(),
+            );
+            let ws_channels = repositories_prepared
+                .ws_channels_holder
+                .get(&key)
+                .unwrap()
+                .read()
+                .unwrap();
 
-        ws_channels
-            .get_channels_by_method(method)
-            .into_iter()
-            .filter(|(k, _)| &k.1 == sub_id)
-            .map(|(_, v)| v)
-            .for_each(|v| subscription_requests.push(v.clone()));
+            ws_channels
+                .get_channels_by_method(method)
+                .into_iter()
+                .filter(|(k, _)| &k.1 == sub_id)
+                .map(|(_, v)| v)
+                .for_each(|v| subscription_requests.push(v.clone()));
+        }
     }
     // Added method for debug purposes
-    assert_eq!((method, subscription_requests.len()), (method, pairs_len));
+    assert_eq!(
+        (method, subscription_requests.len()),
+        (method, expected_len)
+    );
 
     subscription_requests
 }
@@ -151,12 +165,14 @@ fn check_subscriptions(
         let sub_id_expected = subscription_request_expected.get_id();
         let method_expected = subscription_request_expected.get_method();
         let coins_expected = subscription_request_expected.get_coins();
+        let exchanges_expected = subscription_request_expected.get_exchanges();
 
         let subscription_requests = get_subscription_requests(
             &repositories_prepared,
             &sub_id_expected,
             method_expected,
-            coins_expected.clone(),
+            coins_expected,
+            exchanges_expected,
         );
 
         for subscription_request in subscription_requests {
@@ -215,6 +231,21 @@ fn get_all_subscription_requests() -> Vec<(String, WsChannelSubscriptionRequest)
             frequency_ms: 100,
             interval_sec: parse(&interval).unwrap().as_secs(),
         });
+    subscription_requests.push((request, expected));
+
+    let sub_id = JsonRpcId::Str(Uuid::new_v4().to_string());
+    let method = WsChannelName::CoinExchangePrice;
+    let coins = vec!["BTC".to_string(), "ETH".to_string()];
+    let exchanges = vec!["binance".to_string(), "coinbase".to_string()];
+    let percent_change_interval = "1minute".to_string();
+    let request = make_request(&sub_id, method, Some(&coins), Some(&exchanges), None);
+    let expected = WsChannelSubscriptionRequest::Market(LocalMarketChannels::CoinExchangePrice {
+        id: sub_id,
+        coins,
+        exchanges,
+        frequency_ms: 100,
+        percent_change_interval_sec: parse(&percent_change_interval).unwrap().as_secs(),
+    });
     subscription_requests.push((request, expected));
 
     subscription_requests

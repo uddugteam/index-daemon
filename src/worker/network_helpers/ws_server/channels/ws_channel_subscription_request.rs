@@ -40,6 +40,21 @@ impl WsChannelSubscriptionRequest {
         }
     }
 
+    pub fn get_exchanges(&self) -> Option<&[String]> {
+        match self {
+            Self::Worker(channel) => match channel {
+                LocalWorkerChannels::CoinAveragePrice { .. }
+                | LocalWorkerChannels::CoinAveragePriceCandles { .. }
+                | LocalWorkerChannels::IndexPrice { .. }
+                | LocalWorkerChannels::IndexPriceCandles { .. } => None,
+            },
+            Self::Market(channel) => match channel {
+                LocalMarketChannels::CoinExchangePrice { exchanges, .. }
+                | LocalMarketChannels::CoinExchangeVolume { exchanges, .. } => Some(exchanges),
+            },
+        }
+    }
+
     pub fn get_frequency_ms(&self) -> u64 {
         match self {
             Self::Worker(channel) => match channel {
