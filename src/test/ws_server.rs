@@ -137,7 +137,8 @@ fn get_subscription_requests(
             .map(|(_, v)| v)
             .for_each(|v| subscription_requests.push(v.clone()));
     }
-    assert_eq!(subscription_requests.len(), pairs_len);
+    // Added method for debug purposes
+    assert_eq!((method, subscription_requests.len()), (method, pairs_len));
 
     subscription_requests
 }
@@ -169,11 +170,12 @@ fn get_all_subscription_requests() -> Vec<(String, WsChannelSubscriptionRequest)
 
     let sub_id = JsonRpcId::Str(Uuid::new_v4().to_string());
     let method = WsChannelName::IndexPrice;
+    let percent_change_interval = "1minute".to_string();
     let request = make_request(&sub_id, method, None, None, None);
     let expected = WsChannelSubscriptionRequest::WorkerChannels(WorkerChannels::IndexPrice {
         id: sub_id,
         frequency_ms: 100,
-        percent_change_interval_sec: 60,
+        percent_change_interval_sec: parse(&percent_change_interval).unwrap().as_secs(),
     });
     subscription_requests.push((request, expected));
 
@@ -191,14 +193,29 @@ fn get_all_subscription_requests() -> Vec<(String, WsChannelSubscriptionRequest)
 
     let sub_id = JsonRpcId::Str(Uuid::new_v4().to_string());
     let method = WsChannelName::CoinAveragePrice;
-    let coins = ["BTC".to_string(), "ETH".to_string()].to_vec();
+    let coins = vec!["BTC".to_string(), "ETH".to_string()];
+    let percent_change_interval = "1minute".to_string();
     let request = make_request(&sub_id, method, Some(&coins), None, None);
     let expected = WsChannelSubscriptionRequest::WorkerChannels(WorkerChannels::CoinAveragePrice {
         id: sub_id,
         coins,
         frequency_ms: 100,
-        percent_change_interval_sec: 60,
+        percent_change_interval_sec: parse(&percent_change_interval).unwrap().as_secs(),
     });
+    subscription_requests.push((request, expected));
+
+    let sub_id = JsonRpcId::Str(Uuid::new_v4().to_string());
+    let method = WsChannelName::CoinAveragePriceCandles;
+    let coins = vec!["BTC".to_string(), "ETH".to_string()];
+    let interval = "1day".to_string();
+    let request = make_request(&sub_id, method, Some(&coins), None, Some(interval.clone()));
+    let expected =
+        WsChannelSubscriptionRequest::WorkerChannels(WorkerChannels::CoinAveragePriceCandles {
+            id: sub_id,
+            coins,
+            frequency_ms: 100,
+            interval_sec: parse(&interval).unwrap().as_secs(),
+        });
     subscription_requests.push((request, expected));
 
     subscription_requests
