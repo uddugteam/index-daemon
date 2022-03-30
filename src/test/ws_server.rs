@@ -248,6 +248,21 @@ fn get_all_subscription_requests() -> Vec<(String, WsChannelSubscriptionRequest)
     });
     subscription_requests.push((request, expected));
 
+    let sub_id = JsonRpcId::Str(Uuid::new_v4().to_string());
+    let method = WsChannelName::CoinExchangeVolume;
+    let coins = vec!["BTC".to_string(), "ETH".to_string()];
+    let exchanges = vec!["binance".to_string(), "coinbase".to_string()];
+    let percent_change_interval = "1minute".to_string();
+    let request = make_request(&sub_id, method, Some(&coins), Some(&exchanges), None);
+    let expected = WsChannelSubscriptionRequest::Market(LocalMarketChannels::CoinExchangeVolume {
+        id: sub_id,
+        coins,
+        exchanges,
+        frequency_ms: 100,
+        percent_change_interval_sec: parse(&percent_change_interval).unwrap().as_secs(),
+    });
+    subscription_requests.push((request, expected));
+
     subscription_requests
 }
 
