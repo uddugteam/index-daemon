@@ -49,6 +49,9 @@ impl WsRequest {
                     .ok_or("\"percent_change_interval\" must be a string")?
             })
             .unwrap_or(Ok(percent_change_interval_sec));
+        if percent_change_interval_sec < Ok(1) {
+            return Err("\"percent_change_interval\" must be at least 1 second".to_string());
+        }
 
         let interval_sec = object
             .get("interval")
@@ -61,6 +64,9 @@ impl WsRequest {
                         .map_err(|_| "\"interval\": invalid value")
                 })
             });
+        if interval_sec < Ok(Ok(Ok(1))) {
+            return Err("\"interval\" must be at least 1 second".to_string());
+        }
 
         match request.method {
             WsChannelName::AvailableCoins => {
