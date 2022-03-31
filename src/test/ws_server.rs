@@ -98,36 +98,27 @@ fn ws_connect_and_subscribe(
 }
 
 fn zip_coins_with_usd(coins: Option<&[String]>) -> Vec<Option<(String, String)>> {
-    if let Some(coins) = coins {
-        let mut pairs = Vec::new();
-
-        for coin in coins {
-            let pair_tuple = (coin.to_string(), "USD".to_string());
-            pairs.push(Some(pair_tuple));
-        }
-
-        pairs
-    } else {
-        vec![None]
-    }
+    coins
+        .map(|v| {
+            v.iter()
+                .map(|coin| (coin.to_string(), "USD".to_string()))
+                .map(Some)
+                .collect()
+        })
+        .unwrap_or(vec![None])
 }
 
 fn get_subscription_requests(
     repositories_prepared: &RepositoriesPrepared,
     sub_id: &JsonRpcId,
     method: WsChannelName,
-    coins: Option<&[String]>,
-    exchanges: Option<&[String]>,
+    pairs: &[Option<(String, String)>],
+    exchanges: &[String],
 ) -> Vec<WsChannelSubscriptionRequest> {
     let mut subscription_requests = Vec::new();
 
-    let exchanges = exchanges
-        .map(|v| v.to_vec())
-        .unwrap_or(vec!["worker".to_string()]);
-    let pairs = zip_coins_with_usd(coins);
-    let expected_len = pairs.len() * exchanges.len();
     for pair in pairs {
-        for exchange in &exchanges {
+        for exchange in exchanges {
             let key = (
                 exchange.to_string(),
                 method.get_market_value(),
@@ -148,37 +139,62 @@ fn get_subscription_requests(
                 .for_each(|v| subscription_requests.push(v.clone()));
         }
     }
-    // Added method for debug purposes
-    assert_eq!(
-        (method, subscription_requests.len()),
-        (method, expected_len)
-    );
 
     subscription_requests
+}
+
+fn prepare_some_params(
+    coins: Option<&[String]>,
+    exchanges: Option<&[String]>,
+) -> (Vec<Option<(String, String)>>, Vec<String>) {
+    let pairs = zip_coins_with_usd(coins);
+    let exchanges = exchanges
+        .map(|v| v.to_vec())
+        .unwrap_or(vec!["worker".to_string()]);
+
+    (pairs, exchanges)
 }
 
 fn check_subscriptions(
     repositories_prepared: RepositoriesPrepared,
     subscriptions: Vec<WsChannelSubscriptionRequest>,
-) {
+) -> Result<(), String> {
     for subscription_request_expected in subscriptions {
         let sub_id_expected = subscription_request_expected.get_id();
         let method_expected = subscription_request_expected.get_method();
         let coins_expected = subscription_request_expected.get_coins();
         let exchanges_expected = subscription_request_expected.get_exchanges();
 
+        let (pairs_expected, exchanges_expected) =
+            prepare_some_params(coins_expected, exchanges_expected);
+
+        let expected_len = pairs_expected.len() * exchanges_expected.len();
+
         let subscription_requests = get_subscription_requests(
             &repositories_prepared,
             &sub_id_expected,
             method_expected,
-            coins_expected,
-            exchanges_expected,
+            &pairs_expected,
+            &exchanges_expected,
         );
+        if subscription_requests.len() != expected_len {
+            return Err(format!(
+                "Error: subscription_requests.len() != expected_len. Got: {}, Expected: {}. Method: {:?}",
+                subscription_requests.len(), expected_len, method_expected,
+            ));
+        }
 
         for subscription_request in subscription_requests {
-            assert_eq!(subscription_request_expected, subscription_request);
+            if subscription_request != subscription_request_expected {
+                return Err(format!(
+                    "Error: subscription_request != subscription_request_expected. Got: {:?}, Expected: {:?}. Method: {:?}",
+                    subscription_request, subscription_request_expected, method_expected,
+                ));
+            }
         }
     }
+
+    Ok(())
 }
 
 fn get_all_subscription_requests() -> Vec<(String, WsChannelSubscriptionRequest)> {
@@ -290,7 +306,7 @@ fn test_add_ws_channels_separately() {
             start_application(&ws_addr);
 
         ws_connect_and_subscribe(&ws_addr, vec![request], incoming_msg_tx);
-        check_subscriptions(repositories_prepared, vec![expected]);
+        check_subscriptions(repositories_prepared, vec![expected]).unwrap();
     }
 }
 
@@ -306,5 +322,5 @@ fn test_add_ws_channels_together() {
     let (requests, expecteds) = get_all_subscription_requests_unzipped();
 
     ws_connect_and_subscribe(&ws_addr, requests, incoming_msg_tx);
-    check_subscriptions(repositories_prepared, expecteds);
+    check_subscriptions(repositories_prepared, expecteds).unwrap();
 }
