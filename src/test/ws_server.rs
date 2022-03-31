@@ -197,29 +197,29 @@ fn check_subscriptions(
     Ok(())
 }
 
-fn get_all_subscription_requests() -> Vec<(String, WsChannelSubscriptionRequest)> {
+fn get_worker_subscription_requests() -> Vec<(String, LocalWorkerChannels)> {
     let mut subscription_requests = Vec::new();
 
     let sub_id = JsonRpcId::Str(Uuid::new_v4().to_string());
     let method = WsChannelName::IndexPrice;
     let percent_change_interval = "1minute".to_string();
     let request = make_request(&sub_id, method, None, None, None);
-    let expected = WsChannelSubscriptionRequest::Worker(LocalWorkerChannels::IndexPrice {
+    let expected = LocalWorkerChannels::IndexPrice {
         id: sub_id,
         frequency_ms: 100,
         percent_change_interval_sec: parse(&percent_change_interval).unwrap().as_secs(),
-    });
+    };
     subscription_requests.push((request, expected));
 
     let sub_id = JsonRpcId::Str(Uuid::new_v4().to_string());
     let method = WsChannelName::IndexPriceCandles;
     let interval = "1day".to_string();
     let request = make_request(&sub_id, method, None, None, Some(interval.clone()));
-    let expected = WsChannelSubscriptionRequest::Worker(LocalWorkerChannels::IndexPriceCandles {
+    let expected = LocalWorkerChannels::IndexPriceCandles {
         id: sub_id,
         frequency_ms: 100,
         interval_sec: parse(&interval).unwrap().as_secs(),
-    });
+    };
     subscription_requests.push((request, expected));
 
     let sub_id = JsonRpcId::Str(Uuid::new_v4().to_string());
@@ -227,12 +227,12 @@ fn get_all_subscription_requests() -> Vec<(String, WsChannelSubscriptionRequest)
     let coins = vec!["BTC".to_string(), "ETH".to_string()];
     let percent_change_interval = "1minute".to_string();
     let request = make_request(&sub_id, method, Some(&coins), None, None);
-    let expected = WsChannelSubscriptionRequest::Worker(LocalWorkerChannels::CoinAveragePrice {
+    let expected = LocalWorkerChannels::CoinAveragePrice {
         id: sub_id,
         coins,
         frequency_ms: 100,
         percent_change_interval_sec: parse(&percent_change_interval).unwrap().as_secs(),
-    });
+    };
     subscription_requests.push((request, expected));
 
     let sub_id = JsonRpcId::Str(Uuid::new_v4().to_string());
@@ -240,14 +240,19 @@ fn get_all_subscription_requests() -> Vec<(String, WsChannelSubscriptionRequest)
     let coins = vec!["BTC".to_string(), "ETH".to_string()];
     let interval = "1day".to_string();
     let request = make_request(&sub_id, method, Some(&coins), None, Some(interval.clone()));
-    let expected =
-        WsChannelSubscriptionRequest::Worker(LocalWorkerChannels::CoinAveragePriceCandles {
-            id: sub_id,
-            coins,
-            frequency_ms: 100,
-            interval_sec: parse(&interval).unwrap().as_secs(),
-        });
+    let expected = LocalWorkerChannels::CoinAveragePriceCandles {
+        id: sub_id,
+        coins,
+        frequency_ms: 100,
+        interval_sec: parse(&interval).unwrap().as_secs(),
+    };
     subscription_requests.push((request, expected));
+
+    subscription_requests
+}
+
+fn get_market_subscription_requests() -> Vec<(String, LocalMarketChannels)> {
+    let mut subscription_requests = Vec::new();
 
     let sub_id = JsonRpcId::Str(Uuid::new_v4().to_string());
     let method = WsChannelName::CoinExchangePrice;
@@ -255,13 +260,13 @@ fn get_all_subscription_requests() -> Vec<(String, WsChannelSubscriptionRequest)
     let exchanges = vec!["binance".to_string(), "coinbase".to_string()];
     let percent_change_interval = "1minute".to_string();
     let request = make_request(&sub_id, method, Some(&coins), Some(&exchanges), None);
-    let expected = WsChannelSubscriptionRequest::Market(LocalMarketChannels::CoinExchangePrice {
+    let expected = LocalMarketChannels::CoinExchangePrice {
         id: sub_id,
         coins,
         exchanges,
         frequency_ms: 100,
         percent_change_interval_sec: parse(&percent_change_interval).unwrap().as_secs(),
-    });
+    };
     subscription_requests.push((request, expected));
 
     let sub_id = JsonRpcId::Str(Uuid::new_v4().to_string());
@@ -270,14 +275,33 @@ fn get_all_subscription_requests() -> Vec<(String, WsChannelSubscriptionRequest)
     let exchanges = vec!["binance".to_string(), "coinbase".to_string()];
     let percent_change_interval = "1minute".to_string();
     let request = make_request(&sub_id, method, Some(&coins), Some(&exchanges), None);
-    let expected = WsChannelSubscriptionRequest::Market(LocalMarketChannels::CoinExchangeVolume {
+    let expected = LocalMarketChannels::CoinExchangeVolume {
         id: sub_id,
         coins,
         exchanges,
         frequency_ms: 100,
         percent_change_interval_sec: parse(&percent_change_interval).unwrap().as_secs(),
-    });
+    };
     subscription_requests.push((request, expected));
+
+    subscription_requests
+}
+
+fn get_all_subscription_requests() -> Vec<(String, WsChannelSubscriptionRequest)> {
+    let mut subscription_requests = Vec::new();
+
+    subscription_requests.append(
+        &mut get_worker_subscription_requests()
+            .into_iter()
+            .map(|(k, v)| (k, WsChannelSubscriptionRequest::Worker(v)))
+            .collect(),
+    );
+    subscription_requests.append(
+        &mut get_market_subscription_requests()
+            .into_iter()
+            .map(|(k, v)| (k, WsChannelSubscriptionRequest::Market(v)))
+            .collect(),
+    );
 
     subscription_requests
 }
