@@ -27,6 +27,11 @@ impl WsRequest {
             .as_object()
             .ok_or("\"params\" is required and must be an object")?;
         let coins = Self::parse_vec_of_str(object, "coins");
+        if let Ok(coins) = &coins {
+            if coins.is_empty() {
+                return Err("\"coins\" must not be empty".to_string());
+            }
+        }
 
         let frequency_ms =
             Self::parse_u64(object, "frequency_ms").unwrap_or(Ok(ws_answer_timeout_ms))?;
@@ -121,6 +126,9 @@ impl WsRequest {
             WsChannelName::CoinExchangePrice | WsChannelName::CoinExchangeVolume => {
                 let coins = coins?;
                 let exchanges = Self::parse_vec_of_str(object, "exchanges")?;
+                if exchanges.is_empty() {
+                    return Err("\"exchanges\" must not be empty".to_string());
+                }
 
                 let res = match request.method {
                     WsChannelName::CoinExchangePrice => LocalMarketChannels::CoinExchangePrice {
