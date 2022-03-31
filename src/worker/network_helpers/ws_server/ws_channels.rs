@@ -1,5 +1,6 @@
 use crate::config_scheme::config_scheme::ConfigScheme;
 use crate::worker::network_helpers::ws_server::channels::ws_channel_subscription_request::WsChannelSubscriptionRequest;
+use crate::worker::network_helpers::ws_server::connection_id::ConnectionId;
 use crate::worker::network_helpers::ws_server::jsonrpc_request::JsonRpcId;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
 use crate::worker::network_helpers::ws_server::ws_channel_response::WsChannelResponse;
@@ -7,7 +8,7 @@ use crate::worker::network_helpers::ws_server::ws_channel_response_payload::WsCh
 use crate::worker::network_helpers::ws_server::ws_channel_response_sender::WsChannelResponseSender;
 use std::collections::HashMap;
 
-pub struct WsChannels(HashMap<(String, JsonRpcId), WsChannelResponseSender>);
+pub struct WsChannels(HashMap<(ConnectionId, JsonRpcId), WsChannelResponseSender>);
 
 impl WsChannels {
     pub fn new() -> Self {
@@ -17,7 +18,7 @@ impl WsChannels {
     pub fn get_channels_by_method(
         &self,
         method: WsChannelName,
-    ) -> HashMap<&(String, JsonRpcId), &WsChannelSubscriptionRequest> {
+    ) -> HashMap<&(ConnectionId, JsonRpcId), &WsChannelSubscriptionRequest> {
         self.0
             .iter()
             .filter(|(_, v)| v.request.get_method() == method)
@@ -51,7 +52,7 @@ impl WsChannels {
 
     pub fn send_individual(
         &mut self,
-        responses: HashMap<(String, JsonRpcId), WsChannelResponsePayload>,
+        responses: HashMap<(ConnectionId, JsonRpcId), WsChannelResponsePayload>,
     ) {
         let mut keys_to_remove = Vec::new();
 
@@ -72,7 +73,7 @@ impl WsChannels {
         }
     }
 
-    pub fn add_channel(&mut self, conn_id: String, channel: WsChannelResponseSender) {
+    pub fn add_channel(&mut self, conn_id: ConnectionId, channel: WsChannelResponseSender) {
         let sub_id = channel.request.get_id();
 
         if channel.send_succ_sub_notif().is_ok() {
@@ -82,7 +83,7 @@ impl WsChannels {
         }
     }
 
-    pub fn remove_channel(&mut self, key: &(String, JsonRpcId)) {
+    pub fn remove_channel(&mut self, key: &(ConnectionId, JsonRpcId)) {
         self.0.remove(key);
     }
 }

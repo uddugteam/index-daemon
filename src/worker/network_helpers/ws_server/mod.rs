@@ -1,5 +1,6 @@
 pub mod candles;
 pub mod channels;
+pub mod connection_id;
 pub mod f64_snapshot;
 pub mod hepler_functions;
 pub mod holders;

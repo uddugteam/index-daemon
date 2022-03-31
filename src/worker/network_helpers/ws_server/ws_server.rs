@@ -6,6 +6,7 @@ use crate::worker::network_helpers::ws_server::channels::market_channels::LocalM
 use crate::worker::network_helpers::ws_server::channels::ws_channel_action::WsChannelAction;
 use crate::worker::network_helpers::ws_server::channels::ws_channel_subscription_request::WsChannelSubscriptionRequest;
 use crate::worker::network_helpers::ws_server::channels::ws_channel_unsubscribe::WsChannelUnsubscribe;
+use crate::worker::network_helpers::ws_server::connection_id::ConnectionId;
 use crate::worker::network_helpers::ws_server::f64_snapshot::F64Snapshots;
 use crate::worker::network_helpers::ws_server::hepler_functions::ws_send_response;
 use crate::worker::network_helpers::ws_server::holders::helper_functions::HolderKey;
@@ -32,7 +33,6 @@ use futures::{
     prelude::*,
 };
 use std::{collections::HashMap, io, net::SocketAddr, sync::Arc, sync::RwLock, thread, time};
-use uuid::Uuid;
 
 type Tx = UnboundedSender<Message>;
 type PeerMap = Arc<RwLock<HashMap<SocketAddr, Tx>>>;
@@ -91,7 +91,7 @@ impl WsServer {
         percent_change_holder: &mut PercentChangeByIntervalHolder,
         ws_channels_holder: &mut WsChannelsHolder,
         broadcast_recipient: &Tx,
-        conn_id: String,
+        conn_id: ConnectionId,
         request: WsChannelSubscriptionRequest,
         key: HolderKey,
         error_msg: String,
@@ -124,7 +124,7 @@ impl WsServer {
         percent_change_holder: &mut PercentChangeByIntervalHolder,
         ws_channels_holder: &mut WsChannelsHolder,
         broadcast_recipient: &Tx,
-        conn_id: String,
+        conn_id: ConnectionId,
         request: WsChannelSubscriptionRequest,
     ) {
         let (exchanges, error_msg) = match &request {
@@ -185,7 +185,7 @@ impl WsServer {
     fn unsubscribe(
         _percent_change_holder: &mut PercentChangeByIntervalHolder,
         ws_channels_holder: &mut WsChannelsHolder,
-        conn_id: String,
+        conn_id: ConnectionId,
         request: WsChannelUnsubscribe,
     ) {
         let sub_id = request.id;
@@ -199,7 +199,7 @@ impl WsServer {
         mut percent_change_holder: PercentChangeByIntervalHolder,
         mut ws_channels_holder: WsChannelsHolder,
         broadcast_recipient: Tx,
-        conn_id: String,
+        conn_id: ConnectionId,
         action: WsChannelAction,
     ) {
         match action {
@@ -474,7 +474,7 @@ impl WsServer {
         ws_channels_holder: WsChannelsHolder,
         client_addr: &SocketAddr,
         broadcast_recipient: Tx,
-        conn_id: String,
+        conn_id: ConnectionId,
         sub_id: JsonRpcId,
         method: WsChannelName,
         request: Result<WsRequest, String>,
@@ -528,7 +528,7 @@ impl WsServer {
         ws_channels_holder: &WsChannelsHolder,
         peer_map: &PeerMap,
         client_addr: SocketAddr,
-        conn_id: &str,
+        conn_id: &ConnectionId,
         ws_answer_timeout_ms: u64,
         percent_change_interval_sec: u64,
         index_price_repository: &mut Option<RepositoryForF64ByTimestamp>,
@@ -548,7 +548,7 @@ impl WsServer {
                         percent_change_interval_sec,
                     );
 
-                    let conn_id_2 = conn_id.to_string();
+                    let conn_id_2 = conn_id.clone();
                     let percent_change_holder_2 = percent_change_holder.clone();
                     let ws_channels_holder_2 = ws_channels_holder.clone();
                     let index_price_repository_2 = index_price_repository.clone();
@@ -599,7 +599,7 @@ impl WsServer {
         peer_map: PeerMap,
         raw_stream: TcpStream,
         client_addr: SocketAddr,
-        conn_id: String,
+        conn_id: ConnectionId,
         ws_answer_timeout_ms: u64,
         percent_change_interval_sec: u64,
         mut index_price_repository: Option<RepositoryForF64ByTimestamp>,
@@ -669,7 +669,7 @@ impl WsServer {
                 break;
             }
 
-            let conn_id = Uuid::new_v4().to_string();
+            let conn_id = ConnectionId::new();
 
             let _ = task::spawn(Self::handle_connection(
                 self.percent_change_holder.clone(),
