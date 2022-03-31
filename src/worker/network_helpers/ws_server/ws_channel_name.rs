@@ -36,6 +36,17 @@ impl WsChannelName {
         }
     }
 
+    pub fn get_all_channels() -> Vec<Self> {
+        vec![
+            Self::IndexPrice,
+            Self::IndexPriceCandles,
+            Self::CoinAveragePrice,
+            Self::CoinAveragePriceCandles,
+            Self::CoinExchangePrice,
+            Self::CoinExchangeVolume,
+        ]
+    }
+
     pub fn get_market_value(&self) -> MarketValue {
         match self {
             Self::AvailableCoins { .. }
