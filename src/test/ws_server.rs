@@ -185,12 +185,13 @@ fn make_request(
     config: &ConfigScheme,
     method: WsChannelName,
     error: Option<ErrorType>,
+    sub_id: Option<JsonRpcId>,
 ) -> (
     String,
     SubscriptionParams,
     Result<WsChannelSubscriptionRequest, ErrorType>,
 ) {
-    let id = JsonRpcId::Str(Uuid::new_v4().to_string());
+    let id = sub_id.unwrap_or(JsonRpcId::Str(Uuid::new_v4().to_string()));
     let coins = vec!["BTC".to_string(), "ETH".to_string()];
     let exchanges = vec!["binance".to_string(), "coinbase".to_string()];
     let frequency_ms = 100;
@@ -390,7 +391,7 @@ fn prepare_some_params(
 }
 
 fn check_subscriptions(
-    repositories_prepared: RepositoriesPrepared,
+    repositories_prepared: &RepositoriesPrepared,
     subscriptions: Vec<(
         SubscriptionParams,
         Result<WsChannelSubscriptionRequest, ErrorType>,
@@ -410,7 +411,7 @@ fn check_subscriptions(
         let expected_len = pairs_expected.len() * exchanges_expected.len();
 
         let subscription_requests = get_subscription_requests(
-            &repositories_prepared,
+            repositories_prepared,
             &sub_id_expected,
             method_expected,
             &pairs_expected,
@@ -442,6 +443,7 @@ fn get_all_subscription_requests(
     config: &ConfigScheme,
     channels: Vec<WsChannelName>,
     with_errors: bool,
+    sub_id: Option<JsonRpcId>,
 ) -> Vec<(
     String,
     SubscriptionParams,
@@ -452,10 +454,15 @@ fn get_all_subscription_requests(
     for channel in channels {
         if with_errors {
             for error in ErrorType::get_by_channel(channel) {
-                subscription_requests.push(make_request(config, channel, Some(error)));
+                subscription_requests.push(make_request(
+                    config,
+                    channel,
+                    Some(error),
+                    sub_id.clone(),
+                ));
             }
         } else {
-            subscription_requests.push(make_request(config, channel, None));
+            subscription_requests.push(make_request(config, channel, None, sub_id.clone()));
         }
     }
 
@@ -466,6 +473,7 @@ fn get_all_subscription_requests_unzipped(
     config: &ConfigScheme,
     channels: Vec<WsChannelName>,
     with_errors: bool,
+    sub_id: Option<JsonRpcId>,
 ) -> (
     Vec<String>,
     Vec<SubscriptionParams>,
@@ -476,7 +484,7 @@ fn get_all_subscription_requests_unzipped(
     let mut expecteds = Vec::new();
 
     for (request, params_tuple, expected) in
-        get_all_subscription_requests(config, channels, with_errors)
+        get_all_subscription_requests(config, channels, with_errors, sub_id)
     {
         requests.push(request);
         params_vec.push(params_tuple);
@@ -493,7 +501,8 @@ fn test_add_ws_channels_separately() {
     let mut config = ConfigScheme::default();
     let channels = WsChannelName::get_all_channels();
 
-    for (request, params, expected) in get_all_subscription_requests(&config, channels, false) {
+    for (request, params, expected) in get_all_subscription_requests(&config, channels, false, None)
+    {
         config.service.ws_addr = format!("127.0.0.1:{}", port);
         port += 1;
 
@@ -501,7 +510,7 @@ fn test_add_ws_channels_separately() {
             start_application(config.clone());
 
         ws_connect_and_subscribe(&config.service.ws_addr, vec![request], incoming_msg_tx);
-        let res = check_subscriptions(repositories_prepared, vec![(params, expected)]);
+        let res = check_subscriptions(&repositories_prepared, vec![(params, expected)]);
         if res.is_err() {
             panic!("Expected Ok. Got: {:?}", res);
         }
@@ -515,7 +524,8 @@ fn test_add_ws_channels_separately_with_errors() {
     let mut config = ConfigScheme::default();
     let channels = WsChannelName::get_all_channels();
 
-    for (request, params, expected) in get_all_subscription_requests(&config, channels, true) {
+    for (request, params, expected) in get_all_subscription_requests(&config, channels, true, None)
+    {
         config.service.ws_addr = format!("127.0.0.1:{}", port);
         port += 1;
 
@@ -528,7 +538,7 @@ fn test_add_ws_channels_separately_with_errors() {
             incoming_msg_tx,
         );
         let res = check_subscriptions(
-            repositories_prepared,
+            &repositories_prepared,
             vec![(params.clone(), expected.clone())],
         );
         if res.is_ok() {
@@ -550,12 +560,12 @@ fn test_add_ws_channels_together() {
     let channels = WsChannelName::get_all_channels();
 
     let (requests, params, expecteds) =
-        get_all_subscription_requests_unzipped(&config, channels, false);
+        get_all_subscription_requests_unzipped(&config, channels, false, None);
 
     let expecteds = params.into_iter().zip(expecteds).collect();
 
     ws_connect_and_subscribe(&config.service.ws_addr, requests, incoming_msg_tx);
-    let res = check_subscriptions(repositories_prepared, expecteds);
+    let res = check_subscriptions(&repositories_prepared, expecteds);
     if res.is_err() {
         panic!("Expected Ok. Got: {:?}", res);
     }
@@ -574,12 +584,77 @@ fn test_add_ws_channels_together_with_errors() {
     let channels = WsChannelName::get_all_channels();
 
     let (requests, params, expecteds) =
-        get_all_subscription_requests_unzipped(&config, channels, true);
+        get_all_subscription_requests_unzipped(&config, channels, true, None);
 
     let expecteds = params.into_iter().zip(expecteds).collect();
 
     ws_connect_and_subscribe(&config.service.ws_addr, requests, incoming_msg_tx);
-    let res = check_subscriptions(repositories_prepared, expecteds);
+    let res = check_subscriptions(&repositories_prepared, expecteds);
+    if res.is_ok() {
+        panic!("Expected Err. Got: {:?}", res);
+    }
+}
+
+#[test]
+#[serial]
+fn test_resubscribe() {
+    let port = 8500;
+    let mut config = ConfigScheme::default();
+    config.service.ws_addr = format!("127.0.0.1:{}", port);
+
+    let (_rx, (incoming_msg_tx, _incoming_msg_rx), config, repositories_prepared) =
+        start_application(config);
+
+    let channels = WsChannelName::get_all_channels();
+    let sub_id = JsonRpcId::Str(Uuid::new_v4().to_string());
+
+    let subscription_requests =
+        get_all_subscription_requests(&config, channels, false, Some(sub_id));
+
+    let (mut request_old, mut params_item_old, mut expected_old) =
+        subscription_requests.first().unwrap().clone();
+
+    for (i, (request_new, params_item_new, expected_new)) in
+        subscription_requests.into_iter().enumerate()
+    {
+        ws_connect_and_subscribe(
+            &config.service.ws_addr,
+            vec![request_new.clone()],
+            incoming_msg_tx.clone(),
+        );
+        let res = check_subscriptions(
+            &repositories_prepared,
+            vec![(params_item_new.clone(), expected_new.clone())],
+        );
+        if res.is_err() {
+            panic!("Expected Ok. Got: {:?}", res);
+        }
+
+        if i > 0 {
+            ws_connect_and_subscribe(
+                &config.service.ws_addr,
+                vec![request_old.clone()],
+                incoming_msg_tx.clone(),
+            );
+            let res = check_subscriptions(
+                &repositories_prepared,
+                vec![(params_item_old.clone(), expected_old.clone())],
+            );
+            if res.is_ok() {
+                panic!("Expected Err. Got: {:?}", res);
+            }
+        }
+
+        request_old = request_new;
+        params_item_old = params_item_new;
+        expected_old = expected_new;
+    }
+
+    ws_connect_and_subscribe(&config.service.ws_addr, vec![request_old], incoming_msg_tx);
+    let res = check_subscriptions(
+        &repositories_prepared,
+        vec![(params_item_old, expected_old)],
+    );
     if res.is_ok() {
         panic!("Expected Err. Got: {:?}", res);
     }
