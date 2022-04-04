@@ -560,3 +560,27 @@ fn test_add_ws_channels_together() {
         panic!("Expected Ok. Got: {:?}", res);
     }
 }
+
+#[test]
+#[serial]
+fn test_add_ws_channels_together_with_errors() {
+    let port = 8400;
+    let mut config = ConfigScheme::default();
+    config.service.ws_addr = format!("127.0.0.1:{}", port);
+
+    let (_rx, (incoming_msg_tx, _incoming_msg_rx), config, repositories_prepared) =
+        start_application(config);
+
+    let channels = WsChannelName::get_all_channels();
+
+    let (requests, params, expecteds) =
+        get_all_subscription_requests_unzipped(&config, channels, true);
+
+    let expecteds = params.into_iter().zip(expecteds).collect();
+
+    ws_connect_and_subscribe(&config.service.ws_addr, requests, incoming_msg_tx);
+    let res = check_subscriptions(repositories_prepared, expecteds);
+    if res.is_ok() {
+        panic!("Expected Err. Got: {:?}", res);
+    }
+}
