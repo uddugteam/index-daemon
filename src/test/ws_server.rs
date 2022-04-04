@@ -396,7 +396,9 @@ fn check_subscriptions(
         SubscriptionParams,
         Result<WsChannelSubscriptionRequest, ErrorType>,
     )>,
-) -> Result<(), String> {
+) -> Result<Vec<WsChannelName>, String> {
+    let channel_names = subscriptions.iter().map(|v| v.0.channel).collect();
+
     for (subscription_params, subscription_request_expected) in subscriptions {
         let SubscriptionParams {
             id: sub_id_expected,
@@ -436,7 +438,7 @@ fn check_subscriptions(
         }
     }
 
-    Ok(())
+    Ok(channel_names)
 }
 
 fn get_all_subscription_requests(
@@ -659,5 +661,35 @@ fn test_resubscribe() {
     );
     if res.is_ok() {
         panic!("Expected Err. Got: {:?}", res);
+    }
+}
+
+#[test]
+#[serial]
+fn test_unsubscribe() {
+    let port = 8600;
+    let mut config = ConfigScheme::default();
+    config.service.ws_addr = format!("127.0.0.1:{}", port);
+
+    let (_rx, (incoming_msg_tx, _incoming_msg_rx), config, repositories_prepared) =
+        start_application(config);
+
+    let channels = WsChannelName::get_all_channels();
+
+    let subscription_requests = get_all_subscription_requests(&config, channels, false, None);
+
+    for (request, params_item, expected) in subscription_requests {
+        let sub_id = params_item.id.clone();
+        let unsub_request = make_unsub_request(sub_id);
+        let requests = vec![request, unsub_request];
+
+        ws_connect_and_send(&config.service.ws_addr, requests, incoming_msg_tx.clone());
+        let res = check_subscriptions(
+            &repositories_prepared,
+            vec![(params_item.clone(), expected.clone())],
+        );
+        if res.is_ok() {
+            panic!("Expected Err. Got: {:?}", res);
+        }
     }
 }
