@@ -21,6 +21,11 @@ use std::thread::JoinHandle;
 use std::time;
 use uuid::Uuid;
 
+type Expected = (
+    SubscriptionParams,
+    Result<WsChannelSubscriptionRequest, ErrorType>,
+);
+
 #[derive(Debug, Clone)]
 struct SubscriptionParams {
     pub id: JsonRpcId,
@@ -392,10 +397,7 @@ fn prepare_some_params(
 
 fn check_subscriptions(
     repositories_prepared: &RepositoriesPrepared,
-    subscriptions: Vec<(
-        SubscriptionParams,
-        Result<WsChannelSubscriptionRequest, ErrorType>,
-    )>,
+    subscriptions: Vec<Expected>,
 ) -> Result<Vec<WsChannelName>, String> {
     let channel_names = subscriptions.iter().map(|v| v.0.channel).collect();
 
@@ -612,55 +614,29 @@ fn test_resubscribe() {
     let channels = WsChannelName::get_all_channels();
     let sub_id = JsonRpcId::Str(Uuid::new_v4().to_string());
 
-    let subscription_requests =
-        get_all_subscription_requests(&config, channels, false, Some(sub_id));
+    let (requests, params_vec, expecteds) =
+        get_all_subscription_requests_unzipped(&config, channels, false, Some(sub_id));
 
-    let (mut request_old, mut params_item_old, mut expected_old) =
-        subscription_requests.first().unwrap().clone();
+    let mut expecteds: Vec<Expected> = params_vec.into_iter().zip(expecteds).collect();
 
-    for (i, (request_new, params_item_new, expected_new)) in
-        subscription_requests.into_iter().enumerate()
-    {
-        ws_connect_and_send(
-            &config.service.ws_addr,
-            vec![request_new.clone()],
-            incoming_msg_tx.clone(),
-        );
-        let res = check_subscriptions(
-            &repositories_prepared,
-            vec![(params_item_new.clone(), expected_new.clone())],
-        );
-        if res.is_err() {
-            panic!("Expected Ok. Got: {:?}", res);
-        }
+    // Remove last
+    let last_expected = expecteds.swap_remove(expecteds.len() - 1);
 
-        if i > 0 {
-            ws_connect_and_send(
-                &config.service.ws_addr,
-                vec![request_old.clone()],
-                incoming_msg_tx.clone(),
-            );
-            let res = check_subscriptions(
-                &repositories_prepared,
-                vec![(params_item_old.clone(), expected_old.clone())],
-            );
-            if res.is_ok() {
-                panic!("Expected Err. Got: {:?}", res);
-            }
-        }
+    ws_connect_and_send(&config.service.ws_addr, requests, incoming_msg_tx);
 
-        request_old = request_new;
-        params_item_old = params_item_new;
-        expected_old = expected_new;
-    }
+    // Wait until all requests are processed
+    thread::sleep(time::Duration::from_millis(5000));
 
-    ws_connect_and_send(&config.service.ws_addr, vec![request_old], incoming_msg_tx);
-    let res = check_subscriptions(
-        &repositories_prepared,
-        vec![(params_item_old, expected_old)],
-    );
+    // Check that all except last are NOT subscribed
+    let res = check_subscriptions(&repositories_prepared, expecteds);
     if res.is_ok() {
         panic!("Expected Err. Got: {:?}", res);
+    }
+
+    // Check that last IS subscribed
+    let res = check_subscriptions(&repositories_prepared, vec![last_expected]);
+    if res.is_err() {
+        panic!("Expected Ok. Got: {:?}", res);
     }
 }
 
