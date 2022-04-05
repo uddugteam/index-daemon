@@ -78,13 +78,9 @@ impl WsServer {
     ) {
         let response = WsChannelResponse {
             id,
-            result: WsChannelResponsePayload::Err {
-                method,
-                code,
-                message,
-            },
+            result: WsChannelResponsePayload::Err { code, message },
         };
-        let _ = ws_send_response(broadcast_recipient, response, None);
+        let _ = ws_send_response(broadcast_recipient, response, method);
     }
 
     fn subscribe_stage_2(

@@ -36,7 +36,6 @@ impl WsChannelResponseSender {
 
     pub fn send_succ_sub_notif(&self) -> Result<(), TrySendError<Message>> {
         let response_payload = WsChannelResponsePayload::SuccSub {
-            method: self.request.get_method(),
             message: "Successfully subscribed.".to_string(),
         };
         let response = WsChannelResponse {

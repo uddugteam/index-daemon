@@ -6,11 +6,70 @@ use crate::worker::network_helpers::ws_server::channels::worker_channels::LocalW
 use crate::worker::network_helpers::ws_server::channels::ws_channel_action::WsChannelAction;
 use crate::worker::network_helpers::ws_server::channels::ws_channel_subscription_request::WsChannelSubscriptionRequest;
 use crate::worker::network_helpers::ws_server::jsonrpc_request::JsonRpcId;
+use crate::worker::network_helpers::ws_server::requests::ws_method_request::WsMethodRequest;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
 use crate::worker::network_helpers::ws_server::ws_request::WsRequest;
+use chrono::Utc;
 use parse_duration::parse;
 use serde_json::json;
 use uuid::Uuid;
+
+const YEAR_IN_SECONDS: u64 = 31_556_926;
+
+struct AllParamsRaw {
+    pub id: JsonRpcId,
+    pub method: WsChannelName,
+    pub coins: Vec<String>,
+    pub exchanges: Vec<String>,
+    pub frequency_ms: u64,
+    pub percent_change_interval: String,
+    pub interval: String,
+    pub from: u64,
+    pub to: Option<u64>,
+    pub coin: String,
+}
+
+impl AllParamsRaw {
+    pub fn new(method: WsChannelName, sub_id: Option<JsonRpcId>) -> Self {
+        let id = sub_id.unwrap_or(JsonRpcId::Str(Uuid::new_v4().to_string()));
+        let coins = vec!["BTC".to_string(), "ETH".to_string()];
+        let exchanges = vec!["binance".to_string(), "coinbase".to_string()];
+        let frequency_ms = 100;
+        let percent_change_interval = "1minute".to_string();
+        let interval = "1day".to_string();
+
+        let to = Some(Utc::now().timestamp() as u64);
+        let from = to.unwrap() - YEAR_IN_SECONDS;
+
+        let coin = "BTC".to_string();
+
+        AllParamsRaw {
+            id,
+            method,
+            coins,
+            exchanges,
+            frequency_ms,
+            percent_change_interval,
+            interval,
+            from,
+            to,
+            coin,
+        }
+    }
+}
+
+struct AllParams {
+    pub id: JsonRpcId,
+    pub method: WsChannelName,
+    pub coins: Vec<String>,
+    pub exchanges: Vec<String>,
+    pub frequency_ms: u64,
+    pub percent_change_interval_sec: u64,
+    pub interval_sec: u64,
+    pub from: u64,
+    pub to: Option<u64>,
+    pub coin: String,
+}
 
 pub struct Requests(pub Vec<Request>);
 
@@ -80,12 +139,18 @@ impl Request {
         error: Option<ErrorType>,
         sub_id: Option<JsonRpcId>,
     ) -> Self {
-        let id = sub_id.unwrap_or(JsonRpcId::Str(Uuid::new_v4().to_string()));
-        let coins = vec!["BTC".to_string(), "ETH".to_string()];
-        let exchanges = vec!["binance".to_string(), "coinbase".to_string()];
-        let frequency_ms = 100;
-        let percent_change_interval = "1minute".to_string();
-        let interval = "1day".to_string();
+        let AllParamsRaw {
+            id,
+            method,
+            coins,
+            exchanges,
+            frequency_ms,
+            percent_change_interval,
+            interval,
+            from,
+            to,
+            coin,
+        } = AllParamsRaw::new(method, sub_id);
 
         let mut request = json!({
             "id": id,
@@ -96,7 +161,10 @@ impl Request {
               "exchanges": exchanges,
               "frequency_ms": frequency_ms,
               "percent_change_interval": percent_change_interval,
-              "interval": interval
+              "interval": interval,
+              "from": from,
+              "to": to,
+              "coin": coin
             }
         });
 
@@ -113,62 +181,20 @@ impl Request {
             let percent_change_interval_sec = parse(&percent_change_interval).unwrap().as_secs();
             let interval_sec = parse(&interval).unwrap().as_secs();
 
-            let expected = match method {
-                WsChannelName::IndexPrice => Ok(WsChannelSubscriptionRequest::Worker(
-                    LocalWorkerChannels::IndexPrice {
-                        id,
-                        frequency_ms,
-                        percent_change_interval_sec,
-                    },
-                )),
-                WsChannelName::IndexPriceCandles => Ok(WsChannelSubscriptionRequest::Worker(
-                    LocalWorkerChannels::IndexPriceCandles {
-                        id,
-                        frequency_ms,
-                        interval_sec,
-                    },
-                )),
-                WsChannelName::CoinAveragePrice => Ok(WsChannelSubscriptionRequest::Worker(
-                    LocalWorkerChannels::CoinAveragePrice {
-                        id,
-                        coins,
-                        frequency_ms,
-                        percent_change_interval_sec,
-                    },
-                )),
-                WsChannelName::CoinAveragePriceCandles => Ok(WsChannelSubscriptionRequest::Worker(
-                    LocalWorkerChannels::CoinAveragePriceCandles {
-                        id,
-                        coins,
-                        frequency_ms,
-                        interval_sec,
-                    },
-                )),
-                WsChannelName::CoinExchangePrice => Ok(WsChannelSubscriptionRequest::Market(
-                    LocalMarketChannels::CoinExchangePrice {
-                        id,
-                        coins,
-                        exchanges,
-                        frequency_ms,
-                        percent_change_interval_sec,
-                    },
-                )),
-                WsChannelName::CoinExchangeVolume => Ok(WsChannelSubscriptionRequest::Market(
-                    LocalMarketChannels::CoinExchangeVolume {
-                        id,
-                        coins,
-                        exchanges,
-                        frequency_ms,
-                        percent_change_interval_sec,
-                    },
-                )),
-                _ => unreachable!(),
+            let params = AllParams {
+                id,
+                method,
+                coins,
+                exchanges,
+                frequency_ms,
+                percent_change_interval_sec,
+                interval_sec,
+                from,
+                to,
+                coin,
             };
 
-            let expected = expected.map(WsChannelAction::Subscribe);
-            let expected = expected.map(WsRequest::Channel);
-
-            expected
+            Ok(Self::make_ws_request(params))
         };
 
         let coins_expected = match method {
@@ -196,12 +222,143 @@ impl Request {
         }
     }
 
+    fn make_subscription_request(params: AllParams) -> WsChannelSubscriptionRequest {
+        let AllParams {
+            id,
+            method,
+            coins,
+            exchanges,
+            frequency_ms,
+            percent_change_interval_sec,
+            interval_sec,
+            from: _,
+            to: _,
+            coin: _,
+        } = params;
+
+        match method {
+            WsChannelName::IndexPrice => {
+                WsChannelSubscriptionRequest::Worker(LocalWorkerChannels::IndexPrice {
+                    id,
+                    frequency_ms,
+                    percent_change_interval_sec,
+                })
+            }
+            WsChannelName::IndexPriceCandles => {
+                WsChannelSubscriptionRequest::Worker(LocalWorkerChannels::IndexPriceCandles {
+                    id,
+                    frequency_ms,
+                    interval_sec,
+                })
+            }
+            WsChannelName::CoinAveragePrice => {
+                WsChannelSubscriptionRequest::Worker(LocalWorkerChannels::CoinAveragePrice {
+                    id,
+                    coins,
+                    frequency_ms,
+                    percent_change_interval_sec,
+                })
+            }
+            WsChannelName::CoinAveragePriceCandles => {
+                WsChannelSubscriptionRequest::Worker(LocalWorkerChannels::CoinAveragePriceCandles {
+                    id,
+                    coins,
+                    frequency_ms,
+                    interval_sec,
+                })
+            }
+            WsChannelName::CoinExchangePrice => {
+                WsChannelSubscriptionRequest::Market(LocalMarketChannels::CoinExchangePrice {
+                    id,
+                    coins,
+                    exchanges,
+                    frequency_ms,
+                    percent_change_interval_sec,
+                })
+            }
+            WsChannelName::CoinExchangeVolume => {
+                WsChannelSubscriptionRequest::Market(LocalMarketChannels::CoinExchangeVolume {
+                    id,
+                    coins,
+                    exchanges,
+                    frequency_ms,
+                    percent_change_interval_sec,
+                })
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    fn make_method_request(params: AllParams) -> WsMethodRequest {
+        let AllParams {
+            id,
+            method,
+            coins: _,
+            exchanges: _,
+            frequency_ms: _,
+            percent_change_interval_sec: _,
+            interval_sec,
+            from,
+            to,
+            coin,
+        } = params;
+
+        match method {
+            WsChannelName::AvailableCoins => WsMethodRequest::AvailableCoins { id },
+            WsChannelName::IndexPriceHistorical => WsMethodRequest::IndexPriceHistorical {
+                id,
+                interval_sec,
+                from,
+                to,
+            },
+            WsChannelName::IndexPriceCandlesHistorical => {
+                WsMethodRequest::IndexPriceCandlesHistorical {
+                    id,
+                    interval_sec,
+                    from,
+                    to,
+                }
+            }
+            WsChannelName::CoinAveragePriceHistorical => {
+                WsMethodRequest::CoinAveragePriceHistorical {
+                    id,
+                    coin,
+                    interval_sec,
+                    from,
+                    to,
+                }
+            }
+            WsChannelName::CoinAveragePriceCandlesHistorical => {
+                WsMethodRequest::CoinAveragePriceCandlesHistorical {
+                    id,
+                    coin,
+                    interval_sec,
+                    from,
+                    to,
+                }
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    fn make_ws_request(params: AllParams) -> WsRequest {
+        if params.method.is_channel() {
+            let expected = Self::make_subscription_request(params);
+
+            WsRequest::Channel(WsChannelAction::Subscribe(expected))
+        } else {
+            let expected = Self::make_method_request(params);
+
+            WsRequest::Method(expected)
+        }
+    }
+
+    /// Function damages the request according to ErrorType
     fn spoil_request(
         config: &ConfigScheme,
         request: &mut serde_json::Value,
         error: Option<ErrorType>,
     ) {
-        // There we damage the request according to ErrorType
         if let Some(error) = error {
             let request_object = request.as_object_mut().unwrap();
 

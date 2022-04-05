@@ -1,7 +1,7 @@
 use crate::worker::network_helpers::ws_server::ser_date_into_timestamp;
 use chrono::{DateTime, Utc, MIN_DATETIME};
 
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct F64Snapshots(Vec<F64Snapshot>);
 
 impl F64Snapshots {
@@ -35,7 +35,7 @@ impl F64Snapshots {
     }
 }
 
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct F64Snapshot {
     value: f64,
     #[serde(with = "ser_date_into_timestamp")]
