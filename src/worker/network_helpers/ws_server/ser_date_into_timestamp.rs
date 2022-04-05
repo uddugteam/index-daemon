@@ -5,6 +5,7 @@ pub fn serialize<S>(date: &DateTime<Utc>, serializer: S) -> Result<S::Ok, S::Err
 where
     S: Serializer,
 {
-    let s = date.timestamp();
-    serializer.serialize_i64(s)
+    let s = date.timestamp() as u64;
+
+    serializer.serialize_u64(s)
 }
