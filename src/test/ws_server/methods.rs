@@ -3,6 +3,8 @@ use crate::test::ws_server::helper_functions::{
     check_incoming_messages, start_application, ws_connect_and_send,
 };
 use crate::test::ws_server::request::{Requests, RequestsUnzipped};
+use crate::worker::network_helpers::ws_server::jsonrpc_request::JsonRpcId;
+use crate::worker::network_helpers::ws_server::requests::ws_method_request::WsMethodRequest;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
 use crate::worker::network_helpers::ws_server::ws_request::WsRequest;
 use serial_test::serial;
@@ -25,18 +27,24 @@ fn test_request_methods_together() {
     let (_rx, (incoming_msg_tx, incoming_msg_rx), config, _repositories_prepared) =
         start_application(config);
 
-    let expecteds: Vec<WsChannelName> = expecteds
+    let expecteds: Vec<(JsonRpcId, WsChannelName)> = expecteds
         .into_iter()
         .map(|v| v.unwrap())
         .map(|v| match v {
-            WsRequest::Method(v) => v.get_method(),
+            WsRequest::Method(v) => (v.get_id(), v.get_method()),
             _ => unreachable!(),
         })
         .collect();
 
     ws_connect_and_send(&config.service.ws_addr, requests, incoming_msg_tx);
     let res = check_incoming_messages(incoming_msg_rx, &expecteds);
-    if res.is_err() {
-        panic!("Expected Ok. Got: {:?}", res);
+    for (id, method) in expecteds {
+        if let Some(x) = res.get(&id) {
+            if x.is_err() {
+                panic!("Expected Ok. Got: {:?}", x);
+            }
+        } else {
+            panic!("No response received for method: {:?}", method);
+        }
     }
 }

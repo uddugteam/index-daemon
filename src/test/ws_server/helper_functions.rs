@@ -7,13 +7,14 @@ use crate::worker::market_helpers::market_channels::ExternalMarketChannels;
 use crate::worker::network_helpers::ws_server::channels::ws_channel_action::WsChannelAction;
 use crate::worker::network_helpers::ws_server::channels::ws_channel_subscription_request::WsChannelSubscriptionRequest;
 use crate::worker::network_helpers::ws_server::jsonrpc_request::JsonRpcId;
+use crate::worker::network_helpers::ws_server::requests::ws_method_request::WsMethodRequest;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
 use crate::worker::network_helpers::ws_server::ws_channel_response::WsChannelResponse;
 use crate::worker::network_helpers::ws_server::ws_channel_response_payload::WsChannelResponsePayload;
 use crate::worker::network_helpers::ws_server::ws_request::WsRequest;
 use crate::worker::worker::start_worker;
 use serde_json::json;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{mpsc, Arc, RwLock};
 use std::thread;
@@ -205,42 +206,54 @@ pub fn check_subscriptions(
 
 pub fn check_incoming_messages(
     incoming_msg_rx: Receiver<String>,
-    expected: &[WsChannelName],
-) -> Result<Vec<WsChannelName>, String> {
-    let mut expected_new: HashSet<WsChannelName> = expected.iter().cloned().collect();
+    expected: &[(JsonRpcId, WsChannelName)],
+) -> HashMap<JsonRpcId, Result<WsChannelName, String>> {
+    let mut res = HashMap::new();
+    let expected_ids: HashSet<JsonRpcId> = expected.iter().cloned().map(|v| v.0).collect();
 
     let start = Instant::now();
-    while !expected_new.is_empty() {
+    let minutes = 1;
+    while start.elapsed().as_secs() < minutes * 60 {
         if let Ok(incoming_msg) = incoming_msg_rx.try_recv() {
-            let response: WsChannelResponse = serde_json::from_str(&incoming_msg)
-                .map_err(|e| format!("Parse WsChannelResponse error: {}", e))?;
+            let response = serde_json::from_str::<WsChannelResponse>(&incoming_msg)
+                .map_err(|e| {
+                    format!(
+                        "Parse WsChannelResponse error. Response: {}. Error: {}",
+                        incoming_msg, e
+                    )
+                })
+                .unwrap();
+
+            let id = response
+                .id
+                .clone()
+                .ok_or(format!("Got response with no id: {:?}", response))
+                .unwrap();
+
+            let method = response.result.get_method().unwrap();
 
             match response.result {
                 WsChannelResponsePayload::SuccSub { .. } => {
                     // Ignore
                 }
                 WsChannelResponsePayload::Err { message, .. } => {
-                    return Err(format!("Received error message: {}", message));
+                    res.insert(id, Err(format!("Received error message: {}", message)));
                 }
                 _ => {
-                    let method = response.result.get_method().unwrap();
-
-                    if expected_new.contains(&method) {
-                        expected_new.remove(&method);
+                    if expected_ids.contains(&id) {
+                        res.entry(id).or_insert(Ok(method));
                     } else {
-                        return Err(format!("Got unexpected WsChannelResponse: {:?}", response));
+                        res.insert(
+                            id,
+                            Err(format!("Got unexpected id. Response: {:?}", response)),
+                        );
                     }
                 }
             }
         }
 
-        let minutes = 1;
-        if start.elapsed().as_secs() > minutes * 60 {
-            return Err(format!("Allocated time ({} minutes) is over.", minutes));
-        }
-
         thread::sleep(time::Duration::from_millis(1000));
     }
 
-    Ok(expected.to_vec())
+    res
 }

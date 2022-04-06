@@ -47,4 +47,14 @@ impl WsMethodRequest {
             }
         }
     }
+
+    pub fn get_id(&self) -> JsonRpcId {
+        match self {
+            Self::AvailableCoins { id, .. }
+            | Self::IndexPriceHistorical { id, .. }
+            | Self::IndexPriceCandlesHistorical { id, .. }
+            | Self::CoinAveragePriceHistorical { id, .. }
+            | Self::CoinAveragePriceCandlesHistorical { id, .. } => id.clone(),
+        }
+    }
 }
