@@ -36,11 +36,11 @@ fn test_request_methods_together() {
         .collect();
 
     ws_connect_and_send(&config.service.ws_addr, requests, incoming_msg_tx);
-    let res = check_incoming_messages(incoming_msg_rx, &expecteds);
+    let hash_map = check_incoming_messages(incoming_msg_rx, &expecteds);
     for (id, method) in expecteds {
-        if let Some(x) = res.get(&id) {
-            if x.is_err() {
-                panic!("Expected Ok. Got: {:?}", x);
+        if let Some(res) = hash_map.get(&id) {
+            if res.is_err() {
+                panic!("Expected Ok. Got: {:?}", res);
             }
         } else {
             panic!("No response received for method: {:?}", method);
