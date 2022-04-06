@@ -10,8 +10,10 @@ use serial_test::serial;
 #[test]
 #[serial]
 fn test_request_methods_together() {
-    let mut port = 9100;
+    let port = 9100;
     let mut config = ConfigScheme::default();
+    config.service.ws_addr = format!("127.0.0.1:{}", port);
+
     let methods = WsChannelName::get_all_methods();
 
     let RequestsUnzipped {
@@ -19,9 +21,6 @@ fn test_request_methods_together() {
         params_vec: _,
         expecteds,
     } = Requests::make_all(&config, &methods, false, None).unzip();
-
-    config.service.ws_addr = format!("127.0.0.1:{}", port);
-    port += 1;
 
     let (_rx, (incoming_msg_tx, incoming_msg_rx), config, _repositories_prepared) =
         start_application(config);
