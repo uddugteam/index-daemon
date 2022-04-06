@@ -1,5 +1,5 @@
 use crate::repository::repositories::RepositoryForF64ByTimestamp;
-use crate::worker::helper_functions::{date_time_from_timestamp_sec, strip_usd};
+use crate::worker::helper_functions::strip_usd;
 use crate::worker::market_helpers::pair_average_price::StoredAndWsTransmissibleF64ByPairTuple;
 use crate::worker::network_helpers::ws_server::candles::Candles;
 use crate::worker::network_helpers::ws_server::channels::market_channels::LocalMarketChannels;
