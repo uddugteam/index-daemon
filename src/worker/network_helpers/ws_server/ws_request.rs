@@ -167,8 +167,7 @@ impl WsRequest {
                 let from = Self::parse_u64(object, "from").ok_or("\"from\" is required")??;
                 let from = date_time_from_timestamp_sec(from);
 
-                let to = Self::parse_u64(object, "to");
-                let to = Self::swap(to)?;
+                let to = Self::parse_u64(object, "to").transpose()?;
                 let to = to
                     .map(date_time_from_timestamp_sec)
                     .unwrap_or_else(Utc::now);
@@ -242,15 +241,5 @@ impl WsRequest {
         object
             .get(key)
             .map(|v| v.as_u64().ok_or(format!("\"{}\" must be an uint", key)))
-    }
-
-    fn swap<T, E>(value: Option<Result<T, E>>) -> Result<Option<T>, E> {
-        match value {
-            Some(value) => match value {
-                Ok(value) => Ok(Some(value)),
-                Err(e) => Err(e),
-            },
-            None => Ok(None),
-        }
     }
 }
