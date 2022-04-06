@@ -295,10 +295,6 @@ impl WsServer {
                 to,
             } => {
                 let pair_tuple = (coin.to_string(), "USD".to_string());
-                let from = date_time_from_timestamp_sec(from);
-                let to = to
-                    .map(date_time_from_timestamp_sec)
-                    .unwrap_or_else(Utc::now);
 
                 if let Some(repository) = pair_average_price.get(&pair_tuple) {
                     if let Some(repository) = &repository.read().unwrap().repository {
@@ -381,11 +377,6 @@ impl WsServer {
                 from,
                 to,
             } => {
-                let from = date_time_from_timestamp_sec(from);
-                let to = to
-                    .map(date_time_from_timestamp_sec)
-                    .unwrap_or_else(Utc::now);
-
                 let repository = index_price_repository?;
 
                 match repository.read_range(from, to) {

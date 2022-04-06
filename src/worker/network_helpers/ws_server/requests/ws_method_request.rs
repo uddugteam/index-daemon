@@ -1,5 +1,6 @@
 use crate::worker::network_helpers::ws_server::jsonrpc_request::JsonRpcId;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
+use chrono::{DateTime, Utc};
 
 #[derive(Debug, Clone)]
 pub enum WsMethodRequest {
@@ -9,28 +10,28 @@ pub enum WsMethodRequest {
     IndexPriceHistorical {
         id: JsonRpcId,
         interval_sec: u64,
-        from: u64,
-        to: Option<u64>,
+        from: DateTime<Utc>,
+        to: DateTime<Utc>,
     },
     IndexPriceCandlesHistorical {
         id: JsonRpcId,
         interval_sec: u64,
-        from: u64,
-        to: Option<u64>,
+        from: DateTime<Utc>,
+        to: DateTime<Utc>,
     },
     CoinAveragePriceHistorical {
         id: JsonRpcId,
         coin: String,
         interval_sec: u64,
-        from: u64,
-        to: Option<u64>,
+        from: DateTime<Utc>,
+        to: DateTime<Utc>,
     },
     CoinAveragePriceCandlesHistorical {
         id: JsonRpcId,
         coin: String,
         interval_sec: u64,
-        from: u64,
-        to: Option<u64>,
+        from: DateTime<Utc>,
+        to: DateTime<Utc>,
     },
 }
 

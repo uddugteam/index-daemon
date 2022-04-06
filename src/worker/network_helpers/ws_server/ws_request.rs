@@ -1,3 +1,4 @@
+use crate::worker::helper_functions::date_time_from_timestamp_sec;
 use crate::worker::network_helpers::ws_server::channels::market_channels::LocalMarketChannels;
 use crate::worker::network_helpers::ws_server::channels::worker_channels::LocalWorkerChannels;
 use crate::worker::network_helpers::ws_server::channels::ws_channel_action::WsChannelAction;
@@ -6,6 +7,7 @@ use crate::worker::network_helpers::ws_server::channels::ws_channel_unsubscribe:
 use crate::worker::network_helpers::ws_server::jsonrpc_request::JsonRpcRequest;
 use crate::worker::network_helpers::ws_server::requests::ws_method_request::WsMethodRequest;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
+use chrono::Utc;
 use parse_duration::parse;
 use serde_json::Map;
 
@@ -161,9 +163,15 @@ impl WsRequest {
             | WsChannelName::CoinAveragePriceCandlesHistorical => {
                 let coin = object.get("coin").ok_or("\"coin\" is required");
                 let interval_sec = interval_sec???;
+
                 let from = Self::parse_u64(object, "from").ok_or("\"from\" is required")??;
+                let from = date_time_from_timestamp_sec(from);
+
                 let to = Self::parse_u64(object, "to");
                 let to = Self::swap(to)?;
+                let to = to
+                    .map(date_time_from_timestamp_sec)
+                    .unwrap_or_else(Utc::now);
 
                 let res = match request.method {
                     WsChannelName::IndexPriceHistorical => WsMethodRequest::IndexPriceHistorical {

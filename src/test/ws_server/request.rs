@@ -1,6 +1,7 @@
 use crate::config_scheme::config_scheme::ConfigScheme;
 use crate::test::ws_server::error_type::{ErrorType, Field};
 use crate::test::ws_server::helper_functions::SubscriptionParams;
+use crate::worker::helper_functions::date_time_from_timestamp_sec;
 use crate::worker::network_helpers::ws_server::channels::market_channels::LocalMarketChannels;
 use crate::worker::network_helpers::ws_server::channels::worker_channels::LocalWorkerChannels;
 use crate::worker::network_helpers::ws_server::channels::ws_channel_action::WsChannelAction;
@@ -9,7 +10,7 @@ use crate::worker::network_helpers::ws_server::jsonrpc_request::JsonRpcId;
 use crate::worker::network_helpers::ws_server::requests::ws_method_request::WsMethodRequest;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
 use crate::worker::network_helpers::ws_server::ws_request::WsRequest;
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use parse_duration::parse;
 use serde_json::json;
 use uuid::Uuid;
@@ -66,8 +67,8 @@ struct AllParams {
     pub frequency_ms: u64,
     pub percent_change_interval_sec: u64,
     pub interval_sec: u64,
-    pub from: u64,
-    pub to: Option<u64>,
+    pub from: DateTime<Utc>,
+    pub to: DateTime<Utc>,
     pub coin: String,
 }
 
@@ -180,6 +181,9 @@ impl Request {
             let exchanges = exchanges.clone();
             let percent_change_interval_sec = parse(&percent_change_interval).unwrap().as_secs();
             let interval_sec = parse(&interval).unwrap().as_secs();
+
+            let to = Utc::now();
+            let from = date_time_from_timestamp_sec(to.timestamp() as u64 - YEAR_IN_SECONDS);
 
             let params = AllParams {
                 id,
