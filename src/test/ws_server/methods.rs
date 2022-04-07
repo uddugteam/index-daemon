@@ -26,7 +26,7 @@ fn test_request_methods_together() {
     let (_rx, (incoming_msg_tx, incoming_msg_rx), config, _repositories_prepared) =
         start_application(config);
 
-    let expecteds: Vec<(JsonRpcId, WsChannelName)> = expecteds
+    let expecteds = expecteds
         .into_iter()
         .map(|v| v.unwrap())
         .map(|v| match v {
@@ -40,10 +40,10 @@ fn test_request_methods_together() {
     for (id, method) in expecteds {
         if let Some(res) = hash_map.get(&id) {
             if res.is_err() {
-                panic!("Expected Ok. Got: {:?}", res);
+                panic!("Expected Ok. Got: {:#?}", res);
             }
         } else {
-            panic!("No response received for method: {:?}", method);
+            panic!("No response received for method: {:#?}", method);
         }
     }
 }

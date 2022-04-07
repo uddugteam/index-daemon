@@ -92,7 +92,7 @@ impl Requests {
                         requests.push(Request::make(config, channel, Some(error), sub_id.clone()));
                     }
                 } else {
-                    panic!("No errors exists for: {:?}", channel);
+                    panic!("No errors exists for: {:#?}", channel);
                 }
             } else {
                 requests.push(Request::make(config, channel, None, sub_id.clone()));

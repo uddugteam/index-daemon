@@ -40,7 +40,7 @@ fn test_add_ws_channels_separately() {
         ws_connect_and_send(&config.service.ws_addr, vec![request], incoming_msg_tx);
         let res = check_subscriptions(&repositories_prepared, vec![(params_item, expected)]);
         if res.is_err() {
-            panic!("Expected Ok. Got: {:?}", res);
+            panic!("Expected Ok. Got: {:#?}", res);
         }
     }
 }
@@ -79,7 +79,7 @@ fn test_add_ws_channels_separately_with_errors() {
             vec![(params_item.clone(), expected.clone())],
         );
         if res.is_ok() {
-            panic!("Expected Err. Got: {:?}", res);
+            panic!("Expected Err. Got: {:#?}", res);
         }
     }
 }
@@ -112,7 +112,7 @@ fn test_add_ws_channels_together() {
     ws_connect_and_send(&config.service.ws_addr, requests, incoming_msg_tx);
     let res = check_subscriptions(&repositories_prepared, expecteds);
     if res.is_err() {
-        panic!("Expected Ok. Got: {:?}", res);
+        panic!("Expected Ok. Got: {:#?}", res);
     }
 }
 
@@ -144,7 +144,7 @@ fn test_add_ws_channels_together_with_errors() {
     ws_connect_and_send(&config.service.ws_addr, requests, incoming_msg_tx);
     let res = check_subscriptions(&repositories_prepared, expecteds);
     if res.is_ok() {
-        panic!("Expected Err. Got: {:?}", res);
+        panic!("Expected Err. Got: {:#?}", res);
     }
 }
 
@@ -185,13 +185,13 @@ fn test_resubscribe() {
     // Check that all except last are NOT subscribed
     let res = check_subscriptions(&repositories_prepared, expecteds);
     if res.is_ok() {
-        panic!("Expected Err. Got: {:?}", res);
+        panic!("Expected Err. Got: {:#?}", res);
     }
 
     // Check that last IS subscribed
     let res = check_subscriptions(&repositories_prepared, vec![last_expected]);
     if res.is_err() {
-        panic!("Expected Ok. Got: {:?}", res);
+        panic!("Expected Ok. Got: {:#?}", res);
     }
 }
 
@@ -230,7 +230,7 @@ fn test_unsubscribe() {
             vec![(params_item.clone(), expected.clone())],
         );
         if res.is_ok() {
-            panic!("Expected Err. Got: {:?}", res);
+            panic!("Expected Err. Got: {:#?}", res);
         }
     }
 }
@@ -253,7 +253,7 @@ fn test_channels_response_together() {
         expecteds,
     } = Requests::make_all(&config, &channels, false, None).unzip();
 
-    let expecteds: Vec<_> = expecteds
+    let expecteds = expecteds
         .into_iter()
         .map(|v| extract_subscription_request(v.unwrap()).unwrap())
         .map(|v| (v.get_id(), v.get_method()))
@@ -264,10 +264,10 @@ fn test_channels_response_together() {
     for (id, method) in expecteds {
         if let Some(res) = hash_map.get(&id) {
             if res.is_err() {
-                panic!("Expected Ok. Got: {:?}", res);
+                panic!("Expected Ok. Got: {:#?}", res);
             }
         } else {
-            panic!("No response received for method: {:?}", method);
+            panic!("No response received for method: {:#?}", method);
         }
     }
 }

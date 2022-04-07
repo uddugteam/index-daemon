@@ -14,11 +14,13 @@ pub fn add_jsonrpc_version_and_method(response: &mut String, method: Option<WsCh
         serde_json::Value::from("2.0".to_string()),
     );
 
+    let result = object.get_mut("result").unwrap().as_object_mut().unwrap();
     if let Some(method) = method {
-        let object = object.get_mut("result").unwrap().as_object_mut().unwrap();
         let method = serde_json::to_string(&method).unwrap();
         let method: serde_json::Value = serde_json::from_str(&method).unwrap();
-        object.insert("method".to_string(), method);
+        result.insert("method".to_string(), method);
+    } else {
+        result.remove("method");
     }
 
     *response = value.to_string();

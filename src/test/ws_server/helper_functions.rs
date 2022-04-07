@@ -176,7 +176,7 @@ pub fn parse_succ_sub_or_err_response(
         .map_err(|_| "Error parsing field \"id\"".to_string())?;
     let method_expected = *expected
         .get(&id)
-        .ok_or(format!("Got unexpected id: {:?}", id))?;
+        .ok_or(format!("Got unexpected id: {:#?}", id))?;
 
     let result = object
         .get_mut("result")
@@ -192,7 +192,7 @@ pub fn parse_succ_sub_or_err_response(
         .map_err(|_| "Error parsing field \"method\"".to_string())?;
     if method != method_expected {
         return Err(format!(
-            "Got unexpected method. Got: {:?}. Expected: {:?}.",
+            "Got unexpected method. Got: {:#?}. Expected: {:#?}.",
             method, method_expected,
         ));
     }
@@ -246,7 +246,7 @@ pub fn check_subscriptions(
         );
         if subscription_requests.len() != expected_len {
             return Err(format!(
-                "Error: subscription_requests.len() != expected_len. Got: {}, Expected: {}. Method: {:?}",
+                "Error: subscription_requests.len() != expected_len. Got: {}, Expected: {}. Method: {:#?}",
                 subscription_requests.len(), expected_len, method_expected,
             ));
         }
@@ -255,7 +255,7 @@ pub fn check_subscriptions(
             for subscription_request in subscription_requests {
                 if subscription_request != subscription_request_expected {
                     return Err(format!(
-                        "Error: subscription_request != subscription_request_expected. Got: {:?}, Expected: {:?}. Method: {:?}",
+                        "Error: subscription_request != subscription_request_expected. Got: {:#?}, Expected: {:#?}. Method: {:#?}",
                         subscription_request, subscription_request_expected, method_expected,
                     ));
                 }
@@ -268,10 +268,9 @@ pub fn check_subscriptions(
 
 pub fn check_incoming_messages(
     incoming_msg_rx: Receiver<String>,
-    expected: &[(JsonRpcId, WsChannelName)],
+    expected: &HashMap<JsonRpcId, WsChannelName>,
 ) -> HashMap<JsonRpcId, Result<WsChannelName, String>> {
     let mut res = HashMap::new();
-    let expected_hash_map = expected.iter().cloned().collect();
 
     let start = Instant::now();
     let minutes = 4;
@@ -279,7 +278,7 @@ pub fn check_incoming_messages(
         if let Ok(incoming_msg) = incoming_msg_rx.try_recv() {
             let response = match serde_json::from_str::<WsChannelResponse>(&incoming_msg) {
                 Ok(response) => response,
-                Err(_) => parse_succ_sub_or_err_response(&incoming_msg, &expected_hash_map)
+                Err(_) => parse_succ_sub_or_err_response(&incoming_msg, expected)
                     .map_err(|e| {
                         format!(
                             "Parse WsChannelResponse error. Response: {}. Error: {}",
@@ -292,7 +291,7 @@ pub fn check_incoming_messages(
             let id = response
                 .id
                 .clone()
-                .ok_or(format!("Got response with no id: {:?}", response))
+                .ok_or(format!("Got response with no id: {:#?}", response))
                 .unwrap();
 
             match response.result {
@@ -303,14 +302,14 @@ pub fn check_incoming_messages(
                     res.insert(id, Err(format!("Received error message: {}", message)));
                 }
                 _ => {
-                    if expected_hash_map.contains_key(&id) {
+                    if expected.contains_key(&id) {
                         let method = response.result.get_method().unwrap();
 
                         res.entry(id).or_insert(Ok(method));
                     } else {
                         res.insert(
                             id,
-                            Err(format!("Got unexpected id. Response: {:?}", response)),
+                            Err(format!("Got unexpected id. Response: {:#?}", response)),
                         );
                     }
                 }
