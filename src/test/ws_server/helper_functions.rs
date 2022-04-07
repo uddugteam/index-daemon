@@ -49,7 +49,10 @@ pub fn start_application(
 
     config.service.ws = true;
     config.service.storage = Some(Storage::default());
-    config.market.channels = vec![ExternalMarketChannels::Trades];
+    config.market.channels = vec![
+        ExternalMarketChannels::Ticker,
+        ExternalMarketChannels::Trades,
+    ];
 
     let (tx, rx) = mpsc::channel();
     let repositories_prepared = start_worker(config.clone(), tx, graceful_shutdown);
@@ -155,6 +158,66 @@ pub fn extract_subscription_request(request: WsRequest) -> Option<WsChannelSubsc
     }
 }
 
+pub fn parse_succ_sub_or_err_response(
+    json_string: &str,
+    expected: &HashMap<JsonRpcId, WsChannelName>,
+) -> Result<WsChannelResponse, String> {
+    let mut json = serde_json::from_str::<serde_json::Value>(json_string)
+        .map_err(|_| "Error parsing response json.".to_string())?;
+    let object = json
+        .as_object_mut()
+        .ok_or("Response msg must be an object.".to_string())?;
+
+    let id = object
+        .get("id")
+        .ok_or("Response object must have key \"id\"".to_string())?
+        .to_string();
+    let id = serde_json::from_str::<JsonRpcId>(&id)
+        .map_err(|_| "Error parsing field \"id\"".to_string())?;
+    let method_expected = *expected
+        .get(&id)
+        .ok_or(format!("Got unexpected id: {:?}", id))?;
+
+    let result = object
+        .get_mut("result")
+        .ok_or("Response object must have key \"result\"".to_string())?
+        .as_object_mut()
+        .ok_or("Field \"result\" must be an object.".to_string())?;
+
+    let method = result
+        .get("method")
+        .ok_or("Params object must have key \"method\"".to_string())?
+        .to_string();
+    let method = serde_json::from_str::<WsChannelName>(&method)
+        .map_err(|_| "Error parsing field \"method\"".to_string())?;
+    if method != method_expected {
+        return Err(format!(
+            "Got unexpected method. Got: {:?}. Expected: {:?}.",
+            method, method_expected,
+        ));
+    }
+
+    if result.contains_key("code") {
+        // Err
+
+        result.insert(
+            "method".to_string(),
+            serde_json::Value::String("err".to_string()),
+        );
+    } else {
+        // SuccSub
+
+        result.insert(
+            "method".to_string(),
+            serde_json::Value::String("succ_sub".to_string()),
+        );
+    }
+
+    let json_string_mod = json.to_string();
+
+    serde_json::from_str::<WsChannelResponse>(&json_string_mod).map_err(|e| e.to_string())
+}
+
 pub fn check_subscriptions(
     repositories_prepared: &RepositoriesPrepared,
     subscriptions: Vec<SubscriptionsExpected>,
@@ -208,28 +271,29 @@ pub fn check_incoming_messages(
     expected: &[(JsonRpcId, WsChannelName)],
 ) -> HashMap<JsonRpcId, Result<WsChannelName, String>> {
     let mut res = HashMap::new();
-    let expected_ids: HashSet<JsonRpcId> = expected.iter().cloned().map(|v| v.0).collect();
+    let expected_hash_map = expected.iter().cloned().collect();
 
     let start = Instant::now();
-    let minutes = 1;
+    let minutes = 4;
     while start.elapsed().as_secs() < minutes * 60 {
         if let Ok(incoming_msg) = incoming_msg_rx.try_recv() {
-            let response = serde_json::from_str::<WsChannelResponse>(&incoming_msg)
-                .map_err(|e| {
-                    format!(
-                        "Parse WsChannelResponse error. Response: {}. Error: {}",
-                        incoming_msg, e
-                    )
-                })
-                .unwrap();
+            let response = match serde_json::from_str::<WsChannelResponse>(&incoming_msg) {
+                Ok(response) => response,
+                Err(_) => parse_succ_sub_or_err_response(&incoming_msg, &expected_hash_map)
+                    .map_err(|e| {
+                        format!(
+                            "Parse WsChannelResponse error. Response: {}. Error: {}",
+                            incoming_msg, e
+                        )
+                    })
+                    .unwrap(),
+            };
 
             let id = response
                 .id
                 .clone()
                 .ok_or(format!("Got response with no id: {:?}", response))
                 .unwrap();
-
-            let method = response.result.get_method().unwrap();
 
             match response.result {
                 WsChannelResponsePayload::SuccSub { .. } => {
@@ -239,7 +303,9 @@ pub fn check_incoming_messages(
                     res.insert(id, Err(format!("Received error message: {}", message)));
                 }
                 _ => {
-                    if expected_ids.contains(&id) {
+                    if expected_hash_map.contains_key(&id) {
+                        let method = response.result.get_method().unwrap();
+
                         res.entry(id).or_insert(Ok(method));
                     } else {
                         res.insert(

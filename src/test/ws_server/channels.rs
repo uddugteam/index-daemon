@@ -1,8 +1,8 @@
 use crate::config_scheme::config_scheme::ConfigScheme;
 use crate::test::ws_server::error_type::ErrorType;
 use crate::test::ws_server::helper_functions::{
-    check_subscriptions, extract_subscription_request, make_unsub_request, start_application,
-    ws_connect_and_send, SubscriptionsExpected,
+    check_incoming_messages, check_subscriptions, extract_subscription_request, make_unsub_request,
+    start_application, ws_connect_and_send, SubscriptionsExpected,
 };
 use crate::test::ws_server::request::{Request, Requests, RequestsUnzipped};
 use crate::worker::network_helpers::ws_server::channels::ws_channel_subscription_request::WsChannelSubscriptionRequest;
@@ -231,6 +231,43 @@ fn test_unsubscribe() {
         );
         if res.is_ok() {
             panic!("Expected Err. Got: {:?}", res);
+        }
+    }
+}
+
+#[test]
+#[serial]
+fn test_channels_response_together() {
+    let port = 8700;
+    let mut config = ConfigScheme::default();
+    config.service.ws_addr = format!("127.0.0.1:{}", port);
+
+    let (_rx, (incoming_msg_tx, incoming_msg_rx), config, _repositories_prepared) =
+        start_application(config);
+
+    let channels = WsChannelName::get_all_channels();
+
+    let RequestsUnzipped {
+        requests,
+        params_vec,
+        expecteds,
+    } = Requests::make_all(&config, &channels, false, None).unzip();
+
+    let expecteds: Vec<_> = expecteds
+        .into_iter()
+        .map(|v| extract_subscription_request(v.unwrap()).unwrap())
+        .map(|v| (v.get_id(), v.get_method()))
+        .collect();
+
+    ws_connect_and_send(&config.service.ws_addr, requests, incoming_msg_tx);
+    let hash_map = check_incoming_messages(incoming_msg_rx, &expecteds);
+    for (id, method) in expecteds {
+        if let Some(res) = hash_map.get(&id) {
+            if res.is_err() {
+                panic!("Expected Ok. Got: {:?}", res);
+            }
+        } else {
+            panic!("No response received for method: {:?}", method);
         }
     }
 }
