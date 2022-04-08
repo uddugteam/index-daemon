@@ -10,6 +10,9 @@ pub enum Field {
     FrequencyMs,
     PercentChangeInterval,
     Interval,
+    From,
+    To,
+    Coin,
 }
 
 impl Field {
@@ -19,6 +22,7 @@ impl Field {
 
     fn get_by_channel(channel: WsChannelName) -> Vec<Field> {
         match channel {
+            // --- Channels BEGIN
             WsChannelName::IndexPrice => vec![Self::FrequencyMs, Self::PercentChangeInterval],
             WsChannelName::IndexPriceCandles => vec![Self::FrequencyMs, Self::Interval],
             WsChannelName::CoinAveragePrice => {
@@ -43,6 +47,18 @@ impl Field {
                     Self::PercentChangeInterval,
                 ]
             }
+            // --- Methods BEGIN
+            WsChannelName::AvailableCoins => vec![],
+            WsChannelName::IndexPriceHistorical => vec![Self::Interval, Self::From, Self::To],
+            WsChannelName::CoinAveragePriceHistorical => {
+                vec![Self::Coin, Self::Interval, Self::From, Self::To]
+            }
+            WsChannelName::IndexPriceCandlesHistorical => {
+                vec![Self::Interval, Self::From, Self::To]
+            }
+            WsChannelName::CoinAveragePriceCandlesHistorical => {
+                vec![Self::Coin, Self::Interval, Self::From, Self::To]
+            }
             _ => unreachable!(),
         }
     }
@@ -59,6 +75,9 @@ impl ToString for Field {
             Self::FrequencyMs => "frequency_ms",
             Self::PercentChangeInterval => "percent_change_interval",
             Self::Interval => "interval",
+            Self::From => "from",
+            Self::To => "to",
+            Self::Coin => "coin",
         }
         .to_string()
     }
@@ -133,6 +152,24 @@ impl ErrorType {
                     Self::InvalidType(field),
                     Self::InvalidValue(field),
                     Self::Low(field),
+                ]
+            }
+            Field::From => {
+                vec![
+                    Self::Lack(field),
+                    Self::Null(field),
+                    Self::InvalidType(field),
+                ]
+            }
+            Field::To => {
+                vec![Self::InvalidType(field)]
+            }
+            Field::Coin => {
+                vec![
+                    Self::Lack(field),
+                    Self::Null(field),
+                    Self::InvalidType(field),
+                    Self::Unavailable(field),
                 ]
             }
             _ => unreachable!(),
