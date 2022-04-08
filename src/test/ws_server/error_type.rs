@@ -100,42 +100,39 @@ impl ErrorType {
         match field {
             Field::Coins => {
                 vec![
-                    Self::Lack(Field::Coins),
-                    Self::Null(Field::Coins),
-                    Self::Empty(Field::Coins),
-                    Self::InvalidType(Field::Coins),
-                    Self::Unavailable(Field::Coins),
+                    Self::Lack(field),
+                    Self::Null(field),
+                    Self::Empty(field),
+                    Self::InvalidType(field),
+                    Self::Unavailable(field),
                 ]
             }
             Field::Exchanges => {
                 vec![
-                    Self::Lack(Field::Exchanges),
-                    Self::Null(Field::Exchanges),
-                    Self::Empty(Field::Exchanges),
-                    Self::InvalidType(Field::Exchanges),
-                    Self::Unavailable(Field::Exchanges),
+                    Self::Lack(field),
+                    Self::Null(field),
+                    Self::Empty(field),
+                    Self::InvalidType(field),
+                    Self::Unavailable(field),
                 ]
             }
             Field::FrequencyMs => {
-                vec![
-                    Self::InvalidType(Field::FrequencyMs),
-                    Self::Low(Field::FrequencyMs),
-                ]
+                vec![Self::InvalidType(field), Self::Low(field)]
             }
             Field::PercentChangeInterval => {
                 vec![
-                    Self::InvalidType(Field::PercentChangeInterval),
-                    Self::InvalidValue(Field::PercentChangeInterval),
-                    Self::Low(Field::PercentChangeInterval),
+                    Self::InvalidType(field),
+                    Self::InvalidValue(field),
+                    Self::Low(field),
                 ]
             }
             Field::Interval => {
                 vec![
-                    Self::Lack(Field::Interval),
-                    Self::Null(Field::Interval),
-                    Self::InvalidType(Field::Interval),
-                    Self::InvalidValue(Field::Interval),
-                    Self::Low(Field::Interval),
+                    Self::Lack(field),
+                    Self::Null(field),
+                    Self::InvalidType(field),
+                    Self::InvalidValue(field),
+                    Self::Low(field),
                 ]
             }
             _ => unreachable!(),

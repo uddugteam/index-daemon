@@ -310,13 +310,13 @@ fn test_channels_response_together_with_errors() {
         .map(|v| (v.0.id.clone(), v.1.unwrap_err()))
         .collect();
 
-    let expecteds_new = params_vec.into_iter().map(|v| (v.id, v.channel)).collect();
+    let expecteds = params_vec.into_iter().map(|v| (v.id, v.channel)).collect();
 
     ws_connect_and_send(&config.service.ws_addr, requests, incoming_msg_tx);
-    let (hash_map, no_id) = check_incoming_messages(incoming_msg_rx, &expecteds_new);
+    let (hash_map, no_id) = check_incoming_messages(incoming_msg_rx, &expecteds);
 
     let mut expecteds_with_no_ids = Vec::new();
-    for (id, method) in expecteds_new {
+    for (id, method) in expecteds {
         if let Some(res) = hash_map.get(&id) {
             if res.is_ok() {
                 panic!("Expected Err. Got: {:#?}", res);
