@@ -36,7 +36,12 @@ fn test_request_methods_together() {
         .collect();
 
     ws_connect_and_send(&config.service.ws_addr, requests, incoming_msg_tx);
-    let hash_map = check_incoming_messages(incoming_msg_rx, &expecteds);
+    let (hash_map, no_id) = check_incoming_messages(incoming_msg_rx, &expecteds);
+
+    if !no_id.is_empty() {
+        panic!("Got responses with no id: {:#?}", no_id);
+    }
+
     for (id, method) in expecteds {
         if let Some(res) = hash_map.get(&id) {
             if res.is_err() {

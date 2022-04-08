@@ -161,7 +161,7 @@ pub fn extract_subscription_request(request: WsRequest) -> Option<WsChannelSubsc
 pub fn parse_succ_sub_or_err_response(
     json_string: &str,
     expected: &HashMap<JsonRpcId, WsChannelName>,
-) -> Result<WsChannelResponse, String> {
+) -> Result<(WsChannelResponse, Option<WsChannelName>), String> {
     let mut json = serde_json::from_str::<serde_json::Value>(json_string)
         .map_err(|_| "Error parsing response json.".to_string())?;
     let object = json
@@ -173,10 +173,16 @@ pub fn parse_succ_sub_or_err_response(
         .ok_or("Response object must have key \"id\"".to_string())?
         .to_string();
     let id = serde_json::from_str::<JsonRpcId>(&id)
-        .map_err(|_| "Error parsing field \"id\"".to_string())?;
-    let method_expected = *expected
-        .get(&id)
-        .ok_or(format!("Got unexpected id: {:#?}", id))?;
+        .map_err(|_| "Error parsing field \"id\"".to_string());
+    let method_expected = if let Ok(id) = id {
+        expected
+            .get(&id)
+            .ok_or(format!("Got unexpected id: {:#?}", id))
+            .ok()
+            .cloned()
+    } else {
+        None
+    };
 
     let result = object
         .get_mut("result")
@@ -186,16 +192,27 @@ pub fn parse_succ_sub_or_err_response(
 
     let method = result
         .get("method")
-        .ok_or("Params object must have key \"method\"".to_string())?
-        .to_string();
-    let method = serde_json::from_str::<WsChannelName>(&method)
-        .map_err(|_| "Error parsing field \"method\"".to_string())?;
-    if method != method_expected {
-        return Err(format!(
-            "Got unexpected method. Got: {:#?}. Expected: {:#?}.",
-            method, method_expected,
-        ));
-    }
+        .ok_or("Params object must have key \"method\"".to_string());
+
+    let method = if let Ok(method) = method {
+        let method = method.to_string();
+
+        let method = serde_json::from_str::<WsChannelName>(&method)
+            .map_err(|_| "Error parsing field \"method\"".to_string())?;
+
+        if let Some(method_expected) = method_expected {
+            if method != method_expected {
+                return Err(format!(
+                    "Got unexpected method. Got: {:#?}. Expected: {:#?}.",
+                    method, method_expected,
+                ));
+            }
+        }
+
+        Some(method)
+    } else {
+        None
+    };
 
     if result.contains_key("code") {
         // Err
@@ -215,7 +232,9 @@ pub fn parse_succ_sub_or_err_response(
 
     let json_string_mod = json.to_string();
 
-    serde_json::from_str::<WsChannelResponse>(&json_string_mod).map_err(|e| e.to_string())
+    serde_json::from_str::<WsChannelResponse>(&json_string_mod)
+        .map(|v| (v, method))
+        .map_err(|e| e.to_string())
 }
 
 pub fn check_subscriptions(
@@ -269,15 +288,24 @@ pub fn check_subscriptions(
 pub fn check_incoming_messages(
     incoming_msg_rx: Receiver<String>,
     expected: &HashMap<JsonRpcId, WsChannelName>,
-) -> HashMap<JsonRpcId, Result<WsChannelName, String>> {
+) -> (
+    HashMap<JsonRpcId, Result<WsChannelName, String>>,
+    Vec<(Option<WsChannelName>, WsChannelResponse)>,
+) {
     let mut res = HashMap::new();
+    let mut no_id = Vec::new();
 
     let start = Instant::now();
     let minutes = 4;
     while start.elapsed().as_secs() < minutes * 60 {
         if let Ok(incoming_msg) = incoming_msg_rx.try_recv() {
-            let response = match serde_json::from_str::<WsChannelResponse>(&incoming_msg) {
-                Ok(response) => response,
+            let (response, method) = match serde_json::from_str::<WsChannelResponse>(&incoming_msg)
+            {
+                Ok(response) => {
+                    let method = response.result.get_method();
+
+                    (response, method)
+                }
                 Err(_) => parse_succ_sub_or_err_response(&incoming_msg, expected)
                     .map_err(|e| {
                         format!(
@@ -288,36 +316,34 @@ pub fn check_incoming_messages(
                     .unwrap(),
             };
 
-            let id = response
-                .id
-                .clone()
-                .ok_or(format!("Got response with no id: {:#?}", response))
-                .unwrap();
+            if let Some(id) = response.id.clone() {
+                match response.result {
+                    WsChannelResponsePayload::SuccSub { .. } => {
+                        // Ignore
+                    }
+                    WsChannelResponsePayload::Err { message, .. } => {
+                        res.insert(id, Err(format!("Received error message: {}", message)));
+                    }
+                    _ => {
+                        if expected.contains_key(&id) {
+                            let method = response.result.get_method().unwrap();
 
-            match response.result {
-                WsChannelResponsePayload::SuccSub { .. } => {
-                    // Ignore
-                }
-                WsChannelResponsePayload::Err { message, .. } => {
-                    res.insert(id, Err(format!("Received error message: {}", message)));
-                }
-                _ => {
-                    if expected.contains_key(&id) {
-                        let method = response.result.get_method().unwrap();
-
-                        res.entry(id).or_insert(Ok(method));
-                    } else {
-                        res.insert(
-                            id,
-                            Err(format!("Got unexpected id. Response: {:#?}", response)),
-                        );
+                            res.entry(id).or_insert(Ok(method));
+                        } else {
+                            res.insert(
+                                id,
+                                Err(format!("Got unexpected id. Response: {:#?}", response)),
+                            );
+                        }
                     }
                 }
+            } else {
+                no_id.push((method, response));
             }
         }
 
         thread::sleep(time::Duration::from_millis(1000));
     }
 
-    res
+    (res, no_id)
 }

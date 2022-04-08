@@ -9,6 +9,7 @@ use crate::worker::network_helpers::ws_server::channels::ws_channel_subscription
 use crate::worker::network_helpers::ws_server::jsonrpc_request::JsonRpcId;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
 use serial_test::serial;
+use std::collections::HashMap;
 use std::thread;
 use std::time;
 use uuid::Uuid;
@@ -260,7 +261,12 @@ fn test_channels_response_together() {
         .collect();
 
     ws_connect_and_send(&config.service.ws_addr, requests, incoming_msg_tx);
-    let hash_map = check_incoming_messages(incoming_msg_rx, &expecteds);
+    let (hash_map, no_id) = check_incoming_messages(incoming_msg_rx, &expecteds);
+
+    if !no_id.is_empty() {
+        panic!("Got responses with no id: {:#?}", no_id);
+    }
+
     for (id, method) in expecteds {
         if let Some(res) = hash_map.get(&id) {
             if res.is_err() {
@@ -269,5 +275,55 @@ fn test_channels_response_together() {
         } else {
             panic!("No response received for method: {:#?}", method);
         }
+    }
+}
+
+#[test]
+#[serial]
+fn test_channels_response_together_with_errors() {
+    let port = 8700;
+    let mut config = ConfigScheme::default();
+    config.service.ws_addr = format!("127.0.0.1:{}", port);
+
+    let (_rx, (incoming_msg_tx, incoming_msg_rx), config, _repositories_prepared) =
+        start_application(config);
+
+    let channels = WsChannelName::get_all_channels();
+
+    let RequestsUnzipped {
+        requests,
+        params_vec,
+        expecteds,
+    } = Requests::make_all(&config, &channels, true, None).unzip();
+
+    let expecteds_errors: HashMap<_, _> = params_vec
+        .iter()
+        .zip(expecteds)
+        .map(|v| (v.0.id.clone(), v.1.unwrap_err()))
+        .collect();
+
+    let expecteds_new = params_vec.into_iter().map(|v| (v.id, v.channel)).collect();
+
+    ws_connect_and_send(&config.service.ws_addr, requests, incoming_msg_tx);
+    let (hash_map, no_id) = check_incoming_messages(incoming_msg_rx, &expecteds_new);
+
+    let mut expecteds_with_no_ids = Vec::new();
+    for (id, method) in expecteds_new {
+        if let Some(res) = hash_map.get(&id) {
+            if res.is_ok() {
+                panic!("Expected Err. Got: {:#?}", res);
+            }
+        } else {
+            let error_type = expecteds_errors.get(&id).unwrap();
+
+            expecteds_with_no_ids.push((method, error_type));
+        }
+    }
+
+    if expecteds_with_no_ids.len() > no_id.len() {
+        panic!(
+            "No response received for some of requests. Expected count: {}. Received count: {}. Expecteds: {:#?}.",
+            expecteds_with_no_ids.len(), no_id.len(), expecteds_with_no_ids,
+        );
     }
 }

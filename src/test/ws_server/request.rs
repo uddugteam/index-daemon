@@ -412,7 +412,9 @@ impl Request {
                     let value = object.get(&field.to_string()).unwrap();
 
                     match value {
-                        serde_json::Value::Array(..) => {
+                        serde_json::Value::Array(..)
+                        | serde_json::Value::Number(..)
+                        | serde_json::Value::String(..) => {
                             object.insert(
                                 field.to_string(),
                                 serde_json::Value::Object(serde_json::Map::new()),
@@ -420,15 +422,6 @@ impl Request {
                         }
                         serde_json::Value::Object(..) => {
                             object.insert(field.to_string(), serde_json::Value::Array(Vec::new()));
-                        }
-                        serde_json::Value::Number(..) => {
-                            object.insert(
-                                field.to_string(),
-                                serde_json::Value::String("some_string".to_string()),
-                            );
-                        }
-                        serde_json::Value::String(..) => {
-                            object.insert(field.to_string(), serde_json::Value::Number(123.into()));
                         }
                         _ => unreachable!(),
                     }
