@@ -58,7 +58,7 @@ fn test_request_methods_together() {
 #[ignore]
 #[serial]
 fn test_request_methods_together_with_errors() {
-    let port = 9100;
+    let port = 9200;
     let mut config = ConfigScheme::default();
     config.service.ws_addr = format!("127.0.0.1:{}", port);
 

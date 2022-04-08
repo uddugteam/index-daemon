@@ -289,7 +289,7 @@ fn test_channels_response_together() {
 #[ignore]
 #[serial]
 fn test_channels_response_together_with_errors() {
-    let port = 8700;
+    let port = 8800;
     let mut config = ConfigScheme::default();
     config.service.ws_addr = format!("127.0.0.1:{}", port);
 
