@@ -3,7 +3,6 @@ use crate::test::ws_server::helper_functions::{
     check_incoming_messages, start_application, ws_connect_and_send,
 };
 use crate::test::ws_server::request::{Requests, RequestsUnzipped};
-use crate::worker::network_helpers::ws_server::jsonrpc_request::JsonRpcId;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
 use crate::worker::network_helpers::ws_server::ws_request::WsRequest;
 use serial_test::serial;

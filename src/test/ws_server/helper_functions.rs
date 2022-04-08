@@ -13,7 +13,7 @@ use crate::worker::network_helpers::ws_server::ws_channel_response_payload::WsCh
 use crate::worker::network_helpers::ws_server::ws_request::WsRequest;
 use crate::worker::worker::start_worker;
 use serde_json::json;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{mpsc, Arc, RwLock};
 use std::thread;

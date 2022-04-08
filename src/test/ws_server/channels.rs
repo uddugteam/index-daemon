@@ -257,7 +257,7 @@ fn test_channels_response_together() {
 
     let RequestsUnzipped {
         requests,
-        params_vec,
+        params_vec: _,
         expecteds,
     } = Requests::make_all(&config, &channels, false, None).unzip();
 
