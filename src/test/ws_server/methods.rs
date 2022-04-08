@@ -9,6 +9,7 @@ use crate::worker::network_helpers::ws_server::ws_request::WsRequest;
 use serial_test::serial;
 
 #[test]
+#[ignore]
 #[serial]
 fn test_request_methods_together() {
     let port = 9100;

@@ -15,6 +15,7 @@ use std::time;
 use uuid::Uuid;
 
 #[test]
+#[ignore]
 #[serial]
 fn test_add_ws_channels_separately() {
     let mut port = 8100;
@@ -47,6 +48,7 @@ fn test_add_ws_channels_separately() {
 }
 
 #[test]
+#[ignore]
 #[serial]
 fn test_add_ws_channels_separately_with_errors() {
     let mut port = 8200;
@@ -86,6 +88,7 @@ fn test_add_ws_channels_separately_with_errors() {
 }
 
 #[test]
+#[ignore]
 #[serial]
 fn test_add_ws_channels_together() {
     let port = 8300;
@@ -118,6 +121,7 @@ fn test_add_ws_channels_together() {
 }
 
 #[test]
+#[ignore]
 #[serial]
 fn test_add_ws_channels_together_with_errors() {
     let port = 8400;
@@ -150,6 +154,7 @@ fn test_add_ws_channels_together_with_errors() {
 }
 
 #[test]
+#[ignore]
 #[serial]
 fn test_resubscribe() {
     let port = 8500;
@@ -197,6 +202,7 @@ fn test_resubscribe() {
 }
 
 #[test]
+#[ignore]
 #[serial]
 fn test_unsubscribe() {
     let port = 8600;
@@ -237,6 +243,7 @@ fn test_unsubscribe() {
 }
 
 #[test]
+#[ignore]
 #[serial]
 fn test_channels_response_together() {
     let port = 8700;
@@ -279,6 +286,7 @@ fn test_channels_response_together() {
 }
 
 #[test]
+#[ignore]
 #[serial]
 fn test_channels_response_together_with_errors() {
     let port = 8700;
