@@ -1,11 +1,11 @@
 use crate::repository::repositories::RepositoryForF64ByTimestamp;
 use crate::worker::helper_functions::strip_usd;
+use crate::worker::market_helpers::market_value::MarketValue;
 use crate::worker::market_helpers::pair_average_price::StoredAndWsTransmissibleF64ByPairTuple;
 use crate::worker::network_helpers::ws_server::candles::Candles;
 use crate::worker::network_helpers::ws_server::channels::market_channels::LocalMarketChannels;
 use crate::worker::network_helpers::ws_server::channels::ws_channel_action::WsChannelAction;
 use crate::worker::network_helpers::ws_server::channels::ws_channel_subscription_request::WsChannelSubscriptionRequest;
-use crate::worker::network_helpers::ws_server::channels::ws_channel_unsubscribe::WsChannelUnsubscribe;
 use crate::worker::network_helpers::ws_server::connection_id::ConnectionId;
 use crate::worker::network_helpers::ws_server::f64_snapshot::F64Snapshots;
 use crate::worker::network_helpers::ws_server::hepler_functions::ws_send_response;
@@ -90,30 +90,45 @@ impl WsServer {
         conn_id: ConnectionId,
         request: WsChannelSubscriptionRequest,
         key: HolderKey,
-        error_msg: String,
     ) {
-        let sub_id = request.get_id();
-        let method = request.get_method();
         let percent_change_interval_sec = request.get_percent_change_interval_sec();
 
-        if percent_change_holder.contains_key(&key) && ws_channels_holder.contains_key(&key) {
-            if let Some(percent_change_interval_sec) = percent_change_interval_sec {
-                percent_change_holder.add(&key, percent_change_interval_sec);
-            }
-
-            let response_sender =
-                WsChannelResponseSender::new(broadcast_recipient.clone(), request);
-
-            ws_channels_holder.add(&key, (conn_id, response_sender));
-        } else {
-            Self::send_error(
-                broadcast_recipient,
-                Some(sub_id),
-                Some(method),
-                JSONRPC_ERROR_INVALID_PARAMS,
-                error_msg,
-            );
+        if let Some(percent_change_interval_sec) = percent_change_interval_sec {
+            percent_change_holder.add(&key, percent_change_interval_sec);
         }
+
+        let response_sender = WsChannelResponseSender::new(broadcast_recipient.clone(), request);
+
+        ws_channels_holder.add(&key, (conn_id, response_sender));
+    }
+
+    fn make_keys(
+        percent_change_holder: &PercentChangeByIntervalHolder,
+        ws_channels_holder: &WsChannelsHolder,
+        exchanges: Vec<String>,
+        market_value: MarketValue,
+        pairs: Vec<Option<(String, String)>>,
+    ) -> Option<Vec<HolderKey>> {
+        let mut keys = Vec::new();
+
+        for exchange in &exchanges {
+            for pair in pairs.clone() {
+                let key = (exchange.to_string(), market_value, pair);
+
+                if percent_change_holder.contains_key(&key) && ws_channels_holder.contains_key(&key)
+                {
+                    // Good key
+
+                    keys.push(key);
+                } else {
+                    // Inexistent key
+
+                    return None;
+                }
+            }
+        }
+
+        Some(keys)
     }
 
     fn subscribe_stage_1(
@@ -123,6 +138,8 @@ impl WsServer {
         conn_id: ConnectionId,
         request: WsChannelSubscriptionRequest,
     ) {
+        let sub_id = request.get_id();
+
         let (exchanges, error_msg) = match &request {
             WsChannelSubscriptionRequest::Worker(..) => (
                 vec!["worker".to_string()],
@@ -150,17 +167,23 @@ impl WsServer {
             None => vec![None],
         };
 
-        Self::unsubscribe(
+        let keys = Self::make_keys(
             percent_change_holder,
             ws_channels_holder,
-            conn_id.clone(),
-            request.clone().into(),
+            exchanges,
+            market_value,
+            pairs,
         );
 
-        for exchange in exchanges {
-            for pair in pairs.clone() {
-                let key = (exchange.to_string(), market_value, pair);
+        if let Some(keys) = keys {
+            Self::unsubscribe(
+                percent_change_holder,
+                ws_channels_holder,
+                conn_id.clone(),
+                sub_id,
+            );
 
+            for key in keys {
                 Self::subscribe_stage_2(
                     percent_change_holder,
                     ws_channels_holder,
@@ -168,12 +191,21 @@ impl WsServer {
                     conn_id.clone(),
                     request.clone(),
                     key,
-                    error_msg.to_string(),
                 );
 
                 // To prevent DDoS attack on a client
                 thread::sleep(time::Duration::from_millis(100));
             }
+        } else {
+            let method = request.get_method();
+
+            Self::send_error(
+                broadcast_recipient,
+                Some(sub_id),
+                Some(method),
+                JSONRPC_ERROR_INVALID_PARAMS,
+                error_msg.to_string(),
+            );
         }
     }
 
@@ -182,9 +214,8 @@ impl WsServer {
         _percent_change_holder: &mut PercentChangeByIntervalHolder,
         ws_channels_holder: &mut WsChannelsHolder,
         conn_id: ConnectionId,
-        request: WsChannelUnsubscribe,
+        sub_id: JsonRpcId,
     ) {
-        let sub_id = request.id;
         let key = (conn_id, sub_id);
 
         ws_channels_holder.remove(&key);
@@ -213,7 +244,7 @@ impl WsServer {
                     &mut percent_change_holder,
                     &mut ws_channels_holder,
                     conn_id,
-                    request,
+                    request.id,
                 );
             }
         }
