@@ -217,21 +217,22 @@ impl WsRequest {
         object: &Map<String, serde_json::Value>,
         key: &str,
     ) -> Result<Vec<String>, String> {
-        let mut items = Vec::new();
-        for item in object
-            .get(key)
-            .ok_or(format!("\"{}\" is required", key))?
+        let mut res_items = Vec::new();
+
+        let items = object.get(key).ok_or(format!("\"{}\" is required", key))?;
+        let items = items
             .as_array()
-            .ok_or(format!("\"{}\" must be an array", key))?
-        {
-            items.push(
+            .ok_or(format!("\"{}\" must be an array", key))?;
+
+        for item in items {
+            res_items.push(
                 item.as_str()
                     .ok_or(format!("\"{}\" must be an array of string", key))?
                     .to_string(),
             );
         }
 
-        Ok(items)
+        Ok(res_items)
     }
 
     fn parse_u64(
