@@ -4,6 +4,8 @@ use crate::worker::market_helpers::market_channels::ExternalMarketChannels;
 use clap::ArgMatches;
 use env_logger::Builder;
 use parse_duration::parse;
+use std::collections::HashSet;
+use std::hash::Hash;
 
 pub fn get_config_file_path(matches: &ArgMatches, key: &str) -> Option<String> {
     matches.value_of(key).map(|v| v.to_string())
@@ -124,6 +126,19 @@ pub fn make_exchange_pairs(coins: Vec<String>, fiats: Option<Vec<&str>>) -> Vec<
     }
 
     exchange_pairs
+}
+
+pub fn set_intersection<T: PartialEq + Eq + Hash + Clone>(a: &[T], b: &[T]) -> Vec<T> {
+    let a: HashSet<T> = a.into_iter().cloned().collect();
+    let mut res = Vec::new();
+
+    for item in b {
+        if a.contains(item) {
+            res.push(item.clone());
+        }
+    }
+
+    res
 }
 
 pub fn is_subset<T: PartialEq>(set: &[T], subset: &[T]) -> bool {

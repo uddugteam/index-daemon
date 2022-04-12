@@ -1,3 +1,4 @@
+use crate::graceful_shutdown::GracefulShutdown;
 use crate::repository::repositories::MarketRepositoriesByMarketValue;
 use crate::worker::market_helpers::exchange_pair_info::ExchangePairInfo;
 use crate::worker::market_helpers::market_channels::ExternalMarketChannels;
@@ -7,16 +8,14 @@ use crate::worker::market_helpers::stored_and_ws_transmissible_f64::StoredAndWsT
 use crate::worker::network_helpers::ws_server::holders::helper_functions::HolderHashMap;
 use crate::worker::network_helpers::ws_server::ws_channels::WsChannels;
 use std::collections::HashMap;
-use std::sync::mpsc::Sender;
-use std::sync::{Arc, RwLock};
-use std::thread::{self, JoinHandle};
+use std::sync::Arc;
+use tokio::sync::RwLock;
 
 pub const EPS: f64 = 0.00001;
 
 pub struct MarketSpine {
     pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
     index_price: Arc<RwLock<StoredAndWsTransmissibleF64>>,
-    pub tx: Sender<JoinHandle<()>>,
     pub rest_timeout_sec: u64,
     pub name: String,
     mask_pairs: HashMap<String, String>,
@@ -25,18 +24,17 @@ pub struct MarketSpine {
     index_pairs: Vec<(String, String)>,
     pairs: HashMap<String, (String, String)>,
     pub channels: Vec<ExternalMarketChannels>,
-    pub graceful_shutdown: Arc<RwLock<bool>>,
+    pub graceful_shutdown: GracefulShutdown,
 }
 impl MarketSpine {
     pub fn new(
         pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
         index_price: Arc<RwLock<StoredAndWsTransmissibleF64>>,
         index_pairs: Vec<(String, String)>,
-        tx: Sender<JoinHandle<()>>,
         rest_timeout_sec: u64,
         name: String,
         channels: Vec<ExternalMarketChannels>,
-        graceful_shutdown: Arc<RwLock<bool>>,
+        graceful_shutdown: GracefulShutdown,
     ) -> Self {
         let channels = match name.as_str() {
             "poloniex" | "kucoin" => {
@@ -60,7 +58,6 @@ impl MarketSpine {
         Self {
             pair_average_price,
             index_price,
-            tx,
             rest_timeout_sec,
             name,
             mask_pairs: HashMap::new(),
@@ -130,7 +127,7 @@ impl MarketSpine {
         self.unmask_pairs.get(a).map(|s| s.as_ref()).unwrap_or(a)
     }
 
-    pub fn set_total_volume(&mut self, pair: &str, value: f64) {
+    pub async fn set_total_volume(&mut self, pair: &str, value: f64) {
         if value != 0.0 {
             let old_value: f64 = self
                 .exchange_pairs
@@ -145,91 +142,60 @@ impl MarketSpine {
                     .get_mut(pair)
                     .unwrap()
                     .total_volume
-                    .set(value);
+                    .set(value)
+                    .await;
             }
         }
     }
 
-    fn recalculate_pair_average_price(&self, pair: (String, String), new_price: f64) {
+    async fn recalculate_pair_average_price(&self, pair: (String, String), new_price: f64) {
         let pair_average_price_2 = Arc::clone(self.pair_average_price.get(&pair).unwrap());
         let pair_average_price_3 = self.pair_average_price.clone();
         let index_price_2 = Arc::clone(&self.index_price);
         let index_pairs_2 = self.index_pairs.clone();
-        let tx_2 = self.tx.clone();
-        let market_name_2 = self.name.to_string();
 
-        let thread_name = format!(
-            "fn: recalculate_pair_average_price, market: {}, pair: {:?}",
-            market_name_2, pair,
-        );
-        let thread = thread::Builder::new()
-            .name(thread_name)
-            .spawn(move || {
-                if let Ok(mut pair_average_price_2) = pair_average_price_2.write() {
-                    let old_avg = pair_average_price_2.get().unwrap_or(new_price);
+        let mut pair_average_price_2 = pair_average_price_2.write().await;
 
-                    let new_avg = (new_price + old_avg) / 2.0;
+        let old_avg = pair_average_price_2.get().unwrap_or(new_price);
 
-                    info!("new {}-{} average trade price: {}", pair.0, pair.1, new_avg);
+        let new_avg = (new_price + old_avg) / 2.0;
 
-                    pair_average_price_2.set(new_avg);
+        info!("new {}-{} average trade price: {}", pair.0, pair.1, new_avg);
 
-                    Self::recalculate_index_price(
-                        market_name_2,
-                        pair,
-                        tx_2,
-                        pair_average_price_3,
-                        index_price_2,
-                        index_pairs_2,
-                    );
-                }
-            })
-            .unwrap();
-        let _ = self.tx.send(thread);
+        pair_average_price_2.set(new_avg).await;
+
+        Self::recalculate_index_price(pair_average_price_3, index_price_2, index_pairs_2).await;
     }
 
-    fn recalculate_index_price(
-        market_name: String,
-        pair: (String, String),
-        tx: Sender<JoinHandle<()>>,
+    async fn recalculate_index_price(
         pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
         index_price: Arc<RwLock<StoredAndWsTransmissibleF64>>,
         index_pairs: Vec<(String, String)>,
     ) {
-        let thread_name = format!(
-            "fn: recalculate_index_price, market: {}, pair: {:?}",
-            market_name, pair,
-        );
-        let thread = thread::Builder::new()
-            .name(thread_name)
-            .spawn(move || {
-                let mut sum = 0.0;
-                let mut count = 0;
-                for index_pair in index_pairs {
-                    let value = pair_average_price
-                        .get(&index_pair)
-                        .unwrap()
-                        .read()
-                        .unwrap()
-                        .get();
+        let mut sum = 0.0;
+        let mut count = 0;
+        for index_pair in index_pairs {
+            let value = pair_average_price
+                .get(&index_pair)
+                .unwrap()
+                .read()
+                .await
+                .get();
 
-                    if let Some(value) = value {
-                        count += 1;
-                        sum += value;
-                    }
-                }
+            if let Some(value) = value {
+                count += 1;
+                sum += value;
+            }
+        }
 
-                // Do not calculate if no coins or only one coin
-                if count > 1 {
-                    let avg = sum / count as f64;
+        // Do not calculate if no coins or only one coin
+        if count > 1 {
+            let avg = sum / count as f64;
 
-                    info!("new index price: {}", avg);
+            info!("new index price: {}", avg);
 
-                    index_price.write().unwrap().set(avg);
-                }
-            })
-            .unwrap();
-        let _ = tx.send(thread);
+            index_price.write().await.set(avg).await;
+        }
     }
 
     pub fn set_last_trade_volume(&mut self, pair: &str, value: f64) {
@@ -249,7 +215,7 @@ impl MarketSpine {
         }
     }
 
-    pub fn set_last_trade_price(&mut self, pair: &str, value: f64) {
+    pub async fn set_last_trade_price(&mut self, pair: &str, value: f64) {
         let old_value: f64 = self
             .exchange_pairs
             .get(pair)
@@ -278,10 +244,11 @@ impl MarketSpine {
             .get_mut(pair)
             .unwrap()
             .last_trade_price
-            .set(value);
+            .set(value)
+            .await;
 
         let pair_tuple = self.pairs.get(pair).unwrap().clone();
-        self.recalculate_pair_average_price(pair_tuple, value);
+        self.recalculate_pair_average_price(pair_tuple, value).await;
     }
 
     pub fn set_total_ask(&mut self, pair: &str, value: f64) {
@@ -311,16 +278,18 @@ impl MarketSpine {
 pub mod test {
     use crate::config_scheme::config_scheme::ConfigScheme;
     use crate::config_scheme::repositories_prepared::RepositoriesPrepared;
+    use crate::graceful_shutdown::GracefulShutdown;
     use crate::worker::market_helpers::market_spine::MarketSpine;
     use crate::worker::worker::test::prepare_worker_params;
     use std::sync::mpsc::Receiver;
-    use std::sync::{Arc, RwLock};
+    use std::sync::Arc;
     use std::thread::JoinHandle;
+    use tokio::sync::RwLock;
 
     pub fn make_spine(market_name: Option<&str>) -> (MarketSpine, Receiver<JoinHandle<()>>) {
         let market_name = market_name.unwrap_or("binance").to_string();
         let (tx, rx, _) = prepare_worker_params();
-        let graceful_shutdown = Arc::new(RwLock::new(false));
+        let graceful_shutdown = GracefulShutdown::new();
 
         let config = ConfigScheme::default();
         let RepositoriesPrepared {
@@ -337,7 +306,6 @@ pub mod test {
             pair_average_price,
             index_price,
             config.market.index_pairs,
-            tx,
             1,
             market_name,
             config.market.channels,

@@ -6,10 +6,9 @@ use crate::repository::repositories::{
 use crate::worker::helper_functions::date_time_from_timestamp_sec;
 use chrono::{DateTime, Utc};
 use clap::ArgMatches;
-use reqwest::blocking::Client;
+use reqwest::Client;
 use std::sync::Arc;
-use std::thread;
-use std::time;
+use tokio::time::{sleep, Duration};
 
 fn get_cli_param_values(matches: &ArgMatches, key: &str) -> Option<Vec<String>> {
     matches
@@ -39,7 +38,7 @@ fn parse_timestamp(fill_historical_config: &[String]) -> (DateTime<Utc>, DateTim
     (timestamp_from, timestamp_to)
 }
 
-fn get_daily_prices(
+async fn get_daily_prices(
     coin: &str,
     timestamp_to: DateTime<Utc>,
     day_count: u64,
@@ -52,10 +51,10 @@ fn get_daily_prices(
 
     let uri = format!("https://min-api.cryptocompare.com/data/v2/histoday?fsym={}&tsym={}&toTs={}&limit={}&api_key={}", coin, second_coin,timestamp_to, day_count,api_key);
 
-    let response = Client::new().get(uri).send();
+    let response = Client::new().get(uri).send().await;
 
     let response = response.ok()?;
-    let response = response.text().ok()?;
+    let response = response.text().await.ok()?;
     let json: serde_json::Value = serde_json::from_str(&response).ok()?;
 
     let mut prices = Vec::new();
@@ -84,7 +83,7 @@ fn make_repositories(config: &ConfigScheme) -> WorkerRepositoriesByPairTuple {
     }
 }
 
-fn fill_storage(
+async fn fill_storage(
     mut repository: RepositoryForF64ByTimestamp,
     prices: Vec<(DateTime<Utc>, f64)>,
     coin: String,
@@ -92,13 +91,13 @@ fn fill_storage(
     info!("Fill historical data for {} begin.", coin);
 
     for (timestamp, price) in prices {
-        repository.insert(timestamp, price);
+        repository.insert(timestamp, price).await;
     }
 
     info!("Fill historical data for {} end.", coin);
 }
 
-pub fn fill_historical_data(config: &ConfigScheme) {
+pub async fn fill_historical_data(config: &ConfigScheme) {
     let matches = &config.matches;
 
     if let Some(fill_historical_config) = get_cli_param_values(matches, "fill_historical") {
@@ -114,21 +113,24 @@ pub fn fill_historical_data(config: &ConfigScheme) {
 
             let mut repositories = make_repositories(config);
 
-            let mut threads = Vec::new();
+            let mut futures = Vec::new();
             for coin in coins {
                 let pair_tuple = (coin.to_string(), "USD".to_string());
-                let prices = get_daily_prices(&coin, timestamp_to, day_count).unwrap();
+
+                let prices = get_daily_prices(&coin, timestamp_to, day_count)
+                    .await
+                    .unwrap();
+
                 let repository = repositories.remove(&pair_tuple).unwrap();
 
-                let thread = thread::spawn(move || fill_storage(repository, prices, coin));
-                threads.push(thread);
+                let future = fill_storage(repository, prices, coin);
+                futures.push(future);
 
                 // To prevent DDoS attack on cryptocompare.com
-                thread::sleep(time::Duration::from_millis(10000));
+                sleep(Duration::from_millis(10000)).await;
             }
-            for thread in threads {
-                let _ = thread.join();
-            }
+
+            futures::future::join_all(futures).await;
 
             info!("Fill historical data end.");
         } else {

@@ -1,11 +1,13 @@
 use crate::worker::market_helpers::market::{depth_helper_v1, parse_str_from_json_array, Market};
 use crate::worker::market_helpers::market_channels::ExternalMarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
+use async_trait::async_trait;
 
 pub struct Kraken {
     pub spine: MarketSpine,
 }
 
+#[async_trait]
 impl Market for Kraken {
     fn get_spine(&self) -> &MarketSpine {
         &self.spine
@@ -31,18 +33,22 @@ impl Market for Kraken {
         .to_string()
     }
 
-    fn get_websocket_url(&self, _pair: &str, _channel: ExternalMarketChannels) -> String {
+    async fn get_websocket_url(&self, _pair: &str, _channel: ExternalMarketChannels) -> String {
         "wss://ws.kraken.com".to_string()
     }
 
-    fn get_websocket_on_open_msg(&self, pair: &str, channel: ExternalMarketChannels) -> Option<String> {
+    fn get_websocket_on_open_msg(
+        &self,
+        pair: &str,
+        channel: ExternalMarketChannels,
+    ) -> Option<String> {
         Some(format!(
             "{{\"event\": \"subscribe\", \"pair\": [\"{}\"], \"subscription\": {{\"name\": \"{}\"}}}}",
             pair, self.get_channel_text_view(channel)
         ))
     }
 
-    fn parse_ticker_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
+    async fn parse_ticker_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
         let array = json.as_array()?;
         let array = array[1].as_object()?;
 
@@ -54,12 +60,12 @@ impl Market for Kraken {
 
         let quote_volume: f64 = base_volume * base_price;
 
-        self.parse_ticker_json_inner(pair, quote_volume);
+        self.parse_ticker_json_inner(pair, quote_volume).await;
 
         Some(())
     }
 
-    fn parse_last_trade_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
+    async fn parse_last_trade_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
         let array = json.as_array()?;
 
         for array in array[1].as_array()? {
@@ -77,13 +83,14 @@ impl Market for Kraken {
                 // buy
             }
 
-            self.parse_last_trade_json_inner(pair.clone(), last_trade_volume, last_trade_price);
+            self.parse_last_trade_json_inner(pair.clone(), last_trade_volume, last_trade_price)
+                .await;
         }
 
         Some(())
     }
 
-    fn parse_depth_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
+    async fn parse_depth_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
         let array = json.as_array()?;
         let object = array[1].as_object()?;
         let asks = object.get("as")?;

@@ -3,7 +3,7 @@ use crate::repository::repositories::{
 };
 use crate::worker::helper_functions::date_time_subtract_sec;
 use chrono::{DateTime, Utc, MIN_DATETIME};
-use std::thread;
+use futures::FutureExt;
 
 /// Seconds in minute
 const INTERVAL_MINUTE: u64 = 60;
@@ -30,24 +30,24 @@ fn pick_with_interval(
     (keep, discard)
 }
 
-fn clear_repository(
+async fn clear_repository(
     mut repository: RepositoryForF64ByTimestamp,
     from: DateTime<Utc>,
     to: DateTime<Utc>,
     log_identifier: String,
 ) {
-    match repository.read_range(from, to) {
+    match repository.read_range(from, to).await {
         Ok(res) => {
             let keys = res.into_iter().map(|(k, _)| k).collect();
             let (_keep, discard) = pick_with_interval(keys, INTERVAL_MINUTE);
 
-            repository.delete_multiple(&discard);
+            repository.delete_multiple(&discard).await;
         }
         Err(e) => error!("{}. Read range error: {}", log_identifier, e),
     }
 }
 
-fn clear_index_price_repository(
+async fn clear_index_price_repository(
     repository: RepositoryForF64ByTimestamp,
     from: DateTime<Utc>,
     to: DateTime<Utc>,
@@ -57,47 +57,35 @@ fn clear_index_price_repository(
         from,
         to,
         "clear_index_price_repository".to_string(),
-    );
+    )
+    .await;
 }
 
-fn clear_pair_average_price_repositories(
+async fn clear_pair_average_price_repositories(
     repositories: WorkerRepositoriesByPairTuple,
     from: DateTime<Utc>,
     to: DateTime<Utc>,
 ) {
     let fn_name = "clear_pair_average_price_repositories";
-    let mut threads = Vec::new();
+    let mut futures = Vec::new();
 
     for (pair_tuple, repository) in repositories {
-        let thread_name = format!("fn: {}, pair: {:?}", fn_name, pair_tuple);
+        let log_identifier = format!("Fn: {}. Pair: {:?}", fn_name, pair_tuple);
 
-        let thread = thread::Builder::new()
-            .name(thread_name)
-            .spawn(move || {
-                clear_repository(
-                    repository,
-                    from,
-                    to,
-                    format!("Fn: {}. Pair: {:?}", fn_name, pair_tuple),
-                );
-            })
-            .unwrap();
-
-        threads.push(thread);
+        let future = clear_repository(repository, from, to, log_identifier);
+        futures.push(future);
     }
 
-    for thread in threads {
-        let _ = thread.join();
-    }
+    futures::future::join_all(futures).await;
 }
 
-fn clear_market_repositories(
+async fn clear_market_repositories(
     repositories: MarketRepositoriesByMarketName,
     from: DateTime<Utc>,
     to: DateTime<Utc>,
 ) {
     let fn_name = "clear_market_repositories";
-    let mut threads = Vec::new();
+    let mut futures = Vec::new();
 
     for (market_name, repositories) in repositories {
         for (pair_tuple, repositories) in repositories {
@@ -105,37 +93,21 @@ fn clear_market_repositories(
                 let market_name_2 = market_name.to_string();
                 let pair_tuple_2 = pair_tuple.clone();
 
-                let thread_name = format!(
-                    "fn: {}, market: {}, pair: {:?}, market_value: {:?}",
-                    fn_name, market_name, pair_tuple, market_value,
+                let log_identifier = format!(
+                    "Fn: {}. Market: {}. Pair: {:?}. Market value: {:?}",
+                    fn_name, market_name_2, pair_tuple_2, market_value,
                 );
 
-                let thread = thread::Builder::new()
-                    .name(thread_name)
-                    .spawn(move || {
-                        clear_repository(
-                            repository,
-                            from,
-                            to,
-                            format!(
-                                "Fn: {}. Market: {}. Pair: {:?}. Market value: {:?}",
-                                fn_name, market_name_2, pair_tuple_2, market_value,
-                            ),
-                        );
-                    })
-                    .unwrap();
-
-                threads.push(thread);
+                let future = clear_repository(repository, from, to, log_identifier);
+                futures.push(future);
             }
         }
     }
 
-    for thread in threads {
-        let _ = thread.join();
-    }
+    futures::future::join_all(futures).await;
 }
 
-pub fn clear_db(
+pub async fn clear_db(
     index_price_repository: Option<RepositoryForF64ByTimestamp>,
     pair_average_price_repositories: Option<WorkerRepositoriesByPairTuple>,
     market_repositories: Option<MarketRepositoriesByMarketName>,
@@ -146,50 +118,28 @@ pub fn clear_db(
     let to = Utc::now();
     let from = date_time_subtract_sec(to, data_expire_sec);
 
-    let mut threads = Vec::new();
+    let mut futures = Vec::new();
 
     if let Some(index_price_repository) = index_price_repository {
-        let thread_name = "fn: clear_index_price_repository".to_string();
+        let future = clear_index_price_repository(index_price_repository, from, to);
 
-        let thread = thread::Builder::new()
-            .name(thread_name)
-            .spawn(move || {
-                clear_index_price_repository(index_price_repository, from, to);
-            })
-            .unwrap();
-
-        threads.push(thread);
+        futures.push(future.boxed());
     }
 
     if let Some(pair_average_price_repositories) = pair_average_price_repositories {
-        let thread_name = "fn: clear_pair_average_price_repositories".to_string();
+        let future =
+            clear_pair_average_price_repositories(pair_average_price_repositories, from, to);
 
-        let thread = thread::Builder::new()
-            .name(thread_name)
-            .spawn(move || {
-                clear_pair_average_price_repositories(pair_average_price_repositories, from, to);
-            })
-            .unwrap();
-
-        threads.push(thread);
+        futures.push(future.boxed());
     }
 
     if let Some(market_repositories) = market_repositories {
-        let thread_name = "fn: clear_market_repositories".to_string();
+        let future = clear_market_repositories(market_repositories, from, to);
 
-        let thread = thread::Builder::new()
-            .name(thread_name)
-            .spawn(move || {
-                clear_market_repositories(market_repositories, from, to);
-            })
-            .unwrap();
-
-        threads.push(thread);
+        futures.push(future.boxed());
     }
 
-    for thread in threads {
-        let _ = thread.join();
-    }
+    futures::future::join_all(futures).await;
 
     info!("DB clearing end.");
 }

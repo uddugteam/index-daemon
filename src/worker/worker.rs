@@ -2,6 +2,7 @@ use crate::config_scheme::config_scheme::ConfigScheme;
 use crate::config_scheme::market_config::MarketConfig;
 use crate::config_scheme::repositories_prepared::RepositoriesPrepared;
 use crate::config_scheme::service_config::ServiceConfig;
+use crate::graceful_shutdown::GracefulShutdown;
 use crate::repository::repositories::{
     MarketRepositoriesByMarketName, RepositoryForF64ByTimestamp, WorkerRepositoriesByPairTuple,
 };
@@ -17,17 +18,14 @@ use crate::worker::network_helpers::ws_server::holders::percent_change_holder::P
 use crate::worker::network_helpers::ws_server::holders::ws_channels_holder::WsChannelsHolder;
 use crate::worker::network_helpers::ws_server::ws_channels::WsChannels;
 use crate::worker::network_helpers::ws_server::ws_server::WsServer;
+use futures::FutureExt;
 use std::collections::HashMap;
-use std::sync::mpsc::Sender;
-use std::sync::{Arc, Mutex, RwLock};
-use std::thread::{self, JoinHandle};
-use std::time;
+use std::sync::Arc;
+use tokio::sync::Mutex;
+use tokio::sync::RwLock;
+use tokio::time::{sleep, Duration};
 
-fn is_graceful_shutdown(graceful_shutdown: &Arc<RwLock<bool>>) -> bool {
-    *graceful_shutdown.read().unwrap()
-}
-
-fn configure(
+async fn configure(
     market_names: Vec<&str>,
     exchange_pairs: Vec<(String, String)>,
     channels: Vec<ExternalMarketChannels>,
@@ -39,9 +37,8 @@ fn configure(
     percent_change_holder: &HolderHashMap<PercentChangeByInterval>,
     percent_change_interval_sec: u64,
     ws_channels_holder: &HolderHashMap<WsChannels>,
-    tx: Sender<JoinHandle<()>>,
-    graceful_shutdown: Arc<RwLock<bool>>,
-) -> HashMap<String, Arc<Mutex<dyn Market + Send>>> {
+    graceful_shutdown: GracefulShutdown,
+) -> HashMap<String, Arc<Mutex<dyn Market + Send + Sync>>> {
     let mut markets = HashMap::new();
     let mut repositories = repositories.unwrap_or_default();
 
@@ -51,11 +48,10 @@ fn configure(
             pair_average_price_2,
             Arc::clone(&index_price),
             index_pairs.clone(),
-            tx.clone(),
             rest_timeout_sec,
             market_name.to_string(),
             channels.clone(),
-            Arc::clone(&graceful_shutdown),
+            graceful_shutdown.clone(),
         );
         let market = market_factory(
             market_spine,
@@ -64,7 +60,8 @@ fn configure(
             percent_change_holder,
             percent_change_interval_sec,
             ws_channels_holder,
-        );
+        )
+        .await;
 
         markets.insert(market_name.to_string(), market);
     }
@@ -72,8 +69,7 @@ fn configure(
     markets
 }
 
-fn start_ws(
-    ws: bool,
+async fn start_ws(
     ws_addr: String,
     ws_answer_timeout_ms: u64,
     percent_change_interval_sec: u64,
@@ -81,66 +77,49 @@ fn start_ws(
     pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
     percent_change_holder: HolderHashMap<PercentChangeByInterval>,
     ws_channels_holder: HolderHashMap<WsChannels>,
-    tx: Sender<JoinHandle<()>>,
-    graceful_shutdown: Arc<RwLock<bool>>,
+    graceful_shutdown: GracefulShutdown,
 ) {
-    if ws {
-        let percent_change_holder = PercentChangeByIntervalHolder::new(percent_change_holder);
-        let ws_channels_holder = WsChannelsHolder::new(ws_channels_holder);
+    let percent_change_holder = PercentChangeByIntervalHolder::new(percent_change_holder);
+    let ws_channels_holder = WsChannelsHolder::new(ws_channels_holder);
 
-        let thread_name = "fn: start_ws".to_string();
-        let thread = thread::Builder::new()
-            .name(thread_name)
-            .spawn(move || {
-                let ws_server = WsServer {
-                    percent_change_holder,
-                    ws_channels_holder,
-                    ws_addr,
-                    ws_answer_timeout_ms,
-                    percent_change_interval_sec,
-                    index_price_repository,
-                    pair_average_price,
-                    graceful_shutdown,
-                };
-                ws_server.start();
-            })
-            .unwrap();
-        let _ = tx.send(thread);
-    }
+    let ws_server = WsServer {
+        percent_change_holder,
+        ws_channels_holder,
+        ws_addr,
+        ws_answer_timeout_ms,
+        percent_change_interval_sec,
+        index_price_repository,
+        pair_average_price,
+        graceful_shutdown,
+    };
+
+    ws_server.run().await;
 }
 
-fn start_db_cleaner(
+async fn start_db_cleaner(
     index_price_repository: Option<RepositoryForF64ByTimestamp>,
     pair_average_price_repositories: Option<WorkerRepositoriesByPairTuple>,
     market_repositories: Option<MarketRepositoriesByMarketName>,
     data_expire_sec: u64,
-    tx: Sender<JoinHandle<()>>,
 ) {
-    let thread_name = "fn: clear_db".to_string();
-    let thread = thread::Builder::new()
-        .name(thread_name)
-        .spawn(move || {
-            loop {
-                clear_db(
-                    index_price_repository.clone(),
-                    pair_average_price_repositories.clone(),
-                    market_repositories.clone(),
-                    data_expire_sec,
-                );
+    loop {
+        clear_db(
+            index_price_repository.clone(),
+            pair_average_price_repositories.clone(),
+            market_repositories.clone(),
+            data_expire_sec,
+        )
+        .await;
 
-                // Sleep 1 day
-                thread::sleep(time::Duration::from_secs(86_400));
-            }
-        })
-        .unwrap();
-    let _ = tx.send(thread);
+        // Sleep 1 day
+        sleep(Duration::from_secs(86_400)).await;
+    }
 }
 
-pub fn start_worker(
-    config: ConfigScheme,
-    tx: Sender<JoinHandle<()>>,
-    graceful_shutdown: Arc<RwLock<bool>>,
-) -> RepositoriesPrepared {
+/// impl Future<Output = Vec<Vec<()>>>
+pub async fn start_worker(config: ConfigScheme, graceful_shutdown: GracefulShutdown) {
+    let mut futures = Vec::new();
+
     let repositories_prepared = RepositoriesPrepared::make(&config);
     let RepositoriesPrepared {
         index_price_repository,
@@ -150,7 +129,7 @@ pub fn start_worker(
         ws_channels_holder,
         index_price,
         pair_average_price,
-    } = repositories_prepared.clone();
+    } = repositories_prepared;
 
     let ConfigScheme {
         market,
@@ -188,49 +167,45 @@ pub fn start_worker(
         &percent_change_holder,
         percent_change_interval_sec,
         &ws_channels_holder,
-        tx.clone(),
         graceful_shutdown.clone(),
-    );
-    start_ws(
-        ws,
-        ws_addr,
-        ws_answer_timeout_ms,
-        percent_change_interval_sec,
-        index_price_repository.clone(),
-        pair_average_price,
-        percent_change_holder,
-        ws_channels_holder,
-        tx.clone(),
-        graceful_shutdown.clone(),
-    );
+    )
+    .await;
 
-    start_db_cleaner(
+    if ws {
+        let future = start_ws(
+            ws_addr,
+            ws_answer_timeout_ms,
+            percent_change_interval_sec,
+            index_price_repository.clone(),
+            pair_average_price,
+            percent_change_holder,
+            ws_channels_holder,
+            graceful_shutdown.clone(),
+        );
+
+        let future = tokio::spawn(future).map(|v| v.unwrap());
+        futures.push(future.boxed());
+    }
+
+    let future = start_db_cleaner(
         index_price_repository,
         pair_average_price_repositories,
         market_repositories,
         data_expire_sec,
-        tx.clone(),
     );
+    futures.push(future.boxed());
 
     for (_market_name, market) in markets {
-        if is_graceful_shutdown(&graceful_shutdown) {
-            return repositories_prepared;
+        if graceful_shutdown.get().await {
+            return;
         }
 
-        let thread_name = format!(
-            "fn: market_update, market: {}",
-            market.lock().unwrap().get_spine().name
-        );
-        let thread = thread::Builder::new()
-            .name(thread_name)
-            .spawn(move || {
-                market_update(market);
-            })
-            .unwrap();
-        let _ = tx.send(thread);
+        let future = market_update(market);
+        let future = tokio::spawn(future).map(|v| v.unwrap());
+        futures.push(future.boxed());
     }
 
-    repositories_prepared
+    futures::future::join_all(futures).await;
 }
 
 #[cfg(test)]
@@ -239,20 +214,22 @@ pub mod test {
     use crate::config_scheme::helper_functions::make_exchange_pairs;
     use crate::config_scheme::market_config::MarketConfig;
     use crate::config_scheme::repositories_prepared::RepositoriesPrepared;
+    use crate::graceful_shutdown::GracefulShutdown;
     use crate::worker::market_helpers::market_channels::ExternalMarketChannels;
     use crate::worker::worker::{configure, start_worker};
     use ntest::timeout;
     use serial_test::serial;
     use std::sync::mpsc::{Receiver, Sender};
-    use std::sync::{mpsc, Arc, RwLock};
+    use std::sync::{mpsc, Arc};
     use std::thread;
     use std::thread::JoinHandle;
     use std::time;
+    use tokio::sync::RwLock;
 
     pub fn prepare_worker_params() -> (
         Sender<JoinHandle<()>>,
         Receiver<JoinHandle<()>>,
-        Arc<RwLock<bool>>,
+        GracefulShutdown,
     ) {
         let (tx, rx) = mpsc::channel();
         let graceful_shutdown = Arc::new(RwLock::new(false));
@@ -308,9 +285,9 @@ pub mod test {
             &percent_change_holder,
             config.service.percent_change_interval_sec,
             &ws_channels_holder,
-            tx,
             graceful_shutdown,
-        );
+        )
+        .await;
 
         assert_eq!(market_names.len(), markets.len());
 

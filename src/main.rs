@@ -1,8 +1,7 @@
 use crate::config_scheme::config_scheme::ConfigScheme;
-use crate::graceful_shutdown::start_graceful_shutdown_listener;
+use crate::graceful_shutdown::GracefulShutdown;
 use crate::helper_functions::fill_historical_data;
 use crate::worker::worker::start_worker;
-use std::sync::mpsc;
 
 #[macro_use]
 extern crate log;
@@ -17,16 +16,18 @@ mod repository;
 mod test;
 mod worker;
 
-fn main() {
-    let graceful_shutdown = start_graceful_shutdown_listener();
+#[tokio::main]
+async fn main() {
+    let graceful_shutdown = GracefulShutdown::new();
+    let graceful_shutdown_future = graceful_shutdown.clone().start_listener();
     let config = ConfigScheme::new();
 
-    fill_historical_data(&config);
+    fill_historical_data(&config).await;
 
-    let (tx, rx) = mpsc::channel();
-    start_worker(config, tx, graceful_shutdown);
+    let worker_future = start_worker(config, graceful_shutdown);
 
-    for received_thread in rx {
-        let _ = received_thread.join();
-    }
+    tokio::select! {
+        _ = graceful_shutdown_future => {},
+        _ = worker_future => {},
+    };
 }

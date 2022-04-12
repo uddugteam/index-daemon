@@ -1,11 +1,13 @@
 use crate::worker::market_helpers::market::{depth_helper_v1, parse_str_from_json_object, Market};
 use crate::worker::market_helpers::market_channels::ExternalMarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
+use async_trait::async_trait;
 
 pub struct Okcoin {
     pub spine: MarketSpine,
 }
 
+#[async_trait]
 impl Market for Okcoin {
     fn get_spine(&self) -> &MarketSpine {
         &self.spine
@@ -25,11 +27,15 @@ impl Market for Okcoin {
         .to_string()
     }
 
-    fn get_websocket_url(&self, _pair: &str, _channel: ExternalMarketChannels) -> String {
+    async fn get_websocket_url(&self, _pair: &str, _channel: ExternalMarketChannels) -> String {
         "wss://real.okcoin.com:8443/ws/v3".to_string()
     }
 
-    fn get_websocket_on_open_msg(&self, pair: &str, channel: ExternalMarketChannels) -> Option<String> {
+    fn get_websocket_on_open_msg(
+        &self,
+        pair: &str,
+        channel: ExternalMarketChannels,
+    ) -> Option<String> {
         Some(format!(
             "{{\"op\": \"subscribe\", \"args\": [\"spot/{}:{}\"]}}",
             self.get_channel_text_view(channel),
@@ -37,20 +43,20 @@ impl Market for Okcoin {
         ))
     }
 
-    fn parse_ticker_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
+    async fn parse_ticker_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
         let array = json.as_object()?.get("data")?;
 
         for object in array.as_array()? {
             let object = object.as_object()?;
             let volume: f64 = parse_str_from_json_object(object, "quote_volume_24h")?;
 
-            self.parse_ticker_json_inner(pair.clone(), volume);
+            self.parse_ticker_json_inner(pair.clone(), volume).await;
         }
 
         Some(())
     }
 
-    fn parse_last_trade_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
+    async fn parse_last_trade_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
         let array = json.as_object()?.get("data")?;
 
         for object in array.as_array()? {
@@ -68,13 +74,14 @@ impl Market for Okcoin {
                 // buy
             }
 
-            self.parse_last_trade_json_inner(pair.clone(), last_trade_volume, last_trade_price);
+            self.parse_last_trade_json_inner(pair.clone(), last_trade_volume, last_trade_price)
+                .await;
         }
 
         Some(())
     }
 
-    fn parse_depth_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
+    async fn parse_depth_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
         let object = json.as_object()?;
         let array = object.get("data")?;
 

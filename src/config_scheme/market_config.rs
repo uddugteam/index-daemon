@@ -1,7 +1,7 @@
 use crate::config_scheme::helper_functions::{
     get_config_from_config_files, get_default_channels, get_default_exchange_pairs,
     get_default_markets, get_param_value_as_vec_of_string, has_no_duplicates, is_subset,
-    make_exchange_pairs, make_pairs,
+    make_exchange_pairs, make_pairs, set_intersection,
 };
 use crate::worker::market_helpers::market_channels::ExternalMarketChannels;
 use clap::ArgMatches;
@@ -23,15 +23,36 @@ impl MarketConfig {
             .unwrap_or(default.markets);
 
         let exchange_pairs = get_param_value_as_vec_of_string(&market_config, "coins")
-            .map(|coins| make_exchange_pairs(coins, None))
-            .unwrap_or(default.exchange_pairs);
+            .map(|coins| make_exchange_pairs(coins, None));
 
         let index_pairs = get_param_value_as_vec_of_string(&market_config, "index_coins")
-            .map(|coins| make_pairs(coins, None))
-            .unwrap_or(default.index_pairs);
+            .map(|coins| make_pairs(coins, None));
 
-        assert!(is_subset(&exchange_pairs, &index_pairs));
-        assert!(has_no_duplicates(&exchange_pairs));
+        let (exchange_pairs, index_pairs) = match (exchange_pairs, index_pairs) {
+            (Some(exchange_pairs), Some(index_pairs)) => {
+                assert!(is_subset(&exchange_pairs, &index_pairs));
+                assert!(has_no_duplicates(&exchange_pairs));
+                assert!(has_no_duplicates(&index_pairs));
+
+                (exchange_pairs, index_pairs)
+            }
+            (Some(exchange_pairs), None) => {
+                assert!(has_no_duplicates(&exchange_pairs));
+
+                let index_pairs = set_intersection(&exchange_pairs, &default.index_pairs);
+
+                (exchange_pairs, index_pairs)
+            }
+            (None, Some(index_pairs)) => {
+                let exchange_pairs = default.exchange_pairs;
+
+                assert!(is_subset(&exchange_pairs, &index_pairs));
+                assert!(has_no_duplicates(&index_pairs));
+
+                (exchange_pairs, index_pairs)
+            }
+            _ => (default.exchange_pairs, default.index_pairs),
+        };
 
         let channels = get_param_value_as_vec_of_string(&market_config, "channels");
         let channels = channels

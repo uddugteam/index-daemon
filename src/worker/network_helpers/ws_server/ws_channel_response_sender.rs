@@ -5,8 +5,7 @@ use crate::worker::network_helpers::ws_server::ws_channel_response_payload::WsCh
 use async_tungstenite::tungstenite::protocol::Message;
 use chrono::{DateTime, Utc, MAX_DATETIME, MIN_DATETIME};
 use futures::channel::mpsc::{TrySendError, UnboundedSender};
-use std::thread;
-use std::time;
+use tokio::time::{sleep, Duration};
 
 type Tx = UnboundedSender<Message>;
 
@@ -46,7 +45,7 @@ impl WsChannelResponseSender {
         self.send_inner(response)
     }
 
-    pub fn send(
+    pub async fn send(
         &mut self,
         response: WsChannelResponse,
     ) -> Option<Result<(), TrySendError<Message>>> {
@@ -56,7 +55,7 @@ impl WsChannelResponseSender {
             timestamp
         } else {
             // We sleep because if we send response immediately, there will bw an opportunity to DDoS our server
-            thread::sleep(time::Duration::from_millis(frequency_ms));
+            sleep(Duration::from_millis(frequency_ms)).await;
 
             MAX_DATETIME
         };

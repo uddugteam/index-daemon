@@ -9,7 +9,8 @@ use crate::worker::network_helpers::ws_server::ws_channel_response_payload::WsCh
 use crate::worker::network_helpers::ws_server::ws_channels::WsChannels;
 use chrono::{DateTime, Utc, MIN_DATETIME};
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
+use tokio::sync::RwLock;
 
 pub struct StoredAndWsTransmissibleF64 {
     value: Option<f64>,
@@ -70,7 +71,7 @@ impl StoredAndWsTransmissibleF64 {
         self.value
     }
 
-    pub fn set(&mut self, value: f64) {
+    pub async fn set(&mut self, value: f64) {
         self.value = Some(value);
         self.timestamp = Utc::now();
 
@@ -78,22 +79,19 @@ impl StoredAndWsTransmissibleF64 {
             let _ = repository.insert(self.timestamp, value);
         }
 
-        self.percent_change
-            .write()
-            .unwrap()
-            .set(value, self.timestamp);
+        self.percent_change.write().await.set(value, self.timestamp);
 
-        self.send();
+        self.send().await;
     }
 
-    fn get_percent_change(&self, percent_change_interval_sec: u64) -> Option<f64> {
+    async fn get_percent_change(&self, percent_change_interval_sec: u64) -> Option<f64> {
         self.percent_change
             .read()
-            .unwrap()
+            .await
             .get_percent_change(percent_change_interval_sec)
     }
 
-    fn send(&self) {
+    async fn send(&self) {
         if let Some(value) = self.value {
             for ws_channel_name in &self.ws_channel_names {
                 match ws_channel_name {
@@ -101,10 +99,10 @@ impl StoredAndWsTransmissibleF64 {
                     | WsChannelName::CoinAveragePrice
                     | WsChannelName::CoinExchangePrice
                     | WsChannelName::CoinExchangeVolume => {
-                        self.send_ws_response_1(*ws_channel_name, value);
+                        self.send_ws_response_1(*ws_channel_name, value).await;
                     }
                     WsChannelName::IndexPriceCandles | WsChannelName::CoinAveragePriceCandles => {
-                        self.send_ws_response_2(*ws_channel_name);
+                        self.send_ws_response_2(*ws_channel_name).await;
                     }
                     _ => unreachable!(),
                 }
@@ -112,10 +110,10 @@ impl StoredAndWsTransmissibleF64 {
         }
     }
 
-    fn send_ws_response_1(&self, ws_channel_name: WsChannelName, value: f64) -> Option<()> {
+    async fn send_ws_response_1(&self, ws_channel_name: WsChannelName, value: f64) -> Option<()> {
         let market_name = self.market_name.as_ref().map(|v| v.to_string());
         let timestamp = self.timestamp;
-        let mut ws_channels = self.ws_channels.write().ok()?;
+        let mut ws_channels = self.ws_channels.write().await;
         let channels = ws_channels.get_channels_by_method(ws_channel_name);
         let mut responses = HashMap::new();
 
@@ -124,7 +122,7 @@ impl StoredAndWsTransmissibleF64 {
                 Some(v) if v != 0 => v,
                 _ => self.percent_change_interval_sec,
             };
-            let percent_change = self.get_percent_change(percent_change_interval_sec);
+            let percent_change = self.get_percent_change(percent_change_interval_sec).await;
 
             let response_payload = match request.get_method() {
                 WsChannelName::IndexPrice => WsChannelResponsePayload::IndexPrice {
@@ -162,14 +160,14 @@ impl StoredAndWsTransmissibleF64 {
             responses.insert(key.clone(), response_payload);
         }
 
-        ws_channels.send_individual(responses);
+        ws_channels.send_individual(responses).await;
 
         Some(())
     }
 
-    fn send_ws_response_2(&self, ws_channel_name: WsChannelName) -> Option<()> {
+    async fn send_ws_response_2(&self, ws_channel_name: WsChannelName) -> Option<()> {
         let repository = self.repository.as_ref()?;
-        let mut ws_channels = self.ws_channels.write().ok()?;
+        let mut ws_channels = self.ws_channels.write().await;
         let channels = ws_channels.get_channels_by_method(ws_channel_name);
         let mut responses = HashMap::new();
 
@@ -183,7 +181,7 @@ impl StoredAndWsTransmissibleF64 {
                         let from = self.timestamp.timestamp() as u64 - interval_sec;
                         let from = date_time_from_timestamp_sec(from);
 
-                        if let Ok(values) = repository.read_range(from, to) {
+                        if let Ok(values) = repository.read_range(from, to).await {
                             if !values.is_empty() {
                                 let value = Candle::calculate(values, self.timestamp).unwrap();
 
@@ -210,7 +208,7 @@ impl StoredAndWsTransmissibleF64 {
             }
         }
 
-        ws_channels.send_individual(responses);
+        ws_channels.send_individual(responses).await;
 
         Some(())
     }

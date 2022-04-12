@@ -16,11 +16,11 @@ impl PercentChangeByIntervalHolder {
         self.0.contains_key(key)
     }
 
-    pub fn add(&self, holder_key: &HolderKey, percent_change_interval_sec: u64) {
+    pub async fn add(&self, holder_key: &HolderKey, percent_change_interval_sec: u64) {
         if let Some(percent_change) = self.0.get(holder_key) {
             percent_change
                 .write()
-                .unwrap()
+                .await
                 .add_percent_change_interval(percent_change_interval_sec);
         }
     }
