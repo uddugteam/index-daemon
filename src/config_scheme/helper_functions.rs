@@ -129,7 +129,7 @@ pub fn make_exchange_pairs(coins: Vec<String>, fiats: Option<Vec<&str>>) -> Vec<
 }
 
 pub fn set_intersection<T: PartialEq + Eq + Hash + Clone>(a: &[T], b: &[T]) -> Vec<T> {
-    let a: HashSet<T> = a.into_iter().cloned().collect();
+    let a: HashSet<T> = a.iter().cloned().collect();
     let mut res = Vec::new();
 
     for item in b {
