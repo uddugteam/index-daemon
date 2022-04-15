@@ -1,4 +1,5 @@
 use crate::config_scheme::config_scheme::ConfigScheme;
+use crate::config_scheme::repositories_prepared::RepositoriesPrepared;
 use crate::graceful_shutdown::GracefulShutdown;
 use crate::helper_functions::fill_historical_data;
 use crate::worker::worker::start_worker;
@@ -24,7 +25,9 @@ async fn main() {
 
     fill_historical_data(&config).await;
 
-    let worker_future = start_worker(config, graceful_shutdown);
+    let repositories_prepared = RepositoriesPrepared::make(&config);
+
+    let worker_future = start_worker(config, repositories_prepared, graceful_shutdown);
 
     tokio::select! {
         _ = graceful_shutdown_future => {},
