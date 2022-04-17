@@ -1,13 +1,14 @@
-use rand::Rng;
-
 use crate::worker::market_helpers::market::{depth_helper_v1, parse_str_from_json_object, Market};
-use crate::worker::market_helpers::market_channels::MarketChannels;
+use crate::worker::market_helpers::market_channels::ExternalMarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
+use async_trait::async_trait;
+use rand::Rng;
 
 pub struct Gateio {
     pub spine: MarketSpine,
 }
 
+#[async_trait]
 impl Market for Gateio {
     fn get_spine(&self) -> &MarketSpine {
         &self.spine
@@ -24,22 +25,26 @@ impl Market for Gateio {
         .to_uppercase()
     }
 
-    fn get_channel_text_view(&self, channel: MarketChannels) -> String {
+    fn get_channel_text_view(&self, channel: ExternalMarketChannels) -> String {
         match channel {
-            MarketChannels::Ticker => "ticker.subscribe",
-            MarketChannels::Trades => "trades.subscribe",
-            MarketChannels::Book => "depth.subscribe",
+            ExternalMarketChannels::Ticker => "ticker.subscribe",
+            ExternalMarketChannels::Trades => "trades.subscribe",
+            ExternalMarketChannels::Book => "depth.subscribe",
         }
         .to_string()
     }
 
-    fn get_websocket_url(&self, _pair: &str, _channel: MarketChannels) -> String {
+    async fn get_websocket_url(&self, _pair: &str, _channel: ExternalMarketChannels) -> String {
         "wss://ws.gate.io/v3/".to_string()
     }
 
-    fn get_websocket_on_open_msg(&self, pair: &str, channel: MarketChannels) -> Option<String> {
+    fn get_websocket_on_open_msg(
+        &self,
+        pair: &str,
+        channel: ExternalMarketChannels,
+    ) -> Option<String> {
         let id = rand::thread_rng().gen_range(10000..10000000);
-        let params = if let MarketChannels::Book = channel {
+        let params = if let ExternalMarketChannels::Book = channel {
             ", 5, \"0.0001\""
         } else {
             ""
@@ -54,17 +59,17 @@ impl Market for Gateio {
         ))
     }
 
-    fn parse_ticker_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
+    async fn parse_ticker_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
         let object = json.as_object()?;
         let object = object.get("params")?.as_array()?.get(1)?.as_object()?;
 
         let volume: f64 = parse_str_from_json_object(object, "baseVolume")?;
-        self.parse_ticker_json_inner(pair, volume);
+        self.parse_ticker_json_inner(pair, volume).await;
 
         Some(())
     }
 
-    fn parse_last_trade_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
+    async fn parse_last_trade_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
         let object = json.as_object()?;
         let array = object.get("params")?.as_array()?.get(1)?.as_array()?;
 
@@ -83,13 +88,14 @@ impl Market for Gateio {
                 // buy
             }
 
-            self.parse_last_trade_json_inner(pair.clone(), last_trade_volume, last_trade_price);
+            self.parse_last_trade_json_inner(pair.clone(), last_trade_volume, last_trade_price)
+                .await;
         }
 
         Some(())
     }
 
-    fn parse_depth_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
+    async fn parse_depth_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
         let object = json.as_object()?;
         let object = object.get("params")?.as_array()?.get(1)?.as_object()?;
         let asks = object.get("asks")?;

@@ -7,7 +7,8 @@ use crate::worker::network_helpers::ws_server::holders::helper_functions::Holder
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
 use crate::worker::network_helpers::ws_server::ws_channels::WsChannels;
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
+use tokio::sync::RwLock;
 
 pub type StoredAndWsTransmissibleF64ByPairTuple =
     HashMap<(String, String), Arc<RwLock<StoredAndWsTransmissibleF64>>>;

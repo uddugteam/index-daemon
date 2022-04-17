@@ -1,6 +1,6 @@
-use crate::worker::network_helpers::ws_server::interval::Interval;
 use crate::worker::network_helpers::ws_server::jsonrpc_request::JsonRpcId;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
+use chrono::{DateTime, Utc};
 
 #[derive(Debug, Clone)]
 pub enum WsMethodRequest {
@@ -9,29 +9,29 @@ pub enum WsMethodRequest {
     },
     IndexPriceHistorical {
         id: JsonRpcId,
-        interval: Interval,
-        from: u64,
-        to: Option<u64>,
+        interval_sec: u64,
+        from: DateTime<Utc>,
+        to: DateTime<Utc>,
     },
     IndexPriceCandlesHistorical {
         id: JsonRpcId,
-        interval: Interval,
-        from: u64,
-        to: Option<u64>,
+        interval_sec: u64,
+        from: DateTime<Utc>,
+        to: DateTime<Utc>,
     },
     CoinAveragePriceHistorical {
         id: JsonRpcId,
         coin: String,
-        interval: Interval,
-        from: u64,
-        to: Option<u64>,
+        interval_sec: u64,
+        from: DateTime<Utc>,
+        to: DateTime<Utc>,
     },
     CoinAveragePriceCandlesHistorical {
         id: JsonRpcId,
         coin: String,
-        interval: Interval,
-        from: u64,
-        to: Option<u64>,
+        interval_sec: u64,
+        from: DateTime<Utc>,
+        to: DateTime<Utc>,
     },
 }
 
@@ -45,6 +45,16 @@ impl WsMethodRequest {
             Self::CoinAveragePriceCandlesHistorical { .. } => {
                 WsChannelName::CoinAveragePriceCandlesHistorical
             }
+        }
+    }
+
+    pub fn get_id(&self) -> JsonRpcId {
+        match self {
+            Self::AvailableCoins { id, .. }
+            | Self::IndexPriceHistorical { id, .. }
+            | Self::IndexPriceCandlesHistorical { id, .. }
+            | Self::CoinAveragePriceHistorical { id, .. }
+            | Self::CoinAveragePriceCandlesHistorical { id, .. } => id.clone(),
         }
     }
 }

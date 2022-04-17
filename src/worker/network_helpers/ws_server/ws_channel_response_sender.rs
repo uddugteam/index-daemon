@@ -5,9 +5,7 @@ use crate::worker::network_helpers::ws_server::ws_channel_response_payload::WsCh
 use async_tungstenite::tungstenite::protocol::Message;
 use chrono::{DateTime, Utc, MAX_DATETIME, MIN_DATETIME};
 use futures::channel::mpsc::{TrySendError, UnboundedSender};
-use std::cmp;
-use std::thread;
-use std::time;
+use tokio::time::{sleep, Duration};
 
 type Tx = UnboundedSender<Message>;
 
@@ -19,15 +17,7 @@ pub struct WsChannelResponseSender {
 }
 
 impl WsChannelResponseSender {
-    pub fn new(
-        broadcast_recipient: Tx,
-        mut request: WsChannelSubscriptionRequest,
-        ws_answer_timeout_ms: u64,
-    ) -> Self {
-        let frequency_ms = request.get_frequency_ms().unwrap_or(ws_answer_timeout_ms);
-        let frequency_ms = cmp::max(ws_answer_timeout_ms, frequency_ms);
-        request.set_frequency_ms(frequency_ms);
-
+    pub fn new(broadcast_recipient: Tx, request: WsChannelSubscriptionRequest) -> Self {
         Self {
             broadcast_recipient,
             request,
@@ -45,7 +35,6 @@ impl WsChannelResponseSender {
 
     pub fn send_succ_sub_notif(&self) -> Result<(), TrySendError<Message>> {
         let response_payload = WsChannelResponsePayload::SuccSub {
-            method: self.request.get_method(),
             message: "Successfully subscribed.".to_string(),
         };
         let response = WsChannelResponse {
@@ -56,33 +45,31 @@ impl WsChannelResponseSender {
         self.send_inner(response)
     }
 
-    pub fn send(
+    pub async fn send(
         &mut self,
         response: WsChannelResponse,
     ) -> Option<Result<(), TrySendError<Message>>> {
-        if let Some(frequency_ms) = self.request.get_frequency_ms() {
-            let timestamp = if let Some(timestamp) = response.result.get_timestamp() {
-                timestamp
-            } else {
-                // We sleep because if we send response immediately, there will bw an opportunity to DDoS our server
-                thread::sleep(time::Duration::from_millis(frequency_ms));
+        let frequency_ms = self.request.get_frequency_ms();
 
-                MAX_DATETIME
-            };
-
-            if (timestamp - self.last_send_timestamp).num_milliseconds() as u64 > frequency_ms {
-                // Enough time passed
-                self.last_send_timestamp = Utc::now();
-
-                let send_msg_result = self.send_inner(response);
-
-                Some(send_msg_result)
-            } else {
-                // Too early
-                None
-            }
+        let timestamp = if let Some(timestamp) = response.result.get_timestamp() {
+            timestamp
         } else {
-            unreachable!("Request's frequency_ms must be set in fn WsChannelResponseSender::new()")
+            // We sleep because if we send response immediately, there will bw an opportunity to DDoS our server
+            sleep(Duration::from_millis(frequency_ms)).await;
+
+            MAX_DATETIME
+        };
+
+        if (timestamp - self.last_send_timestamp).num_milliseconds() as u64 > frequency_ms {
+            // Enough time passed
+            self.last_send_timestamp = Utc::now();
+
+            let send_msg_result = self.send_inner(response);
+
+            Some(send_msg_result)
+        } else {
+            // Too early
+            None
         }
     }
 }

@@ -10,7 +10,7 @@ chrono = "^0.4"
 async-tungstenite = { version="^0.16", features=["async-std-runtime", "async-tls"] }
 futures = "^0.3"
 async-std = "^1.10"
-reqwest = { version="^0.11", features=["blocking", "multipart"] }
+reqwest = { version="^0.11", features=["multipart"] }
 clap = { version="^3.0", features=["yaml"] }
 config = "^0.11"
 log = "^0.4"
@@ -27,6 +27,8 @@ uuid = { version="^0.8", features=["v4"] }
 vsdbsled = "^0.34.7-patched"
 dyn-clone = "^1.0"
 parse_duration = "^2.1"
+tokio = { version="^1.17", features=["macros", "rt-multi-thread", "signal"] }
+async-trait = "^0.1"
 
 [dev-dependencies]
 ntest = "^0.7"

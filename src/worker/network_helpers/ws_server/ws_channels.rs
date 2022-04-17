@@ -1,5 +1,6 @@
 use crate::config_scheme::config_scheme::ConfigScheme;
 use crate::worker::network_helpers::ws_server::channels::ws_channel_subscription_request::WsChannelSubscriptionRequest;
+use crate::worker::network_helpers::ws_server::connection_id::ConnectionId;
 use crate::worker::network_helpers::ws_server::jsonrpc_request::JsonRpcId;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
 use crate::worker::network_helpers::ws_server::ws_channel_response::WsChannelResponse;
@@ -7,7 +8,7 @@ use crate::worker::network_helpers::ws_server::ws_channel_response_payload::WsCh
 use crate::worker::network_helpers::ws_server::ws_channel_response_sender::WsChannelResponseSender;
 use std::collections::HashMap;
 
-pub struct WsChannels(HashMap<(String, JsonRpcId), WsChannelResponseSender>);
+pub struct WsChannels(HashMap<(ConnectionId, JsonRpcId), WsChannelResponseSender>);
 
 impl WsChannels {
     pub fn new() -> Self {
@@ -17,7 +18,7 @@ impl WsChannels {
     pub fn get_channels_by_method(
         &self,
         method: WsChannelName,
-    ) -> HashMap<&(String, JsonRpcId), &WsChannelSubscriptionRequest> {
+    ) -> HashMap<&(ConnectionId, JsonRpcId), &WsChannelSubscriptionRequest> {
         self.0
             .iter()
             .filter(|(_, v)| v.request.get_method() == method)
@@ -25,7 +26,7 @@ impl WsChannels {
             .collect()
     }
 
-    fn send_inner(
+    async fn send_inner(
         sender: &mut WsChannelResponseSender,
         response_payload: WsChannelResponsePayload,
     ) -> Result<(), ()> {
@@ -34,7 +35,7 @@ impl WsChannels {
             result: response_payload,
         };
 
-        if let Some(send_msg_result) = sender.send(response) {
+        if let Some(send_msg_result) = sender.send(response).await {
             if send_msg_result.is_err() {
                 // Send msg error. The client is likely disconnected. We stop sending him messages.
 
@@ -49,15 +50,15 @@ impl WsChannels {
         }
     }
 
-    pub fn send_individual(
+    pub async fn send_individual(
         &mut self,
-        responses: HashMap<(String, JsonRpcId), WsChannelResponsePayload>,
+        responses: HashMap<(ConnectionId, JsonRpcId), WsChannelResponsePayload>,
     ) {
         let mut keys_to_remove = Vec::new();
 
         for (key, response_payload) in responses {
             if let Some(sender) = self.0.get_mut(&key) {
-                let send_result = Self::send_inner(sender, response_payload.clone());
+                let send_result = Self::send_inner(sender, response_payload.clone()).await;
 
                 if send_result.is_err() {
                     // Send msg error. The client is likely disconnected. We stop sending him messages.
@@ -72,17 +73,17 @@ impl WsChannels {
         }
     }
 
-    pub fn add_channel(&mut self, conn_id: String, channel: WsChannelResponseSender) {
-        let sub_id = channel.request.get_id();
+    pub fn add_channel(&mut self, conn_id: ConnectionId, sender: WsChannelResponseSender) {
+        let sub_id = sender.request.get_id();
 
-        if channel.send_succ_sub_notif().is_ok() {
-            self.0.insert((conn_id, sub_id), channel);
+        if sender.send_succ_sub_notif().is_ok() {
+            self.0.insert((conn_id, sub_id), sender);
         } else {
             // Send msg error. The client is likely disconnected. Thus, we don't even establish subscription.
         }
     }
 
-    pub fn remove_channel(&mut self, key: &(String, JsonRpcId)) {
+    pub fn remove_channel(&mut self, key: &(ConnectionId, JsonRpcId)) {
         self.0.remove(key);
     }
 }

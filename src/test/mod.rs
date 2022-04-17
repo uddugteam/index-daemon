@@ -1,1 +1,1 @@
-pub mod ws_server;
+mod ws_server;

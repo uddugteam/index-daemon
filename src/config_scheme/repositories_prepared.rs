@@ -13,16 +13,18 @@ use crate::worker::network_helpers::ws_server::holders::helper_functions::make_h
 use crate::worker::network_helpers::ws_server::holders::helper_functions::HolderHashMap;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
 use crate::worker::network_helpers::ws_server::ws_channels::WsChannels;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
+use tokio::sync::RwLock;
 
+#[derive(Clone)]
 pub struct RepositoriesPrepared {
     pub index_price_repository: Option<RepositoryForF64ByTimestamp>,
     pub pair_average_price_repositories: Option<WorkerRepositoriesByPairTuple>,
     pub market_repositories: Option<MarketRepositoriesByMarketName>,
     pub percent_change_holder: HolderHashMap<PercentChangeByInterval>,
     pub ws_channels_holder: HolderHashMap<WsChannels>,
-    pub pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
     pub index_price: Arc<RwLock<StoredAndWsTransmissibleF64>>,
+    pub pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
 }
 
 impl RepositoriesPrepared {
@@ -53,8 +55,8 @@ impl RepositoriesPrepared {
             market_repositories,
             percent_change_holder,
             ws_channels_holder,
-            pair_average_price,
             index_price,
+            pair_average_price,
         }
     }
 

@@ -1,27 +1,28 @@
 use crate::worker::helper_functions::date_time_from_timestamp_sec;
-use crate::worker::network_helpers::ws_server::interval::Interval;
 use crate::worker::network_helpers::ws_server::ser_date_into_timestamp;
 use chrono::{DateTime, Utc};
 
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Candles(Vec<Candle>);
 
 impl Candles {
-    pub fn calculate(values: Vec<(DateTime<Utc>, f64)>, interval: Interval) -> Self {
-        let values: Vec<(i64, f64)> = values.into_iter().map(|v| (v.0.timestamp(), v.1)).collect();
-        let interval = interval.into_seconds() as i64;
+    pub fn calculate(values: Vec<(DateTime<Utc>, f64)>, interval_sec: u64) -> Self {
+        let values: Vec<(u64, f64)> = values
+            .into_iter()
+            .map(|v| (v.0.timestamp() as u64, v.1))
+            .collect();
 
         let candles = if !values.is_empty() {
-            let mut last_to = values[0].0 + interval;
+            let mut last_to = values[0].0 + interval_sec;
             let mut chunks = Vec::new();
             chunks.push(Vec::new());
             values.into_iter().for_each(|(t, v)| {
                 if last_to > t {
                     chunks.push(Vec::new());
-                    last_to += interval;
+                    last_to += interval_sec;
                 }
 
-                let t = date_time_from_timestamp_sec(t as u64);
+                let t = date_time_from_timestamp_sec(t);
                 chunks.last_mut().unwrap().push((t, v));
             });
 
@@ -41,7 +42,7 @@ impl Candles {
     }
 }
 
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Candle {
     open: f64,
     close: f64,

@@ -2,7 +2,7 @@ use crate::repository::repositories::{
     MarketRepositoriesByMarketValue, MarketRepositoriesByPairTuple,
 };
 use crate::worker::helper_functions::get_pair_ref;
-use crate::worker::market_helpers::market_channels::MarketChannels;
+use crate::worker::market_helpers::market_channels::ExternalMarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
 use crate::worker::market_helpers::percent_change::PercentChangeByInterval;
 use crate::worker::markets::binance::Binance;
@@ -21,19 +21,21 @@ use crate::worker::markets::poloniex::Poloniex;
 use crate::worker::network_helpers::ws_client::WsClient;
 use crate::worker::network_helpers::ws_server::holders::helper_functions::HolderHashMap;
 use crate::worker::network_helpers::ws_server::ws_channels::WsChannels;
+use async_trait::async_trait;
+use futures::FutureExt;
 use std::str::FromStr;
-use std::sync::{Arc, Mutex};
-use std::thread;
-use std::time;
+use std::sync::Arc;
+use tokio::sync::Mutex;
+use tokio::time::{sleep, Duration};
 
-pub fn market_factory(
+pub async fn market_factory(
     mut spine: MarketSpine,
     exchange_pairs: Vec<(String, String)>,
     repositories: Option<MarketRepositoriesByPairTuple>,
     percent_change_holder: &HolderHashMap<PercentChangeByInterval>,
     percent_change_interval_sec: u64,
     ws_channels_holder: &HolderHashMap<WsChannels>,
-) -> Arc<Mutex<dyn Market + Send>> {
+) -> Arc<Mutex<dyn Market + Send + Sync>> {
     let mut repositories = repositories.unwrap_or_default();
 
     let mask_pairs = match spine.name.as_ref() {
@@ -48,7 +50,7 @@ pub fn market_factory(
 
     spine.add_mask_pairs(mask_pairs);
 
-    let market: Arc<Mutex<dyn Market + Send>> = match spine.name.as_ref() {
+    let market: Arc<Mutex<dyn Market + Send + Sync>> = match spine.name.as_ref() {
         "binance" => Arc::new(Mutex::new(Binance { spine })),
         "bitfinex" => Arc::new(Mutex::new(Bitfinex { spine })),
         "coinbase" => Arc::new(Mutex::new(Coinbase { spine })),
@@ -66,7 +68,7 @@ pub fn market_factory(
     };
 
     for exchange_pair in exchange_pairs {
-        market.lock().unwrap().add_exchange_pair(
+        market.lock().await.add_exchange_pair(
             exchange_pair.clone(),
             repositories.remove(&exchange_pair),
             percent_change_holder,
@@ -78,44 +80,29 @@ pub fn market_factory(
     market
 }
 
-// Establishes websocket connection with market (subscribes to the channel with pair)
-// and calls lambda (param "callback" of SocketHelper constructor) when gets message from market
-pub fn subscribe_channel(
-    market: Arc<Mutex<dyn Market + Send>>,
+/// Establishes websocket connection with market (subscribes to the channel with pair)
+/// and calls lambda (param "callback" of SocketHelper constructor) when gets message from market
+pub async fn subscribe_channel(
+    market: Arc<Mutex<dyn Market + Send + Sync>>,
     pair: String,
-    channel: MarketChannels,
+    channel: ExternalMarketChannels,
 ) {
     trace!(
         "called subscribe_channel(). Market: {}, pair: {}, channel: {:?}",
-        market.lock().unwrap().get_spine().name,
+        market.lock().await.get_spine().name,
         pair,
         channel,
     );
 
-    let url = market.lock().unwrap().get_websocket_url(&pair, channel);
+    let url = market.lock().await.get_websocket_url(&pair, channel).await;
 
     let on_open_msg = market
         .lock()
-        .unwrap()
+        .await
         .get_websocket_on_open_msg(&pair, channel);
 
-    let ws_client = WsClient::new(url, on_open_msg, pair, |pair: String, info: String| {
-        if is_graceful_shutdown(&market) {
-            return;
-        }
-
-        if let Ok(json) = serde_json::from_str(&info) {
-            // This "match" returns value, but we shouldn't use it
-            match channel {
-                MarketChannels::Ticker => market.lock().unwrap().parse_ticker_json(pair, json),
-                MarketChannels::Trades => market.lock().unwrap().parse_last_trade_json(pair, json),
-                MarketChannels::Book => market.lock().unwrap().parse_depth_json(pair, json),
-            };
-        } else {
-            // Either parse json error or received string is not json
-        }
-    });
-    ws_client.start();
+    let ws_client = WsClient::new(url, on_open_msg, pair, market, channel);
+    ws_client.run().await;
 }
 
 pub fn parse_str_from_json_object<T: FromStr>(
@@ -154,126 +141,111 @@ pub fn depth_helper_v2(json: &serde_json::Value) -> Vec<(f64, f64)> {
         .collect()
 }
 
-fn is_graceful_shutdown(market: &Arc<Mutex<dyn Market + Send>>) -> bool {
-    *market
+pub async fn is_graceful_shutdown(market: &Arc<Mutex<dyn Market + Send + Sync>>) -> bool {
+    market
         .lock()
-        .unwrap()
+        .await
         .get_spine()
         .graceful_shutdown
-        .read()
-        .unwrap()
+        .get()
+        .await
 }
 
-pub fn market_update(market: Arc<Mutex<dyn Market + Send>>) {
+pub async fn market_update(market: Arc<Mutex<dyn Market + Send + Sync>>) {
+    let market_name = market.lock().await.get_spine().name.to_string();
+
+    match market_name.as_str() {
+        "ftx" => Ftx::update(market).await,
+        "poloniex" => Poloniex::update(market).await,
+        _ => update(market).await,
+    }
+}
+
+async fn update(market: Arc<Mutex<dyn Market + Send + Sync>>) {
     trace!(
-        "called market_update(). Market: {}",
-        market.lock().unwrap().get_spine().name
+        "called Market::update(). Market: {}",
+        market.lock().await.get_spine().name
     );
 
-    let market_is_poloniex = market.lock().unwrap().get_spine().name == "poloniex";
-    let market_is_ftx = market.lock().unwrap().get_spine().name == "ftx";
-    let market_is_gemini = market.lock().unwrap().get_spine().name == "gemini";
+    let mut futures = Vec::new();
 
-    let channels = market.lock().unwrap().get_spine().channels.clone();
+    let channels = market.lock().await.get_spine().channels.clone();
     let exchange_pairs: Vec<String> = market
         .lock()
-        .unwrap()
+        .await
         .get_spine()
         .get_exchange_pairs()
         .keys()
         .cloned()
         .collect();
-    let exchange_pairs_dummy = vec!["dummy".to_string()];
 
+    let mut sleep_seconds = 0;
     for channel in channels {
-        let channel_is_ticker = matches!(channel, MarketChannels::Ticker);
-
-        // Channel Ticker of Poloniex has different subscription system
-        // - we can subscribe only for all exchange pairs together,
-        // thus, we need to subscribe to a channel only once.
-        // -----------------------------------------------------------------------------
-        // Ticker channel of market FTX is not implemented, because it has no useful info.
-        // Instead of websocket, we get needed info by REST API.
-        // At the same time, REST API sends us info about all pairs at once,
-        // so we don't need to request info about specific pairs solely.
-        let exchange_pairs = if channel_is_ticker && (market_is_poloniex || market_is_ftx) {
-            &exchange_pairs_dummy
-        } else {
-            &exchange_pairs
-        };
-
-        let do_rest_api = channel_is_ticker && (market_is_ftx || market_is_gemini);
-        let do_websocket = !(market_is_ftx && channel_is_ticker) || market_is_gemini;
-
-        for exchange_pair in exchange_pairs {
-            if is_graceful_shutdown(&market) {
+        for exchange_pair in &exchange_pairs {
+            if is_graceful_shutdown(&market).await {
                 return;
             }
 
-            if do_rest_api {
-                let market_2 = Arc::clone(&market);
-                let pair = exchange_pair.to_string();
+            let market_2 = Arc::clone(&market);
+            let pair = exchange_pair.to_string();
 
-                let thread_name = format!(
-                    "fn: subscribe_channel, market: {}, pair: {}, channel: {:?}, REST API",
-                    market.lock().unwrap().get_spine().name,
-                    pair,
-                    channel
-                );
+            let future = do_websocket(market_2, pair, channel, sleep_seconds);
+            futures.push(future.boxed());
 
-                let thread = thread::Builder::new()
-                    .name(thread_name)
-                    .spawn(move || loop {
-                        if is_graceful_shutdown(&market_2) {
-                            return;
-                        }
+            sleep_seconds += 12;
+        }
+    }
 
-                        let update_ticker_result =
-                            market_2.lock().unwrap().update_ticker(pair.clone());
-                        if update_ticker_result.is_some() {
-                            // if success
-                            let rest_timeout_sec =
-                                market_2.lock().unwrap().get_spine().rest_timeout_sec;
-                            thread::sleep(time::Duration::from_secs(rest_timeout_sec));
-                        } else {
-                            // if error
-                            thread::sleep(time::Duration::from_millis(10000));
-                        }
-                    })
-                    .unwrap();
-                thread::sleep(time::Duration::from_millis(12000));
-                market.lock().unwrap().get_spine().tx.send(thread).unwrap();
-            }
+    futures::future::join_all(futures).await;
+}
 
-            if do_websocket {
-                let market_2 = Arc::clone(&market);
-                let pair = exchange_pair.to_string();
+pub async fn do_rest_api(
+    market: Arc<Mutex<dyn Market + Send + Sync>>,
+    pair: String,
+    sleep_seconds: u64,
+) {
+    // Sleep before await (sleep before subscribe)
+    sleep(Duration::from_secs(sleep_seconds)).await;
 
-                let thread_name = format!(
-                    "fn: subscribe_channel, market: {}, pair: {}, channel: {:?}",
-                    market.lock().unwrap().get_spine().name,
-                    pair,
-                    channel
-                );
+    loop {
+        if is_graceful_shutdown(&market).await {
+            return;
+        }
 
-                let thread = thread::Builder::new()
-                    .name(thread_name)
-                    .spawn(move || loop {
-                        if is_graceful_shutdown(&market_2) {
-                            return;
-                        }
+        let update_ticker_result = market.lock().await.update_ticker(pair.clone()).await;
 
-                        subscribe_channel(Arc::clone(&market_2), pair.clone(), channel);
-                        thread::sleep(time::Duration::from_millis(10000));
-                    })
-                    .unwrap();
-                thread::sleep(time::Duration::from_millis(12000));
-                market.lock().unwrap().get_spine().tx.send(thread).unwrap();
-            }
+        if update_ticker_result.is_some() {
+            // if success
+            let rest_timeout_sec = market.lock().await.get_spine().rest_timeout_sec;
+
+            sleep(Duration::from_secs(rest_timeout_sec)).await;
+        } else {
+            // if error
+            sleep(Duration::from_secs(10)).await;
         }
     }
 }
 
+pub async fn do_websocket(
+    market: Arc<Mutex<dyn Market + Send + Sync>>,
+    pair: String,
+    channel: ExternalMarketChannels,
+    sleep_seconds: u64,
+) {
+    // Sleep before await (sleep before subscribe)
+    sleep(Duration::from_secs(sleep_seconds)).await;
+
+    loop {
+        if is_graceful_shutdown(&market).await {
+            return;
+        }
+
+        subscribe_channel(Arc::clone(&market), pair.clone(), channel).await;
+        sleep(Duration::from_secs(10)).await;
+    }
+}
+
+#[async_trait]
 pub trait Market {
     fn get_spine(&self) -> &MarketSpine;
     fn get_spine_mut(&mut self) -> &mut MarketSpine;
@@ -342,9 +314,13 @@ pub trait Market {
         bid_sum
     }
 
-    fn get_channel_text_view(&self, channel: MarketChannels) -> String;
-    fn get_websocket_url(&self, pair: &str, channel: MarketChannels) -> String;
-    fn get_websocket_on_open_msg(&self, pair: &str, channel: MarketChannels) -> Option<String>;
+    fn get_channel_text_view(&self, channel: ExternalMarketChannels) -> String;
+    async fn get_websocket_url(&self, pair: &str, channel: ExternalMarketChannels) -> String;
+    fn get_websocket_on_open_msg(
+        &self,
+        pair: &str,
+        channel: ExternalMarketChannels,
+    ) -> Option<String>;
 
     fn get_pair_text_view(&self, pair: String) -> String {
         let pair_text_view = if self.get_spine().name == "poloniex" {
@@ -357,12 +333,12 @@ pub trait Market {
         pair_text_view
     }
 
-    fn update_ticker(&mut self, _pair: String) -> Option<()> {
+    async fn update_ticker(&mut self, _pair: String) -> Option<()> {
         panic!("fn update_ticker is not implemented.");
     }
 
-    fn parse_ticker_json(&mut self, pair: String, json: serde_json::Value) -> Option<()>;
-    fn parse_ticker_json_inner(&mut self, pair: String, volume: f64) {
+    async fn parse_ticker_json(&mut self, pair: String, json: serde_json::Value) -> Option<()>;
+    async fn parse_ticker_json_inner(&mut self, pair: String, volume: f64) {
         let pair_text_view = self.get_pair_text_view(pair.clone());
 
         info!(
@@ -372,11 +348,11 @@ pub trait Market {
             volume,
         );
 
-        self.get_spine_mut().set_total_volume(&pair, volume);
+        self.get_spine_mut().set_total_volume(&pair, volume).await;
     }
 
-    fn parse_last_trade_json(&mut self, pair: String, json: serde_json::Value) -> Option<()>;
-    fn parse_last_trade_json_inner(
+    async fn parse_last_trade_json(&mut self, pair: String, json: serde_json::Value) -> Option<()>;
+    async fn parse_last_trade_json_inner(
         &mut self,
         pair: String,
         last_trade_volume: f64,
@@ -395,10 +371,11 @@ pub trait Market {
         self.get_spine_mut()
             .set_last_trade_volume(&pair, last_trade_volume);
         self.get_spine_mut()
-            .set_last_trade_price(&pair, last_trade_price);
+            .set_last_trade_price(&pair, last_trade_price)
+            .await;
     }
 
-    fn parse_depth_json(&mut self, pair: String, json: serde_json::Value) -> Option<()>;
+    async fn parse_depth_json(&mut self, pair: String, json: serde_json::Value) -> Option<()>;
     fn parse_depth_json_inner(
         &mut self,
         pair: String,
@@ -426,168 +403,5 @@ pub trait Market {
             ask_sum,
             bid_sum
         );
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use crate::config_scheme::config_scheme::ConfigScheme;
-    use crate::config_scheme::market_config::MarketConfig;
-    use crate::config_scheme::repositories_prepared::RepositoriesPrepared;
-    use crate::worker::helper_functions::get_pair_ref;
-    use crate::worker::market_helpers::market::{market_factory, market_update, Market};
-    use crate::worker::market_helpers::market_channels::MarketChannels;
-    use crate::worker::market_helpers::market_spine::test::make_spine;
-    use crate::worker::worker::test::check_threads;
-    use ntest::timeout;
-    use std::sync::mpsc::Receiver;
-    use std::sync::{Arc, Mutex};
-    use std::thread::JoinHandle;
-
-    fn make_market(
-        market_name: Option<&str>,
-    ) -> (Arc<Mutex<dyn Market + Send>>, Receiver<JoinHandle<()>>) {
-        let config = ConfigScheme::default();
-
-        let RepositoriesPrepared {
-            index_price_repository: _,
-            pair_average_price_repositories: _,
-            market_repositories,
-            percent_change_holder,
-            ws_channels_holder,
-            pair_average_price: _,
-            index_price: _,
-        } = RepositoriesPrepared::make(&config);
-
-        let (market_spine, rx) = make_spine(market_name);
-        let market_name = market_spine.name.clone();
-        let market = market_factory(
-            market_spine,
-            config.market.exchange_pairs,
-            market_repositories.map(|mut v| v.remove(&market_name).unwrap()),
-            &percent_change_holder,
-            config.service.percent_change_interval_sec,
-            &ws_channels_holder,
-        );
-
-        (market, rx)
-    }
-
-    #[test]
-    fn test_add_exchange_pair() {
-        let (market, _) = make_market(None);
-        let market_name = market.lock().unwrap().get_spine().name.clone();
-
-        let pair_tuple = ("some_coin_1".to_string(), "some_coin_2".to_string());
-        let exchange_pair = pair_tuple.clone();
-
-        let mut config = ConfigScheme::default();
-        config.market.exchange_pairs = vec![exchange_pair.clone()];
-
-        let RepositoriesPrepared {
-            index_price_repository: _,
-            pair_average_price_repositories: _,
-            market_repositories,
-            percent_change_holder,
-            ws_channels_holder,
-            pair_average_price: _,
-            index_price: _,
-        } = RepositoriesPrepared::make(&config);
-
-        let pair_string = market
-            .lock()
-            .unwrap()
-            .make_pair(get_pair_ref(&exchange_pair));
-
-        market.lock().unwrap().add_exchange_pair(
-            exchange_pair.clone(),
-            market_repositories.map(|mut v| {
-                v.remove(&market_name)
-                    .unwrap()
-                    .remove(&exchange_pair)
-                    .unwrap()
-            }),
-            &percent_change_holder,
-            config.service.percent_change_interval_sec,
-            &ws_channels_holder,
-        );
-
-        assert!(market
-            .lock()
-            .unwrap()
-            .get_spine()
-            .get_exchange_pairs()
-            .contains_key(&pair_string));
-
-        assert_eq!(
-            market
-                .lock()
-                .unwrap()
-                .get_spine()
-                .get_pairs()
-                .get(&pair_string)
-                .unwrap(),
-            &pair_tuple
-        );
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_market_factory_panic() {
-        let (_, _) = make_market(Some("not_existing_market"));
-    }
-
-    #[test]
-    fn test_market_factory() {
-        let (market, _) = make_market(None);
-
-        let config = MarketConfig::default();
-        let exchange_pair_keys: Vec<String> = market
-            .lock()
-            .unwrap()
-            .get_spine()
-            .get_exchange_pairs()
-            .keys()
-            .cloned()
-            .collect();
-        assert_eq!(exchange_pair_keys.len(), config.exchange_pairs.len());
-
-        for pair in &config.exchange_pairs {
-            let pair_string = market.lock().unwrap().make_pair(get_pair_ref(pair));
-            assert!(exchange_pair_keys.contains(&pair_string));
-        }
-    }
-
-    #[test]
-    #[timeout(120000)]
-    /// TODO: Refactor (not always working)
-    fn test_update() {
-        let (market, rx) = make_market(None);
-
-        let channels = MarketChannels::get_all();
-        let exchange_pairs: Vec<String> = market
-            .lock()
-            .unwrap()
-            .get_spine()
-            .get_exchange_pairs()
-            .keys()
-            .cloned()
-            .collect();
-
-        let mut thread_names = Vec::new();
-        for pair in exchange_pairs {
-            for channel in channels {
-                let thread_name = format!(
-                    "fn: subscribe_channel, market: {}, pair: {}, channel: {:?}",
-                    market.lock().unwrap().get_spine().name,
-                    pair,
-                    channel
-                );
-                thread_names.push(thread_name);
-            }
-        }
-
-        market_update(market);
-        check_threads(thread_names, rx);
     }
 }

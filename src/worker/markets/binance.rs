@@ -1,11 +1,13 @@
 use crate::worker::market_helpers::market::{depth_helper_v1, parse_str_from_json_object, Market};
-use crate::worker::market_helpers::market_channels::MarketChannels;
+use crate::worker::market_helpers::market_channels::ExternalMarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
+use async_trait::async_trait;
 
 pub struct Binance {
     pub spine: MarketSpine,
 }
 
+#[async_trait]
 impl Market for Binance {
     fn get_spine(&self) -> &MarketSpine {
         &self.spine
@@ -15,16 +17,16 @@ impl Market for Binance {
         &mut self.spine
     }
 
-    fn get_channel_text_view(&self, channel: MarketChannels) -> String {
+    fn get_channel_text_view(&self, channel: ExternalMarketChannels) -> String {
         match channel {
-            MarketChannels::Ticker => "ticker",
-            MarketChannels::Trades => "trade",
-            MarketChannels::Book => "depth20",
+            ExternalMarketChannels::Ticker => "ticker",
+            ExternalMarketChannels::Trades => "trade",
+            ExternalMarketChannels::Book => "depth20",
         }
         .to_string()
     }
 
-    fn get_websocket_url(&self, pair: &str, channel: MarketChannels) -> String {
+    async fn get_websocket_url(&self, pair: &str, channel: ExternalMarketChannels) -> String {
         format!(
             "wss://stream.binance.com:9443/ws/{}@{}",
             pair,
@@ -32,30 +34,35 @@ impl Market for Binance {
         )
     }
 
-    fn get_websocket_on_open_msg(&self, _pair: &str, _channel: MarketChannels) -> Option<String> {
+    fn get_websocket_on_open_msg(
+        &self,
+        _pair: &str,
+        _channel: ExternalMarketChannels,
+    ) -> Option<String> {
         None
     }
 
-    fn parse_ticker_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
+    async fn parse_ticker_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
         let object = json.as_object()?;
 
         let volume: f64 = parse_str_from_json_object(object, "q")?;
-        self.parse_ticker_json_inner(pair, volume);
+        self.parse_ticker_json_inner(pair, volume).await;
 
         Some(())
     }
 
-    fn parse_last_trade_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
+    async fn parse_last_trade_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
         let object = json.as_object()?;
 
         let last_trade_volume: f64 = parse_str_from_json_object(object, "q")?;
         let last_trade_price: f64 = parse_str_from_json_object(object, "p")?;
-        self.parse_last_trade_json_inner(pair, last_trade_volume, last_trade_price);
+        self.parse_last_trade_json_inner(pair, last_trade_volume, last_trade_price)
+            .await;
 
         Some(())
     }
 
-    fn parse_depth_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
+    async fn parse_depth_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
         let object = json.as_object()?;
         let asks = object.get("asks")?;
         let bids = object.get("bids")?;

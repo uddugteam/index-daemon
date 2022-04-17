@@ -1,36 +1,29 @@
-use async_std::task;
 use async_tungstenite::async_std::connect_async;
 use async_tungstenite::tungstenite::protocol::Message;
 use futures::{future, pin_mut, StreamExt};
-use std::thread;
-use std::time;
+use tokio::sync::mpsc::UnboundedSender;
+use tokio::time::{sleep, Duration};
 
-pub struct WsClientForTesting<F>
-where
-    F: Fn(String),
-{
+pub struct WsClientForTesting {
     uri: String,
     messages: Vec<String>,
-    callback: F,
+    incoming_msg_tx: UnboundedSender<String>,
 }
 
-impl<F> WsClientForTesting<F>
-where
-    F: Fn(String),
-{
-    pub fn new(uri: String, messages: Vec<String>, callback: F) -> Self {
+impl WsClientForTesting {
+    pub fn new(
+        uri: String,
+        messages: Vec<String>,
+        incoming_msg_tx: UnboundedSender<String>,
+    ) -> Self {
         Self {
             uri,
             messages,
-            callback,
+            incoming_msg_tx,
         }
     }
 
-    pub fn start(self) {
-        let _ = task::block_on(Self::run(self));
-    }
-
-    async fn run(self) {
+    pub async fn run(self) {
         match connect_async(&self.uri).await {
             Ok((ws_stream, _)) => {
                 let (stdin_tx, stdin_rx) = futures::channel::mpsc::unbounded();
@@ -41,7 +34,7 @@ where
                     stdin_tx.unbounded_send(Message::text(message)).unwrap();
 
                     // To prevent DDoS attack on a server
-                    thread::sleep(time::Duration::from_millis(100));
+                    sleep(Duration::from_millis(100)).await;
                 }
 
                 let (write, read) = ws_stream.split();
@@ -51,7 +44,7 @@ where
                     if let Ok(message) = message {
                         let message = message.into_text().unwrap();
 
-                        (self.callback)(message);
+                        let _ = self.incoming_msg_tx.send(message);
                     }
                 });
 

@@ -36,6 +36,44 @@ impl WsChannelName {
         }
     }
 
+    pub fn is_channel(&self) -> bool {
+        match self {
+            WsChannelName::IndexPrice
+            | WsChannelName::IndexPriceCandles
+            | WsChannelName::CoinAveragePrice
+            | WsChannelName::CoinAveragePriceCandles
+            | WsChannelName::CoinExchangePrice
+            | WsChannelName::CoinExchangeVolume => true,
+            WsChannelName::AvailableCoins
+            | WsChannelName::IndexPriceHistorical
+            | WsChannelName::IndexPriceCandlesHistorical
+            | WsChannelName::CoinAveragePriceHistorical
+            | WsChannelName::CoinAveragePriceCandlesHistorical => false,
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn get_all_channels() -> Vec<Self> {
+        vec![
+            Self::IndexPrice,
+            Self::IndexPriceCandles,
+            Self::CoinAveragePrice,
+            Self::CoinAveragePriceCandles,
+            Self::CoinExchangePrice,
+            Self::CoinExchangeVolume,
+        ]
+    }
+
+    pub fn get_all_methods() -> Vec<Self> {
+        vec![
+            Self::AvailableCoins,
+            Self::IndexPriceHistorical,
+            Self::IndexPriceCandlesHistorical,
+            Self::CoinAveragePriceHistorical,
+            Self::CoinAveragePriceCandlesHistorical,
+        ]
+    }
+
     pub fn get_market_value(&self) -> MarketValue {
         match self {
             Self::AvailableCoins { .. }

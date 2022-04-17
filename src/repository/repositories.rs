@@ -5,7 +5,8 @@ use crate::repository::repository::Repository;
 use crate::worker::market_helpers::market_value::MarketValue;
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
+use tokio::sync::RwLock;
 
 pub type RepositoryForF64ByTimestamp = Box<dyn Repository<DateTime<Utc>, f64> + Send + Sync>;
 pub type WorkerRepositoriesByPairTuple = HashMap<(String, String), RepositoryForF64ByTimestamp>;

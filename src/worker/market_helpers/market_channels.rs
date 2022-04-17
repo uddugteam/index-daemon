@@ -1,20 +1,20 @@
 use std::str::FromStr;
 
 #[derive(Debug, Clone, Copy)]
-pub enum MarketChannels {
+pub enum ExternalMarketChannels {
     Ticker,
     Trades,
     Book,
 }
 
-impl MarketChannels {
+impl ExternalMarketChannels {
     pub fn get_all() -> [Self; 3] {
         [Self::Ticker, Self::Trades, Self::Book]
     }
 }
 
 // TODO: Replace error type with correct
-impl FromStr for MarketChannels {
+impl FromStr for ExternalMarketChannels {
     type Err = ();
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
