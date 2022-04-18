@@ -54,7 +54,7 @@ impl WsChannelResponseSender {
         let timestamp = if let Some(timestamp) = response.result.get_timestamp() {
             timestamp
         } else {
-            // We sleep because if we send response immediately, there will bw an opportunity to DDoS our server
+            // We sleep because if we send response immediately, there will be an opportunity to DDoS our server
             sleep(Duration::from_millis(frequency_ms)).await;
 
             MAX_DATETIME

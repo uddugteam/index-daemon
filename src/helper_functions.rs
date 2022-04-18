@@ -1,13 +1,9 @@
 use crate::config_scheme::config_scheme::ConfigScheme;
-use crate::config_scheme::storage::Storage;
-use crate::repository::repositories::{
-    Repositories, RepositoryForF64ByTimestamp, WorkerRepositoriesByPairTuple,
-};
+use crate::repository::repositories::{RepositoryForF64ByTimestamp, WorkerRepositoriesByPairTuple};
 use crate::worker::helper_functions::date_time_from_timestamp_sec;
 use chrono::{DateTime, Utc};
 use clap::ArgMatches;
 use reqwest::Client;
-use std::sync::Arc;
 use tokio::time::{sleep, Duration};
 
 fn get_cli_param_values(matches: &ArgMatches, key: &str) -> Option<Vec<String>> {
@@ -77,12 +73,6 @@ async fn get_daily_prices(
     Some(prices)
 }
 
-fn make_repositories(config: &ConfigScheme) -> WorkerRepositoriesByPairTuple {
-    match config.service.storage.as_ref().unwrap() {
-        Storage::Sled(tree) => Repositories::make_pair_average_price_sled(config, Arc::clone(tree)),
-    }
-}
-
 async fn fill_storage(
     mut repository: RepositoryForF64ByTimestamp,
     prices: Vec<(DateTime<Utc>, f64)>,
@@ -97,7 +87,10 @@ async fn fill_storage(
     info!("Fill historical data for {} end.", coin);
 }
 
-pub async fn fill_historical_data(config: &ConfigScheme) {
+pub async fn fill_historical_data(
+    config: &ConfigScheme,
+    mut repositories: WorkerRepositoriesByPairTuple,
+) {
     let matches = &config.matches;
 
     if let Some(fill_historical_config) = get_cli_param_values(matches, "fill_historical") {
@@ -111,9 +104,8 @@ pub async fn fill_historical_data(config: &ConfigScheme) {
             let coins: Vec<String> = coins.split(',').map(|v| v.to_string()).collect();
             assert!(!coins.is_empty());
 
-            let mut repositories = make_repositories(config);
-
             let mut futures = Vec::new();
+            let mut sleep_seconds = 0;
             for coin in coins {
                 let pair_tuple = (coin.to_string(), "USD".to_string());
 
@@ -123,11 +115,16 @@ pub async fn fill_historical_data(config: &ConfigScheme) {
 
                 let repository = repositories.remove(&pair_tuple).unwrap();
 
-                let future = fill_storage(repository, prices, coin);
+                let future = async move {
+                    // To prevent DDoS attack on cryptocompare.com
+                    sleep(Duration::from_secs(sleep_seconds)).await;
+
+                    fill_storage(repository, prices, coin).await;
+                };
+
                 futures.push(future);
 
-                // To prevent DDoS attack on cryptocompare.com
-                sleep(Duration::from_millis(10000)).await;
+                sleep_seconds += 10;
             }
 
             futures::future::join_all(futures).await;

@@ -1,6 +1,6 @@
 use uuid::Uuid;
 
-#[derive(Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct ConnectionId(String);
 
 impl ConnectionId {
