@@ -44,8 +44,7 @@ jobs:
         working-directory: /opt/app
     steps:
       - name: Restart docker-compose
-        run: docker-compose down
-        run: docker-compose up -d
+        run: docker-compose down && docker-compose up -d
       - name: Clean unused docker images
         run: docker image prune -f 
 
