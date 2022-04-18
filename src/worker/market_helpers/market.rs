@@ -240,7 +240,10 @@ pub async fn do_websocket(
             return;
         }
 
+        // Function ends only if connection is down
         subscribe_channel(Arc::clone(&market), pair.clone(), channel).await;
+
+        // Sleep before restart after connection is down
         sleep(Duration::from_secs(10)).await;
     }
 }
