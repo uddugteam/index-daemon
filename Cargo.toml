@@ -9,7 +9,7 @@ edition = "2021"
 chrono = "^0.4"
 async-tungstenite = { version="^0.16", features=["async-std-runtime", "async-tls"] }
 futures = "^0.3"
-async-std = "^1.10"
+async-std = { version = "^1.10", features = ["tokio1"] }
 reqwest = { version="^0.11", features=["multipart"] }
 clap = { version="^3.0", features=["yaml"] }
 config = "^0.11"
