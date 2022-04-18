@@ -1,5 +1,5 @@
 use crate::worker::network_helpers::ws_server::ser_date_into_timestamp;
-use chrono::{DateTime, Utc, MIN_DATETIME};
+use chrono::{DateTime, Utc};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct F64Snapshots(Vec<F64Snapshot>);
@@ -21,7 +21,7 @@ impl F64Snapshots {
     ) -> Vec<(DateTime<Utc>, f64)> {
         let mut res = Vec::new();
 
-        let mut next_timestamp = MIN_DATETIME.timestamp() as u64;
+        let mut next_timestamp = 0;
         for value in values {
             let curr_timestamp = value.0.timestamp() as u64;
 
