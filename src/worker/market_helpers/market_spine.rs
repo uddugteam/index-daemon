@@ -11,6 +11,13 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
+type ParamsForRecalculatePairAveragePrice = (
+    Arc<RwLock<StoredAndWsTransmissibleF64>>,
+    StoredAndWsTransmissibleF64ByPairTuple,
+    Arc<RwLock<StoredAndWsTransmissibleF64>>,
+    Vec<(String, String)>,
+);
+
 pub const EPS: f64 = 0.00001;
 
 pub struct MarketSpine {
@@ -148,11 +155,29 @@ impl MarketSpine {
         }
     }
 
-    async fn recalculate_pair_average_price(&self, pair: (String, String), new_price: f64) {
+    fn prepare_params_for_recalculate_pair_average_price(
+        &self,
+        pair: (String, String),
+    ) -> ParamsForRecalculatePairAveragePrice {
         let pair_average_price_2 = Arc::clone(self.pair_average_price.get(&pair).unwrap());
         let pair_average_price_3 = self.pair_average_price.clone();
         let index_price_2 = Arc::clone(&self.index_price);
         let index_pairs_2 = self.index_pairs.clone();
+
+        (
+            pair_average_price_2,
+            pair_average_price_3,
+            index_price_2,
+            index_pairs_2,
+        )
+    }
+
+    async fn recalculate_pair_average_price(
+        pair: (String, String),
+        params: ParamsForRecalculatePairAveragePrice,
+        new_price: f64,
+    ) {
+        let (pair_average_price_2, pair_average_price_3, index_price_2, index_pairs_2) = params;
 
         let mut pair_average_price_2 = pair_average_price_2.write().await;
 
@@ -164,7 +189,11 @@ impl MarketSpine {
 
         pair_average_price_2.set(new_avg).await;
 
-        Self::recalculate_index_price(pair_average_price_3, index_price_2, index_pairs_2).await;
+        let _ = tokio::spawn(Self::recalculate_index_price(
+            pair_average_price_3,
+            index_price_2,
+            index_pairs_2,
+        ));
     }
 
     async fn recalculate_index_price(
@@ -248,7 +277,11 @@ impl MarketSpine {
             .await;
 
         let pair_tuple = self.pairs.get(pair).unwrap().clone();
-        self.recalculate_pair_average_price(pair_tuple, value).await;
+        let params = self.prepare_params_for_recalculate_pair_average_price(pair_tuple.clone());
+
+        let _ = tokio::spawn(Self::recalculate_pair_average_price(
+            pair_tuple, params, value,
+        ));
     }
 
     pub fn set_total_ask(&mut self, pair: &str, value: f64) {
