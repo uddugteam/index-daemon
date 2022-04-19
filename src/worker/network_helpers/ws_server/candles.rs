@@ -17,9 +17,9 @@ impl Candles {
             let mut chunks = Vec::new();
             chunks.push(Vec::new());
             values.into_iter().for_each(|(t, v)| {
-                if last_to > t {
+                if t > last_to {
                     chunks.push(Vec::new());
-                    last_to += interval_sec;
+                    last_to = t + interval_sec;
                 }
 
                 let t = date_time_from_timestamp_sec(t);
@@ -29,10 +29,7 @@ impl Candles {
             chunks
                 .into_iter()
                 .filter(|v| !v.is_empty())
-                .map(|v| {
-                    let t = v.last().unwrap().0;
-                    Candle::calculate(v, t).unwrap()
-                })
+                .map(|v| Candle::calculate(v).unwrap())
                 .collect()
         } else {
             Vec::new()
@@ -54,8 +51,10 @@ pub struct Candle {
 }
 
 impl Candle {
-    pub fn calculate(values: Vec<(DateTime<Utc>, f64)>, timestamp: DateTime<Utc>) -> Option<Self> {
+    pub fn calculate(values: Vec<(DateTime<Utc>, f64)>) -> Option<Self> {
         if !values.is_empty() {
+            let timestamp = values.last().unwrap().0;
+
             let open = values.first().unwrap().1;
             let close = values.last().unwrap().1;
             let mut min = values.first().unwrap().1;

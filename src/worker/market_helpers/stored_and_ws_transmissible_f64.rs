@@ -183,7 +183,7 @@ impl StoredAndWsTransmissibleF64 {
 
                         if let Ok(values) = repository.read_range(from, to).await {
                             if !values.is_empty() {
-                                let value = Candle::calculate(values, self.timestamp).unwrap();
+                                let value = Candle::calculate(values).unwrap();
 
                                 let response_payload = match channel {
                                     LocalWorkerChannels::IndexPriceCandles { .. } => {
