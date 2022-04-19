@@ -219,7 +219,7 @@ async fn test_unsubscribe() {
             tokio::select! {
                 _ = ws_client_future => {}
                 res = check_subscriptions_future => {
-                    if res.is_err() {
+                    if res.is_ok() {
                         panic!("Expected Err. Got: {:#?}", res);
                     }
                 }

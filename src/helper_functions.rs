@@ -9,9 +9,13 @@ use std::collections::HashMap;
 use tokio::time::{sleep, Duration};
 
 fn get_cli_param_values(matches: &ArgMatches, key: &str) -> Option<Vec<String>> {
-    matches
-        .values_of(key)
-        .map(|v| v.map(|v| v.to_string()).collect())
+    if matches.is_valid_arg(key) {
+        matches
+            .values_of(key)
+            .map(|v| v.map(|v| v.to_string()).collect())
+    } else {
+        None
+    }
 }
 
 fn parse_timestamp(fill_historical_config: &[String]) -> (DateTime<Utc>, DateTime<Utc>) {
