@@ -263,8 +263,12 @@ impl MarketSpine {
             if (old_value - value).abs() < EPS {
                 return;
             }
+
+            let reasonable_max = old_value * 1.5;
+            let reasonable_min = old_value / 1.5;
+
             // If new value is inside Real sequence
-            if value > old_value * 1.5 || value < old_value / 1.5 {
+            if value > reasonable_max || value < reasonable_min {
                 return;
             }
         }

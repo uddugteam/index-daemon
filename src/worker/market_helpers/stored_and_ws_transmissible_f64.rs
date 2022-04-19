@@ -172,13 +172,12 @@ impl StoredAndWsTransmissibleF64 {
         let mut responses = HashMap::new();
 
         for (key, request) in channels {
-            let to = self.timestamp;
-
             match request {
                 WsChannelSubscriptionRequest::Worker(channel) => match channel {
                     LocalWorkerChannels::IndexPriceCandles { interval_sec, .. }
                     | LocalWorkerChannels::CoinAveragePriceCandles { interval_sec, .. } => {
-                        let from = self.timestamp.timestamp() as u64 - interval_sec;
+                        let to = Utc::now();
+                        let from = to.timestamp() as u64 - interval_sec;
                         let from = date_time_from_timestamp_sec(from);
 
                         if let Ok(values) = repository.read_range(from, to).await {
