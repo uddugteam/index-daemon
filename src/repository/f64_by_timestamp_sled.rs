@@ -121,12 +121,12 @@ impl Repository<DateTime<Utc>, f64> for F64ByTimestampSled {
 
             let res = self
                 .repository
-                .read()
+                .write()
                 .await
                 .insert(key, new_value.to_ne_bytes())
                 .map(|_| ())
                 .map_err(|e| e.to_string());
-            let _ = self.repository.read().await.flush();
+            let _ = self.repository.write().await.flush();
 
             Some(res)
         } else {
@@ -138,14 +138,14 @@ impl Repository<DateTime<Utc>, f64> for F64ByTimestampSled {
     async fn delete(&mut self, primary: DateTime<Utc>) {
         let key = self.stringify_primary(primary);
 
-        let repository = self.repository.read().await;
+        let repository = self.repository.write().await;
 
         let _ = repository.remove(key);
         let _ = repository.flush();
     }
 
     async fn delete_multiple(&mut self, primary: &[DateTime<Utc>]) {
-        let repository = self.repository.read().await;
+        let repository = self.repository.write().await;
 
         for &key in primary {
             let key = self.stringify_primary(key);
