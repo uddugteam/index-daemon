@@ -3,7 +3,9 @@ use crate::repository::repositories::{RepositoryForF64ByTimestamp, WorkerReposit
 use crate::worker::helper_functions::date_time_from_timestamp_sec;
 use chrono::{DateTime, Utc};
 use clap::ArgMatches;
+use futures::FutureExt;
 use reqwest::Client;
+use std::collections::HashMap;
 use tokio::time::{sleep, Duration};
 
 fn get_cli_param_values(matches: &ArgMatches, key: &str) -> Option<Vec<String>> {
@@ -34,7 +36,7 @@ fn parse_timestamp(fill_historical_config: &[String]) -> (DateTime<Utc>, DateTim
     (timestamp_from, timestamp_to)
 }
 
-async fn get_daily_prices(
+async fn get_coin_daily_prices(
     coin: &str,
     timestamp_to: DateTime<Utc>,
     day_count: u64,
@@ -73,23 +75,95 @@ async fn get_daily_prices(
     Some(prices)
 }
 
-async fn fill_storage(
-    mut repository: RepositoryForF64ByTimestamp,
-    prices: Vec<(DateTime<Utc>, f64)>,
-    coin: String,
-) {
-    info!("Fill historical data for {} begin.", coin);
+async fn get_all_daily_prices(
+    coins: &[String],
+    timestamp_to: DateTime<Utc>,
+    day_count: u64,
+) -> HashMap<String, Vec<(DateTime<Utc>, f64)>> {
+    let mut all_prices = HashMap::new();
 
-    for (timestamp, price) in prices {
-        repository.insert(timestamp, price).await;
+    for coin in coins {
+        // To prevent DDoS attack on cryptocompare.com
+        sleep(Duration::from_secs(10)).await;
+
+        let coin_prices = get_coin_daily_prices(coin, timestamp_to, day_count)
+            .await
+            .unwrap();
+
+        all_prices.insert(coin.to_string(), coin_prices);
     }
 
-    info!("Fill historical data for {} end.", coin);
+    all_prices
+}
+
+async fn fill_storage(
+    mut repository: RepositoryForF64ByTimestamp,
+    prices: &[(DateTime<Utc>, f64)],
+) {
+    for (timestamp, price) in prices.iter().cloned() {
+        repository.insert(timestamp, price).await;
+    }
+}
+
+async fn calculate_index_prices(
+    all_prices: &HashMap<String, Vec<(DateTime<Utc>, f64)>>,
+) -> Vec<(DateTime<Utc>, f64)> {
+    let mut index_prices = Vec::new();
+
+    let mut prices_by_timestamp = HashMap::new();
+
+    for coin_prices in all_prices.values() {
+        for (timestamp, price) in coin_prices {
+            prices_by_timestamp
+                .entry(*timestamp)
+                .or_insert(Vec::new())
+                .push(*price);
+        }
+    }
+
+    for (timestamp, prices) in prices_by_timestamp {
+        let count = prices.len();
+        let sum: f64 = prices.into_iter().sum();
+        let avg = sum / count as f64;
+
+        index_prices.push((timestamp, avg));
+    }
+
+    index_prices
+}
+
+async fn fill_index_price_repository(
+    all_prices: &HashMap<String, Vec<(DateTime<Utc>, f64)>>,
+    index_price_repository: RepositoryForF64ByTimestamp,
+) {
+    let index_prices = calculate_index_prices(all_prices).await;
+
+    fill_storage(index_price_repository, &index_prices).await;
+}
+
+async fn fill_pair_average_price_repositories(
+    all_prices: &HashMap<String, Vec<(DateTime<Utc>, f64)>>,
+    mut pair_average_price_repositories: WorkerRepositoriesByPairTuple,
+) {
+    let mut futures = Vec::new();
+
+    for (coin, coin_prices) in all_prices {
+        let pair_tuple = (coin.to_string(), "USD".to_string());
+
+        let pair_average_price_repository =
+            pair_average_price_repositories.remove(&pair_tuple).unwrap();
+
+        let future = fill_storage(pair_average_price_repository, coin_prices);
+        futures.push(future);
+    }
+
+    futures::future::join_all(futures).await;
 }
 
 pub async fn fill_historical_data(
     config: &ConfigScheme,
-    mut repositories: WorkerRepositoriesByPairTuple,
+    index_price_repository: RepositoryForF64ByTimestamp,
+    pair_average_price_repositories: WorkerRepositoriesByPairTuple,
 ) {
     let matches = &config.matches;
 
@@ -104,30 +178,14 @@ pub async fn fill_historical_data(
             let coins: Vec<String> = coins.split(',').map(|v| v.to_string()).collect();
             assert!(!coins.is_empty());
 
-            let mut futures = Vec::new();
-            let mut sleep_seconds = 0;
-            for coin in coins {
-                let pair_tuple = (coin.to_string(), "USD".to_string());
+            let all_prices = get_all_daily_prices(&coins, timestamp_to, day_count).await;
 
-                let prices = get_daily_prices(&coin, timestamp_to, day_count)
-                    .await
-                    .unwrap();
+            let future_1 = fill_index_price_repository(&all_prices, index_price_repository);
 
-                let repository = repositories.remove(&pair_tuple).unwrap();
+            let future_2 =
+                fill_pair_average_price_repositories(&all_prices, pair_average_price_repositories);
 
-                let future = async move {
-                    // To prevent DDoS attack on cryptocompare.com
-                    sleep(Duration::from_secs(sleep_seconds)).await;
-
-                    fill_storage(repository, prices, coin).await;
-                };
-
-                futures.push(future);
-
-                sleep_seconds += 10;
-            }
-
-            futures::future::join_all(futures).await;
+            futures::future::join_all([future_1.boxed(), future_2.boxed()]).await;
 
             info!("Fill historical data end.");
         } else {

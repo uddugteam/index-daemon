@@ -134,8 +134,15 @@ pub async fn start_worker(
         pair_average_price,
     } = repositories_prepared;
 
-    if let Some(pair_average_price_repositories) = pair_average_price_repositories.clone() {
-        fill_historical_data(&config, pair_average_price_repositories).await;
+    if let Some(index_price_repository) = index_price_repository.clone() {
+        if let Some(pair_average_price_repositories) = pair_average_price_repositories.clone() {
+            fill_historical_data(
+                &config,
+                index_price_repository,
+                pair_average_price_repositories,
+            )
+            .await;
+        }
     }
 
     let ConfigScheme {
