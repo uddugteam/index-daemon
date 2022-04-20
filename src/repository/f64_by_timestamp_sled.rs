@@ -3,23 +3,17 @@ use crate::worker::helper_functions::date_time_from_timestamp_sec;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc, MIN_DATETIME};
 use std::str;
-use std::sync::Arc;
-use tokio::sync::RwLock;
 
 #[derive(Clone)]
 pub struct F64ByTimestampSled {
     entity_name: String,
-    repository: Arc<RwLock<vsdbsled::Db>>,
+    repository: vsdbsled::Db,
     frequency_ms: u64,
     last_insert_timestamp: DateTime<Utc>,
 }
 
 impl F64ByTimestampSled {
-    pub fn new(
-        entity_name: String,
-        repository: Arc<RwLock<vsdbsled::Db>>,
-        frequency_ms: u64,
-    ) -> Self {
+    pub fn new(entity_name: String, repository: vsdbsled::Db, frequency_ms: u64) -> Self {
         Self {
             entity_name,
             repository,
@@ -61,8 +55,6 @@ impl Repository<DateTime<Utc>, f64> for F64ByTimestampSled {
         let key = self.stringify_primary(primary);
 
         self.repository
-            .read()
-            .await
             .get(key)
             .map(|v| v.map(|v| f64::from_ne_bytes(v[0..8].try_into().unwrap())))
             .map_err(|e| e.to_string())
@@ -80,8 +72,6 @@ impl Repository<DateTime<Utc>, f64> for F64ByTimestampSled {
         let mut errors = Vec::new();
 
         self.repository
-            .read()
-            .await
             .range(key_from..key_to)
             .for_each(|v| match v {
                 Ok((k, v)) => {
@@ -121,12 +111,10 @@ impl Repository<DateTime<Utc>, f64> for F64ByTimestampSled {
 
             let res = self
                 .repository
-                .write()
-                .await
                 .insert(key, new_value.to_ne_bytes())
                 .map(|_| ())
                 .map_err(|e| e.to_string());
-            let _ = self.repository.write().await.flush();
+            let _ = self.repository.flush();
 
             Some(res)
         } else {
@@ -138,21 +126,17 @@ impl Repository<DateTime<Utc>, f64> for F64ByTimestampSled {
     async fn delete(&mut self, primary: DateTime<Utc>) {
         let key = self.stringify_primary(primary);
 
-        let repository = self.repository.write().await;
-
-        let _ = repository.remove(key);
-        let _ = repository.flush();
+        let _ = self.repository.remove(key);
+        let _ = self.repository.flush();
     }
 
     async fn delete_multiple(&mut self, primary: &[DateTime<Utc>]) {
-        let repository = self.repository.write().await;
-
         for &key in primary {
             let key = self.stringify_primary(key);
 
-            let _ = repository.remove(key);
+            let _ = self.repository.remove(key);
         }
 
-        let _ = repository.flush();
+        let _ = self.repository.flush();
     }
 }
