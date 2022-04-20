@@ -17,7 +17,7 @@ impl Candles {
             let mut chunks = Vec::new();
             chunks.push(Vec::new());
             values.into_iter().for_each(|(t, v)| {
-                if t > last_to {
+                if t >= last_to {
                     chunks.push(Vec::new());
                     last_to = t + interval_sec;
                 }
