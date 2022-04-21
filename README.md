@@ -71,7 +71,7 @@ You can get cli params description by calling program with "-h" cli param.
 
 ## Websocket server
 
-Websocket server configs are described above (section _Configs -> service_config -> ws_)
+Websocket server configs are described above (section _Configs -> service_config_). Websocket server configs starts with prefix "ws".
 
 ### Channels
 
@@ -169,7 +169,7 @@ subscription request json example:
   "jsonrpc": "2.0",
   "method": "index_price_candles",
   "params": {
-    "frequency_ms": 50,
+    "frequency_ms": 100,
     "interval": "1day"
   }
 }
@@ -189,7 +189,7 @@ subscription request json example:
   "method": "coin_average_price_candles",
   "params": {
     "coins": ["BTC", "ETH"],
-    "frequency_ms": 50,
+    "frequency_ms": 100,
     "interval": "1day"
   }
 }
