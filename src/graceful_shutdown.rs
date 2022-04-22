@@ -1,49 +1,54 @@
-use libc::c_int;
-use signal_hook::{
-    consts::signal::{SIGINT, SIGQUIT, SIGTERM},
-    iterator::Signals,
-    low_level,
-};
-use std::sync::{Arc, RwLock};
-use std::thread;
+use std::future::Future;
+use std::sync::Arc;
+use tokio::signal::unix::{signal, SignalKind};
+use tokio::sync::RwLock;
 
-const SIGNALS: &[c_int] = &[SIGINT, SIGQUIT, SIGTERM];
+#[derive(Clone)]
+pub struct GracefulShutdown(Arc<RwLock<bool>>);
 
-fn start_force_shutdown_listener() {
-    let thread_name = "fn: start_force_shutdown_listener".to_string();
-    // Do not join
-    let _ = thread::Builder::new()
-        .name(thread_name)
-        .spawn(move || {
-            for signal in &mut Signals::new(SIGNALS).unwrap() {
-                println!("Force stopping...");
-                low_level::emulate_default_handler(signal).unwrap();
-            }
-        })
-        .unwrap();
-}
+impl GracefulShutdown {
+    pub fn new() -> Self {
+        Self(Arc::new(RwLock::new(false)))
+    }
 
-pub fn start_graceful_shutdown_listener() -> Arc<RwLock<bool>> {
-    let graceful_shutdown = Arc::new(RwLock::new(false));
-    let graceful_shutdown_2 = Arc::clone(&graceful_shutdown);
+    pub async fn start_listener(self) {
+        self.listen(Self::stop_gracefully).await;
+    }
 
-    let thread_name = "fn: start_graceful_shutdown_listener".to_string();
-    // Do not join
-    let _ = thread::Builder::new()
-        .name(thread_name)
-        .spawn(move || {
-            if (&mut Signals::new(SIGNALS).unwrap())
-                .into_iter()
-                .next()
-                .is_some()
-            {
-                println!("Gracefully stopping... (press Ctrl+C again to force)");
-                start_force_shutdown_listener();
+    pub async fn get(&self) -> bool {
+        *self.0.read().await
+    }
 
-                *graceful_shutdown_2.write().unwrap() = true;
-            }
-        })
-        .unwrap();
+    async fn listen<F, Fut>(self, handler: F)
+    where
+        F: FnOnce(Self) -> Fut,
+        Fut: Future<Output = ()>,
+    {
+        let mut sigint = signal(SignalKind::interrupt()).unwrap();
+        let mut sigquit = signal(SignalKind::quit()).unwrap();
+        let mut sigterm = signal(SignalKind::terminate()).unwrap();
 
-    graceful_shutdown
+        tokio::select! {
+            _ = sigint.recv() => {
+                handler(self).await;
+            },
+            _ = sigquit.recv() => {
+                handler(self).await;
+            },
+            _ = sigterm.recv() => {
+                handler(self).await;
+            },
+        }
+    }
+
+    async fn stop_forcibly(self) {
+        println!("Force stopping...");
+    }
+
+    async fn stop_gracefully(self) {
+        println!("Gracefully stopping... (press Ctrl+C again to force)");
+        *self.0.write().await = true;
+
+        self.listen(Self::stop_forcibly).await;
+    }
 }

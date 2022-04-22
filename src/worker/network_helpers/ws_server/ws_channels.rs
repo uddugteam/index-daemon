@@ -26,7 +26,7 @@ impl WsChannels {
             .collect()
     }
 
-    fn send_inner(
+    async fn send_inner(
         sender: &mut WsChannelResponseSender,
         response_payload: WsChannelResponsePayload,
     ) -> Result<(), ()> {
@@ -35,7 +35,7 @@ impl WsChannels {
             result: response_payload,
         };
 
-        if let Some(send_msg_result) = sender.send(response) {
+        if let Some(send_msg_result) = sender.send(response).await {
             if send_msg_result.is_err() {
                 // Send msg error. The client is likely disconnected. We stop sending him messages.
 
@@ -50,7 +50,7 @@ impl WsChannels {
         }
     }
 
-    pub fn send_individual(
+    pub async fn send_individual(
         &mut self,
         responses: HashMap<(ConnectionId, JsonRpcId), WsChannelResponsePayload>,
     ) {
@@ -58,7 +58,7 @@ impl WsChannels {
 
         for (key, response_payload) in responses {
             if let Some(sender) = self.0.get_mut(&key) {
-                let send_result = Self::send_inner(sender, response_payload.clone());
+                let send_result = Self::send_inner(sender, response_payload.clone()).await;
 
                 if send_result.is_err() {
                     // Send msg error. The client is likely disconnected. We stop sending him messages.

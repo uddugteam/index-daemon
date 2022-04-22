@@ -1,7 +1,8 @@
 use crate::config_scheme::config_scheme::ConfigScheme;
 use crate::worker::market_helpers::market_value::MarketValue;
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
+use tokio::sync::RwLock;
 
 pub type HolderKey = (String, MarketValue, Option<(String, String)>);
 pub type HolderHashMap<T> = HashMap<HolderKey, Arc<RwLock<T>>>;

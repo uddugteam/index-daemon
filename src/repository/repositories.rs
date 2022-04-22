@@ -5,7 +5,6 @@ use crate::repository::repository::Repository;
 use crate::worker::market_helpers::market_value::MarketValue;
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
 
 pub type RepositoryForF64ByTimestamp = Box<dyn Repository<DateTime<Utc>, f64> + Send + Sync>;
 pub type WorkerRepositoriesByPairTuple = HashMap<(String, String), RepositoryForF64ByTimestamp>;
@@ -26,15 +25,9 @@ impl Repositories {
         match &service_config.storage {
             Some(storage) => match storage {
                 Storage::Sled(tree) => Some(Self {
-                    pair_average_price: Self::make_pair_average_price_sled(
-                        config,
-                        Arc::clone(tree),
-                    ),
-                    market_repositories: Self::make_market_repositories_sled(
-                        config,
-                        Arc::clone(tree),
-                    ),
-                    index_repository: Self::make_index_repository_sled(config, Arc::clone(tree)),
+                    pair_average_price: Self::make_pair_average_price_sled(config, tree.clone()),
+                    market_repositories: Self::make_market_repositories_sled(config, tree.clone()),
+                    index_repository: Self::make_index_repository_sled(config, tree.clone()),
                 }),
             },
             None => None,
@@ -60,7 +53,7 @@ impl Repositories {
 
     pub fn make_pair_average_price_sled(
         config: &ConfigScheme,
-        tree: Arc<RwLock<vsdbsled::Db>>,
+        tree: vsdbsled::Db,
     ) -> WorkerRepositoriesByPairTuple {
         let market_config = &config.market;
         let service_config = &config.service;
@@ -76,7 +69,7 @@ impl Repositories {
 
             let repository: RepositoryForF64ByTimestamp = Box::new(F64ByTimestampSled::new(
                 entity_name,
-                Arc::clone(&tree),
+                tree.clone(),
                 service_config.historical_storage_frequency_ms,
             ));
 
@@ -88,7 +81,7 @@ impl Repositories {
 
     fn make_market_repositories_sled(
         config: &ConfigScheme,
-        tree: Arc<RwLock<vsdbsled::Db>>,
+        tree: vsdbsled::Db,
     ) -> MarketRepositoriesByMarketName {
         let market_config = &config.market;
         let service_config = &config.service;
@@ -120,7 +113,7 @@ impl Repositories {
                     let repository: RepositoryForF64ByTimestamp =
                         Box::new(F64ByTimestampSled::new(
                             entity_name,
-                            Arc::clone(&tree),
+                            tree.clone(),
                             service_config.historical_storage_frequency_ms,
                         ));
 
@@ -134,7 +127,7 @@ impl Repositories {
 
     pub fn make_index_repository_sled(
         config: &ConfigScheme,
-        tree: Arc<RwLock<vsdbsled::Db>>,
+        tree: vsdbsled::Db,
     ) -> RepositoryForF64ByTimestamp {
         let service_config = &config.service;
 
@@ -142,7 +135,7 @@ impl Repositories {
 
         Box::new(F64ByTimestampSled::new(
             entity_name,
-            Arc::clone(&tree),
+            tree,
             service_config.historical_storage_frequency_ms,
         ))
     }

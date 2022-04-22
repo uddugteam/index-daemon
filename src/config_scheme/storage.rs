@@ -1,13 +1,11 @@
-use std::sync::{Arc, RwLock};
-
 #[derive(Clone)]
 pub enum Storage {
-    Sled(Arc<RwLock<vsdbsled::Db>>),
+    Sled(vsdbsled::Db),
 }
 
 impl Storage {
     fn make_sled() -> Self {
-        let tree = Arc::new(RwLock::new(vsdbsled::open("db").expect("Open db error.")));
+        let tree = vsdbsled::open("db").expect("Open db error.");
 
         Self::Sled(tree)
     }

@@ -1,13 +1,17 @@
-use chrono::{DateTime, Utc, MIN_DATETIME};
-use reqwest::blocking::Client;
-use std::collections::HashMap;
-
 use crate::worker::defaults::POLONIEX_EXCHANGE_PAIRS;
 use crate::worker::market_helpers::market::{
-    parse_str_from_json_array, parse_str_from_json_object, Market,
+    do_websocket, is_graceful_shutdown, parse_str_from_json_array, parse_str_from_json_object,
+    Market,
 };
 use crate::worker::market_helpers::market_channels::ExternalMarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
+use async_trait::async_trait;
+use chrono::{DateTime, Utc, MIN_DATETIME};
+use futures::FutureExt;
+use reqwest::Client;
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 pub struct Poloniex {
     pub spine: MarketSpine,
@@ -69,7 +73,7 @@ impl Poloniex {
         self.pair_codes.contains_key(&pair)
     }
 
-    fn refresh_pair_prices(&mut self) -> Option<()> {
+    async fn refresh_pair_prices(&mut self) -> Option<()> {
         let timestamp = Utc::now();
 
         // Hold 10 seconds between HTTP requests to Poloniex
@@ -78,10 +82,11 @@ impl Poloniex {
 
             let response = Client::new()
                 .post("https://poloniex.com/public?command=returnTicker")
-                .send();
+                .send()
+                .await;
 
             let response = response.ok()?;
-            let response = response.text().ok()?;
+            let response = response.text().await.ok()?;
             let json: serde_json::Value = serde_json::from_str(&response).ok()?;
 
             let object = json.as_object()?;
@@ -99,13 +104,64 @@ impl Poloniex {
         Some(())
     }
 
-    fn get_pair_price(&mut self, pair_code: &str) -> Option<f64> {
-        self.refresh_pair_prices();
+    async fn get_pair_price(&mut self, pair_code: &str) -> Option<f64> {
+        self.refresh_pair_prices().await;
 
         self.exchange_pairs_last_price.get(pair_code).cloned()
     }
+
+    pub async fn update(market: Arc<Mutex<dyn Market + Send + Sync>>) {
+        trace!(
+            "called Poloniex::update(). Market: {}",
+            market.lock().await.get_spine().name
+        );
+
+        let mut futures = Vec::new();
+
+        let channels = market.lock().await.get_spine().channels.clone();
+        let exchange_pairs: Vec<String> = market
+            .lock()
+            .await
+            .get_spine()
+            .get_exchange_pairs()
+            .keys()
+            .cloned()
+            .collect();
+        let exchange_pairs_dummy = vec!["dummy".to_string()];
+
+        let mut sleep_seconds = 0;
+        for channel in channels {
+            let channel_is_ticker = matches!(channel, ExternalMarketChannels::Ticker);
+
+            // Channel "Ticker" of Poloniex has different subscription system
+            // - we can subscribe only for all exchange pairs together,
+            // thus, we need to subscribe to a channel only once.
+            let exchange_pairs = if channel_is_ticker {
+                &exchange_pairs_dummy
+            } else {
+                &exchange_pairs
+            };
+
+            for exchange_pair in exchange_pairs {
+                if is_graceful_shutdown(&market).await {
+                    return;
+                }
+
+                let market_2 = Arc::clone(&market);
+                let pair = exchange_pair.to_string();
+
+                let future = do_websocket(market_2, pair, channel, sleep_seconds);
+                futures.push(future.boxed());
+
+                sleep_seconds += 12;
+            }
+        }
+
+        futures::future::join_all(futures).await;
+    }
 }
 
+#[async_trait]
 impl Market for Poloniex {
     fn get_spine(&self) -> &MarketSpine {
         &self.spine
@@ -136,11 +192,15 @@ impl Market for Poloniex {
         .to_string()
     }
 
-    fn get_websocket_url(&self, _pair: &str, _channel: ExternalMarketChannels) -> String {
+    async fn get_websocket_url(&self, _pair: &str, _channel: ExternalMarketChannels) -> String {
         "wss://api2.poloniex.com".to_string()
     }
 
-    fn get_websocket_on_open_msg(&self, pair: &str, channel: ExternalMarketChannels) -> Option<String> {
+    fn get_websocket_on_open_msg(
+        &self,
+        pair: &str,
+        channel: ExternalMarketChannels,
+    ) -> Option<String> {
         let channel_text_view = if let ExternalMarketChannels::Book = channel {
             pair.to_string()
         } else {
@@ -155,7 +215,7 @@ impl Market for Poloniex {
 
     /// Poloniex sends us coin instead of pair, then we create pair coin-USD
     /// TODO: Check whether function takes right values from json (in the meaning of coin/pair misunderstanding)
-    fn parse_ticker_json(&mut self, _pair: String, json: serde_json::Value) -> Option<()> {
+    async fn parse_ticker_json(&mut self, _pair: String, json: serde_json::Value) -> Option<()> {
         let array = json.as_array()?.get(2)?;
         let object = array.as_array()?.get(2)?.as_object()?;
 
@@ -180,17 +240,17 @@ impl Market for Poloniex {
             .collect();
 
         for (pair_code, base_volume) in volumes {
-            if let Some(base_price) = self.get_pair_price(&pair_code) {
+            if let Some(base_price) = self.get_pair_price(&pair_code).await {
                 let quote_volume: f64 = base_volume * base_price;
 
-                self.parse_ticker_json_inner(pair_code, quote_volume);
+                self.parse_ticker_json_inner(pair_code, quote_volume).await;
             }
         }
 
         Some(())
     }
 
-    fn parse_last_trade_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
+    async fn parse_last_trade_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
         let array = json.as_array()?;
 
         let last_trade_price: f64 = parse_str_from_json_array(array, 3)?;
@@ -205,12 +265,13 @@ impl Market for Poloniex {
             // buy
         }
 
-        self.parse_last_trade_json_inner(pair, last_trade_volume, last_trade_price);
+        self.parse_last_trade_json_inner(pair, last_trade_volume, last_trade_price)
+            .await;
 
         Some(())
     }
 
-    fn parse_depth_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
+    async fn parse_depth_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
         let json = json.as_array()?.get(2)?;
 
         for array in json.as_array()? {
@@ -234,7 +295,8 @@ impl Market for Poloniex {
             } else if array[0].as_str()? == "t" {
                 // trades
 
-                self.parse_last_trade_json(pair.clone(), serde_json::Value::from(array.as_slice()));
+                self.parse_last_trade_json(pair.clone(), serde_json::Value::from(array.as_slice()))
+                    .await;
             }
         }
 

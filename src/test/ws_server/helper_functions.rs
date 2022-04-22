@@ -1,6 +1,7 @@
 use crate::config_scheme::config_scheme::ConfigScheme;
 use crate::config_scheme::repositories_prepared::RepositoriesPrepared;
 use crate::config_scheme::storage::Storage;
+use crate::graceful_shutdown::GracefulShutdown;
 use crate::test::ws_server::error_type::ErrorType;
 use crate::test::ws_server::ws_client_for_testing::WsClientForTesting;
 use crate::worker::market_helpers::market_channels::ExternalMarketChannels;
@@ -12,18 +13,23 @@ use crate::worker::network_helpers::ws_server::ws_channel_response::WsChannelRes
 use crate::worker::network_helpers::ws_server::ws_channel_response_payload::WsChannelResponsePayload;
 use crate::worker::network_helpers::ws_server::ws_request::WsRequest;
 use crate::worker::worker::start_worker;
+use futures::Future;
 use serde_json::json;
 use std::collections::HashMap;
-use std::sync::mpsc::{Receiver, Sender};
-use std::sync::{mpsc, Arc, RwLock};
-use std::thread;
-use std::thread::JoinHandle;
-use std::time;
+use std::fmt::Debug;
 use std::time::Instant;
+use tokio::sync::mpsc;
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use tokio::time::{sleep, Duration};
 
 pub type SubscriptionsExpected = (
     SubscriptionParams,
     Result<WsChannelSubscriptionRequest, ErrorType>,
+);
+
+type Received = (
+    HashMap<JsonRpcId, Result<WsChannelName, String>>,
+    Vec<(Option<WsChannelName>, WsChannelResponse)>,
 );
 
 #[derive(Debug, Clone)]
@@ -37,15 +43,12 @@ pub struct SubscriptionParams {
 pub fn start_application(
     mut config: ConfigScheme,
 ) -> (
-    Receiver<JoinHandle<()>>,
-    (Sender<String>, Receiver<String>),
+    impl Future<Output = ()>,
+    (UnboundedSender<String>, UnboundedReceiver<String>),
     ConfigScheme,
     RepositoriesPrepared,
 ) {
-    // To prevent DDoS attack on exchanges
-    thread::sleep(time::Duration::from_millis(3000));
-
-    let graceful_shutdown = Arc::new(RwLock::new(false));
+    let graceful_shutdown = GracefulShutdown::new();
 
     config.service.ws = true;
     config.service.storage = Some(Storage::default());
@@ -54,13 +57,20 @@ pub fn start_application(
         ExternalMarketChannels::Trades,
     ];
 
-    let (tx, rx) = mpsc::channel();
-    let repositories_prepared = start_worker(config.clone(), tx, graceful_shutdown);
+    let repositories_prepared = RepositoriesPrepared::make(&config);
 
-    // Give Websocket server time to start
-    thread::sleep(time::Duration::from_millis(1000));
+    let worker_future = start_worker(
+        config.clone(),
+        repositories_prepared.clone(),
+        graceful_shutdown,
+    );
 
-    (rx, mpsc::channel(), config, repositories_prepared)
+    (
+        worker_future,
+        mpsc::unbounded_channel(),
+        config,
+        repositories_prepared,
+    )
 }
 
 pub fn make_unsub_request(sub_id: JsonRpcId) -> String {
@@ -74,23 +84,18 @@ pub fn make_unsub_request(sub_id: JsonRpcId) -> String {
     serde_json::to_string(&request).unwrap()
 }
 
-pub fn ws_connect_and_send(
-    ws_addr: &str,
+pub async fn ws_connect_and_send(
+    ws_addr: String,
     outgoing_messages: Vec<String>,
-    incoming_msg_tx: Sender<String>,
+    incoming_msg_tx: UnboundedSender<String>,
 ) {
-    let uri = "ws://".to_string() + ws_addr;
+    let uri = "ws://".to_string() + &ws_addr;
 
-    // Do not join
-    let _ = thread::spawn(move || {
-        let ws_client = WsClientForTesting::new(uri, outgoing_messages, |msg: String| {
-            let _ = incoming_msg_tx.send(msg);
-        });
-        ws_client.start();
-    });
+    // Give Websocket server time to start
+    sleep(Duration::from_millis(3000)).await;
 
-    // Give Websocket server time to process request
-    thread::sleep(time::Duration::from_millis(1000));
+    let ws_client = WsClientForTesting::new(uri, outgoing_messages, incoming_msg_tx);
+    ws_client.run().await;
 }
 
 pub fn zip_coins_with_usd(coins: Option<Vec<String>>) -> Vec<Option<(String, String)>> {
@@ -104,7 +109,7 @@ pub fn zip_coins_with_usd(coins: Option<Vec<String>>) -> Vec<Option<(String, Str
         .unwrap_or(vec![None])
 }
 
-pub fn get_subscription_requests(
+pub async fn get_subscription_requests(
     repositories_prepared: &RepositoriesPrepared,
     sub_id: &JsonRpcId,
     method: WsChannelName,
@@ -125,7 +130,7 @@ pub fn get_subscription_requests(
                 .get(&key)
                 .unwrap()
                 .read()
-                .unwrap();
+                .await;
 
             ws_channels
                 .get_channels_by_method(method)
@@ -237,10 +242,13 @@ pub fn parse_succ_sub_or_err_response(
         .map_err(|e| e.to_string())
 }
 
-pub fn check_subscriptions(
-    repositories_prepared: &RepositoriesPrepared,
+pub async fn check_subscriptions(
+    repositories_prepared: RepositoriesPrepared,
     subscriptions: Vec<SubscriptionsExpected>,
 ) -> Result<Vec<WsChannelName>, String> {
+    // Give Websocket server time to process request
+    sleep(Duration::from_millis(10000)).await;
+
     let channel_names = subscriptions.iter().map(|v| v.0.channel).collect();
 
     for (subscription_params, subscription_request_expected) in subscriptions {
@@ -257,12 +265,14 @@ pub fn check_subscriptions(
         let expected_len = pairs_expected.len() * exchanges_expected.len();
 
         let subscription_requests = get_subscription_requests(
-            repositories_prepared,
+            &repositories_prepared,
             &sub_id_expected,
             method_expected,
             &pairs_expected,
             &exchanges_expected,
-        );
+        )
+        .await;
+
         if subscription_requests.len() != expected_len {
             return Err(format!(
                 "Error: subscription_requests.len() != expected_len. Got: {}, Expected: {}. Method: {:#?}",
@@ -285,13 +295,10 @@ pub fn check_subscriptions(
     Ok(channel_names)
 }
 
-pub fn check_incoming_messages(
-    incoming_msg_rx: Receiver<String>,
-    expected: &HashMap<JsonRpcId, WsChannelName>,
-) -> (
-    HashMap<JsonRpcId, Result<WsChannelName, String>>,
-    Vec<(Option<WsChannelName>, WsChannelResponse)>,
-) {
+pub async fn check_incoming_messages(
+    mut incoming_msg_rx: UnboundedReceiver<String>,
+    expected: HashMap<JsonRpcId, WsChannelName>,
+) -> Received {
     let mut res = HashMap::new();
     let mut no_id = Vec::new();
 
@@ -306,7 +313,7 @@ pub fn check_incoming_messages(
 
                     (response, method)
                 }
-                Err(_) => parse_succ_sub_or_err_response(&incoming_msg, expected)
+                Err(_) => parse_succ_sub_or_err_response(&incoming_msg, &expected)
                     .map_err(|e| {
                         format!(
                             "Parse WsChannelResponse error. Response: {}. Error: {}",
@@ -342,7 +349,7 @@ pub fn check_incoming_messages(
             }
         }
 
-        thread::sleep(time::Duration::from_millis(1000));
+        sleep(Duration::from_millis(1000)).await;
     }
 
     (res, no_id)

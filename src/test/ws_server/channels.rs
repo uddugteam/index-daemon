@@ -10,92 +10,17 @@ use crate::worker::network_helpers::ws_server::jsonrpc_request::JsonRpcId;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
 use serial_test::serial;
 use std::collections::HashMap;
-use std::thread;
-use std::time;
+use tokio::time::{sleep, Duration};
 use uuid::Uuid;
 
-#[test]
-#[ignore]
+#[tokio::test]
 #[serial]
-fn test_add_ws_channels_separately() {
-    let mut port = 8100;
-    let mut config = ConfigScheme::default();
-    let channels = WsChannelName::get_all_channels();
-
-    for request in Requests::make_all(&config, &channels, false, None).0 {
-        let Request {
-            request,
-            params_item,
-            expected,
-        } = request;
-
-        config.service.ws_addr = format!("127.0.0.1:{}", port);
-        port += 1;
-
-        let expected = expected
-            .map(extract_subscription_request)
-            .map(Option::unwrap);
-
-        let (_rx, (incoming_msg_tx, _incoming_msg_rx), config, repositories_prepared) =
-            start_application(config.clone());
-
-        ws_connect_and_send(&config.service.ws_addr, vec![request], incoming_msg_tx);
-        let res = check_subscriptions(&repositories_prepared, vec![(params_item, expected)]);
-        if res.is_err() {
-            panic!("Expected Ok. Got: {:#?}", res);
-        }
-    }
-}
-
-#[test]
-#[ignore]
-#[serial]
-fn test_add_ws_channels_separately_with_errors() {
-    let mut port = 8200;
-    let mut config = ConfigScheme::default();
-    let channels = WsChannelName::get_all_channels();
-
-    for request in Requests::make_all(&config, &channels, true, None).0 {
-        let Request {
-            request,
-            params_item,
-            expected,
-        } = request;
-
-        config.service.ws_addr = format!("127.0.0.1:{}", port);
-        port += 1;
-
-        let expected = expected
-            .map(extract_subscription_request)
-            .map(Option::unwrap);
-
-        let (_rx, (incoming_msg_tx, _incoming_msg_rx), config, repositories_prepared) =
-            start_application(config.clone());
-
-        ws_connect_and_send(
-            &config.service.ws_addr,
-            vec![request.clone()],
-            incoming_msg_tx,
-        );
-        let res = check_subscriptions(
-            &repositories_prepared,
-            vec![(params_item.clone(), expected.clone())],
-        );
-        if res.is_ok() {
-            panic!("Expected Err. Got: {:#?}", res);
-        }
-    }
-}
-
-#[test]
-#[ignore]
-#[serial]
-fn test_add_ws_channels_together() {
+async fn test_add_ws_channels_together() {
     let port = 8300;
     let mut config = ConfigScheme::default();
     config.service.ws_addr = format!("127.0.0.1:{}", port);
 
-    let (_rx, (incoming_msg_tx, _incoming_msg_rx), config, repositories_prepared) =
+    let (worker_future, (incoming_msg_tx, _incoming_msg_rx), config, repositories_prepared) =
         start_application(config);
 
     let channels = WsChannelName::get_all_channels();
@@ -113,22 +38,35 @@ fn test_add_ws_channels_together() {
 
     let expecteds = params_vec.into_iter().zip(expecteds).collect();
 
-    ws_connect_and_send(&config.service.ws_addr, requests, incoming_msg_tx);
-    let res = check_subscriptions(&repositories_prepared, expecteds);
-    if res.is_err() {
-        panic!("Expected Ok. Got: {:#?}", res);
+    let ws_client_future = ws_connect_and_send(
+        config.service.ws_addr.to_string(),
+        requests,
+        incoming_msg_tx,
+    );
+    let check_subscriptions_future = check_subscriptions(repositories_prepared, expecteds);
+
+    // To prevent DDoS attack on exchanges
+    sleep(Duration::from_millis(3000)).await;
+
+    tokio::select! {
+        _ = worker_future => {}
+        _ = ws_client_future => {}
+        res = check_subscriptions_future => {
+            if res.is_err() {
+                panic!("Expected Ok. Got: {:#?}", res);
+            }
+        }
     }
 }
 
-#[test]
-#[ignore]
+#[tokio::test]
 #[serial]
-fn test_add_ws_channels_together_with_errors() {
+async fn test_add_ws_channels_together_with_errors() {
     let port = 8400;
     let mut config = ConfigScheme::default();
     config.service.ws_addr = format!("127.0.0.1:{}", port);
 
-    let (_rx, (incoming_msg_tx, _incoming_msg_rx), config, repositories_prepared) =
+    let (worker_future, (incoming_msg_tx, _incoming_msg_rx), config, repositories_prepared) =
         start_application(config);
 
     let channels = WsChannelName::get_all_channels();
@@ -146,22 +84,35 @@ fn test_add_ws_channels_together_with_errors() {
 
     let expecteds = params_vec.into_iter().zip(expecteds).collect();
 
-    ws_connect_and_send(&config.service.ws_addr, requests, incoming_msg_tx);
-    let res = check_subscriptions(&repositories_prepared, expecteds);
-    if res.is_ok() {
-        panic!("Expected Err. Got: {:#?}", res);
+    let ws_client_future = ws_connect_and_send(
+        config.service.ws_addr.to_string(),
+        requests,
+        incoming_msg_tx,
+    );
+    let check_subscriptions_future = check_subscriptions(repositories_prepared, expecteds);
+
+    // To prevent DDoS attack on exchanges
+    sleep(Duration::from_millis(3000)).await;
+
+    tokio::select! {
+        _ = worker_future => {}
+        _ = ws_client_future => {}
+        res = check_subscriptions_future => {
+            if res.is_ok() {
+                panic!("Expected Err. Got: {:#?}", res);
+            }
+        }
     }
 }
 
-#[test]
-#[ignore]
+#[tokio::test]
 #[serial]
-fn test_resubscribe() {
+async fn test_resubscribe() {
     let port = 8500;
     let mut config = ConfigScheme::default();
     config.service.ws_addr = format!("127.0.0.1:{}", port);
 
-    let (_rx, (incoming_msg_tx, _incoming_msg_rx), config, repositories_prepared) =
+    let (worker_future, (incoming_msg_tx, _incoming_msg_rx), config, repositories_prepared) =
         start_application(config);
 
     let channels = WsChannelName::get_all_channels();
@@ -183,39 +134,61 @@ fn test_resubscribe() {
     // Remove last
     let last_expected = expecteds.swap_remove(expecteds.len() - 1);
 
-    ws_connect_and_send(&config.service.ws_addr, requests, incoming_msg_tx);
+    let ws_client_future = ws_connect_and_send(
+        config.service.ws_addr.to_string(),
+        requests,
+        incoming_msg_tx,
+    );
 
-    // Wait until all requests are processed
-    thread::sleep(time::Duration::from_millis(5000));
+    let repositories_prepared_2 = repositories_prepared.clone();
 
     // Check that all except last are NOT subscribed
-    let res = check_subscriptions(&repositories_prepared, expecteds);
-    if res.is_ok() {
-        panic!("Expected Err. Got: {:#?}", res);
-    }
+    let check_subscriptions_future = async move {
+        // Wait until all requests are processed
+        sleep(Duration::from_millis(5000)).await;
 
-    // Check that last IS subscribed
-    let res = check_subscriptions(&repositories_prepared, vec![last_expected]);
-    if res.is_err() {
-        panic!("Expected Ok. Got: {:#?}", res);
+        // Check that all except last are NOT subscribed
+        check_subscriptions(repositories_prepared_2, expecteds).await
+    };
+
+    // To prevent DDoS attack on exchanges
+    sleep(Duration::from_millis(3000)).await;
+
+    tokio::select! {
+        _ = worker_future => {}
+        _ = ws_client_future => {}
+        res = check_subscriptions_future => {
+            // Check that all except last are NOT subscribed
+            if res.is_ok() {
+                panic!("Expected Err. Got: {:#?}", res);
+            }
+
+            // Check that last IS subscribed
+            let res = check_subscriptions(repositories_prepared, vec![last_expected]).await;
+            if res.is_err() {
+                panic!("Expected Ok. Got: {:#?}", res);
+            }
+        }
     }
 }
 
-#[test]
-#[ignore]
+#[tokio::test]
 #[serial]
-fn test_unsubscribe() {
+async fn test_unsubscribe() {
     let port = 8600;
     let mut config = ConfigScheme::default();
     config.service.ws_addr = format!("127.0.0.1:{}", port);
 
-    let (_rx, (incoming_msg_tx, _incoming_msg_rx), config, repositories_prepared) =
+    let mut futures = Vec::new();
+
+    let (worker_future, (incoming_msg_tx, _incoming_msg_rx), config, repositories_prepared) =
         start_application(config);
 
     let channels = WsChannelName::get_all_channels();
 
     let subscription_requests = Requests::make_all(&config, &channels, false, None);
 
+    let mut sleep_seconds = 3;
     for request in subscription_requests.0 {
         let Request {
             request,
@@ -231,26 +204,50 @@ fn test_unsubscribe() {
             .map(extract_subscription_request)
             .map(Option::unwrap);
 
-        ws_connect_and_send(&config.service.ws_addr, requests, incoming_msg_tx.clone());
-        let res = check_subscriptions(
-            &repositories_prepared,
+        let ws_client_future = ws_connect_and_send(
+            config.service.ws_addr.to_string(),
+            requests,
+            incoming_msg_tx.clone(),
+        );
+
+        let check_subscriptions_future = check_subscriptions(
+            repositories_prepared.clone(),
             vec![(params_item.clone(), expected.clone())],
         );
-        if res.is_ok() {
-            panic!("Expected Err. Got: {:#?}", res);
-        }
+
+        let future = async move {
+            tokio::select! {
+                _ = ws_client_future => {}
+                res = check_subscriptions_future => {
+                    if res.is_ok() {
+                        panic!("Expected Err. Got: {:#?}", res);
+                    }
+                }
+            }
+        };
+
+        futures.push(future);
+
+        sleep_seconds += 3;
+    }
+
+    // To prevent DDoS attack on exchanges
+    sleep(Duration::from_secs(sleep_seconds)).await;
+
+    tokio::select! {
+        _ = worker_future => {}
+        _ = futures::future::join_all(futures) => {}
     }
 }
 
-#[test]
-#[ignore]
+#[tokio::test]
 #[serial]
-fn test_channels_response_together() {
+async fn test_channels_response_together() {
     let port = 8700;
     let mut config = ConfigScheme::default();
     config.service.ws_addr = format!("127.0.0.1:{}", port);
 
-    let (_rx, (incoming_msg_tx, incoming_msg_rx), config, _repositories_prepared) =
+    let (worker_future, (incoming_msg_tx, incoming_msg_rx), config, _repositories_prepared) =
         start_application(config);
 
     let channels = WsChannelName::get_all_channels();
@@ -261,39 +258,52 @@ fn test_channels_response_together() {
         expecteds,
     } = Requests::make_all(&config, &channels, false, None).unzip();
 
-    let expecteds = expecteds
+    let expecteds: HashMap<_, _> = expecteds
         .into_iter()
         .map(|v| extract_subscription_request(v.unwrap()).unwrap())
         .map(|v| (v.get_id(), v.get_method()))
         .collect();
 
-    ws_connect_and_send(&config.service.ws_addr, requests, incoming_msg_tx);
-    let (hash_map, no_id) = check_incoming_messages(incoming_msg_rx, &expecteds);
+    let ws_client_future = ws_connect_and_send(
+        config.service.ws_addr.to_string(),
+        requests,
+        incoming_msg_tx,
+    );
+    let check_incoming_messages_future =
+        check_incoming_messages(incoming_msg_rx, expecteds.clone());
 
-    if !no_id.is_empty() {
-        panic!("Got responses with no id: {:#?}", no_id);
-    }
+    // To prevent DDoS attack on exchanges
+    sleep(Duration::from_millis(3000)).await;
 
-    for (id, method) in expecteds {
-        if let Some(res) = hash_map.get(&id) {
-            if res.is_err() {
-                panic!("Expected Ok. Got: {:#?}", res);
+    tokio::select! {
+        _ = worker_future => {}
+        _ = ws_client_future => {}
+        (hash_map, no_id) = check_incoming_messages_future => {
+            if !no_id.is_empty() {
+                panic!("Got responses with no id: {:#?}", no_id);
             }
-        } else {
-            panic!("No response received for method: {:#?}", method);
+
+            for (id, method) in expecteds {
+                if let Some(res) = hash_map.get(&id) {
+                    if res.is_err() {
+                        panic!("Expected Ok. Got: {:#?}", res);
+                    }
+                } else {
+                    panic!("No response received for method: {:#?}", method);
+                }
+            }
         }
     }
 }
 
-#[test]
-#[ignore]
+#[tokio::test]
 #[serial]
-fn test_channels_response_together_with_errors() {
+async fn test_channels_response_together_with_errors() {
     let port = 8800;
     let mut config = ConfigScheme::default();
     config.service.ws_addr = format!("127.0.0.1:{}", port);
 
-    let (_rx, (incoming_msg_tx, incoming_msg_rx), config, _repositories_prepared) =
+    let (worker_future, (incoming_msg_tx, incoming_msg_rx), config, _repositories_prepared) =
         start_application(config);
 
     let channels = WsChannelName::get_all_channels();
@@ -310,28 +320,42 @@ fn test_channels_response_together_with_errors() {
         .map(|v| (v.0.id.clone(), v.1.unwrap_err()))
         .collect();
 
-    let expecteds = params_vec.into_iter().map(|v| (v.id, v.channel)).collect();
+    let expecteds: HashMap<_, _> = params_vec.into_iter().map(|v| (v.id, v.channel)).collect();
 
-    ws_connect_and_send(&config.service.ws_addr, requests, incoming_msg_tx);
-    let (hash_map, no_id) = check_incoming_messages(incoming_msg_rx, &expecteds);
+    let ws_client_future = ws_connect_and_send(
+        config.service.ws_addr.to_string(),
+        requests,
+        incoming_msg_tx,
+    );
+    let check_incoming_messages_future =
+        check_incoming_messages(incoming_msg_rx, expecteds.clone());
 
-    let mut expecteds_with_no_ids = Vec::new();
-    for (id, method) in expecteds {
-        if let Some(res) = hash_map.get(&id) {
-            if res.is_ok() {
-                panic!("Expected Err. Got: {:#?}", res);
+    // To prevent DDoS attack on exchanges
+    sleep(Duration::from_millis(3000)).await;
+
+    tokio::select! {
+        _ = worker_future => {}
+        _ = ws_client_future => {}
+        (hash_map, no_id) = check_incoming_messages_future => {
+            let mut expecteds_with_no_ids = Vec::new();
+            for (id, method) in expecteds {
+                if let Some(res) = hash_map.get(&id) {
+                    if res.is_ok() {
+                        panic!("Expected Err. Got: {:#?}", res);
+                    }
+                } else {
+                    let error_type = expecteds_errors.get(&id).unwrap();
+
+                    expecteds_with_no_ids.push((method, error_type));
+                }
             }
-        } else {
-            let error_type = expecteds_errors.get(&id).unwrap();
 
-            expecteds_with_no_ids.push((method, error_type));
+            if expecteds_with_no_ids.len() > no_id.len() {
+                panic!(
+                    "No response received for some of requests. Expected count: {}. Received count: {}. Expecteds: {:#?}.",
+                    expecteds_with_no_ids.len(), no_id.len(), expecteds_with_no_ids,
+                );
+            }
         }
-    }
-
-    if expecteds_with_no_ids.len() > no_id.len() {
-        panic!(
-            "No response received for some of requests. Expected count: {}. Received count: {}. Expecteds: {:#?}.",
-            expecteds_with_no_ids.len(), no_id.len(), expecteds_with_no_ids,
-        );
     }
 }
