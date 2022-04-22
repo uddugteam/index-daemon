@@ -334,7 +334,7 @@ impl WsServer {
 
                 if let Some(repository) = pair_average_price.get(&pair_tuple) {
                     if let Some(repository) = &repository.read().await.repository {
-                        match repository.read_range(from, to).await {
+                        match repository.read_range(from..to).await {
                             Ok(values) => {
                                 let response = match request {
                                     WsMethodRequest::CoinAveragePriceHistorical { .. } => WsChannelResponse {
@@ -415,7 +415,7 @@ impl WsServer {
             } => {
                 let repository = index_price_repository?;
 
-                match repository.read_range(from, to).await {
+                match repository.read_range(from..to).await {
                     Ok(values) => {
                         let response = match request {
                             WsMethodRequest::IndexPriceHistorical { .. } => WsChannelResponse {

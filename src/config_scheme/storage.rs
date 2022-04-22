@@ -1,5 +1,10 @@
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::RwLock;
+
 #[derive(Clone)]
 pub enum Storage {
+    Cache(Arc<RwLock<HashMap<String, f64>>>),
     Sled(vsdbsled::Db),
 }
 
@@ -12,6 +17,7 @@ impl Storage {
 
     pub fn from_str(name: &str) -> Self {
         match name {
+            "cache" => Self::Cache(Arc::new(RwLock::new(HashMap::new()))),
             "sled" => Self::make_sled(),
             other_storage => panic!("Got wrong storage name: {}", other_storage),
         }

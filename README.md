@@ -25,7 +25,7 @@ You can get cli params description by calling program with "-h" cli param.
 - **ws_port** - string (default: 8080). Websocket server port.
 - **ws_answer_timeout_ms** - u64 (min - 100, default - 100). Timeout in ms between websocket answers.
 - **historical** - string ("1" - on, default - off). Turn on historical data storage.
-- **storage** - string. Variants: sled. Default: sled.
+- **storage** - string. Variants: cache, sled. Default: sled.
 - **historical_storage_frequency_ms** - u64 (min - 10, default - 20). Frequency of putting data into DB.
 - **data_expire** - string. DB data lifetime. Format: number and word, e.g., "5mi", "3mo", "1y", etc. Default: 1 month.
 - **percent_change_interval** - string. Percent change interval. Format: number and word, e.g., "5mi", "3mo", "1y", etc. Default: 1 minute.
@@ -71,7 +71,7 @@ You can get cli params description by calling program with "-h" cli param.
 
 ## Websocket server
 
-Websocket server configs are described above (section _Configs -> service_config -> ws_)
+Websocket server configs are described above (section _Configs -> service_config_). Websocket server configs starts with prefix "ws".
 
 ### Channels
 
@@ -169,7 +169,7 @@ subscription request json example:
   "jsonrpc": "2.0",
   "method": "index_price_candles",
   "params": {
-    "frequency_ms": 50,
+    "frequency_ms": 100,
     "interval": "1day"
   }
 }
@@ -189,7 +189,7 @@ subscription request json example:
   "method": "coin_average_price_candles",
   "params": {
     "coins": ["BTC", "ETH"],
-    "frequency_ms": 50,
+    "frequency_ms": 100,
     "interval": "1day"
   }
 }
