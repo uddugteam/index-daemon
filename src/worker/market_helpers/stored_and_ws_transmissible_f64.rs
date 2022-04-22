@@ -76,7 +76,7 @@ impl StoredAndWsTransmissibleF64 {
         self.timestamp = Utc::now();
 
         if let Some(repository) = &mut self.repository {
-            let _ = repository.insert(self.timestamp, value);
+            let _ = repository.insert(self.timestamp, value).await;
         }
 
         self.percent_change.write().await.set(value, self.timestamp);
