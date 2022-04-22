@@ -2,6 +2,7 @@ use crate::repository::repository::Repository;
 use crate::worker::helper_functions::date_time_from_timestamp_sec;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc, MIN_DATETIME};
+use std::ops::Range;
 use std::str;
 
 #[derive(Clone)]
@@ -62,11 +63,10 @@ impl Repository<DateTime<Utc>, f64> for F64ByTimestampSled {
 
     async fn read_range(
         &self,
-        primary_from: DateTime<Utc>,
-        primary_to: DateTime<Utc>,
+        primary: Range<DateTime<Utc>>,
     ) -> Result<Vec<(DateTime<Utc>, f64)>, String> {
-        let key_from = self.stringify_primary(primary_from);
-        let key_to = self.stringify_primary(primary_to);
+        let key_from = self.stringify_primary(primary.start);
+        let key_to = self.stringify_primary(primary.end);
 
         let mut oks = Vec::new();
         let mut errors = Vec::new();

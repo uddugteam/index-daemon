@@ -180,7 +180,7 @@ impl StoredAndWsTransmissibleF64 {
                         let from = to.timestamp() as u64 - interval_sec;
                         let from = date_time_from_timestamp_sec(from);
 
-                        if let Ok(values) = repository.read_range(from, to).await {
+                        if let Ok(values) = repository.read_range(from..to).await {
                             if !values.is_empty() {
                                 let value = Candle::calculate(values).unwrap();
 
