@@ -5,6 +5,7 @@ use crate::graceful_shutdown::GracefulShutdown;
 use crate::test::ws_server::error_type::ErrorType;
 use crate::test::ws_server::ws_client_for_testing::WsClientForTesting;
 use crate::worker::market_helpers::market_channels::ExternalMarketChannels;
+use crate::worker::market_helpers::market_value_owner::MarketValueOwner;
 use crate::worker::network_helpers::ws_server::channels::ws_channel_action::WsChannelAction;
 use crate::worker::network_helpers::ws_server::channels::ws_channel_subscription_request::WsChannelSubscriptionRequest;
 use crate::worker::network_helpers::ws_server::jsonrpc_request::JsonRpcId;
@@ -114,17 +115,13 @@ pub async fn get_subscription_requests(
     sub_id: &JsonRpcId,
     method: WsChannelName,
     pairs: &[Option<(String, String)>],
-    exchanges: &[String],
+    exchanges: &[MarketValueOwner],
 ) -> Vec<WsChannelSubscriptionRequest> {
     let mut subscription_requests = Vec::new();
 
     for pair in pairs {
         for exchange in exchanges {
-            let key = (
-                exchange.to_string(),
-                method.get_market_value(),
-                pair.clone(),
-            );
+            let key = (exchange.clone(), method.get_market_value(), pair.clone());
             let ws_channels = repositories_prepared
                 .ws_channels_holder
                 .get(&key)
@@ -147,11 +144,11 @@ pub async fn get_subscription_requests(
 pub fn prepare_some_params(
     coins: Option<Vec<String>>,
     exchanges: Option<Vec<String>>,
-) -> (Vec<Option<(String, String)>>, Vec<String>) {
+) -> (Vec<Option<(String, String)>>, Vec<MarketValueOwner>) {
     let pairs = zip_coins_with_usd(coins);
     let exchanges = exchanges
-        .map(|v| v.to_vec())
-        .unwrap_or(vec!["worker".to_string()]);
+        .map(|v| v.into_iter().map(MarketValueOwner::Market).collect())
+        .unwrap_or(vec![MarketValueOwner::Worker]);
 
     (pairs, exchanges)
 }

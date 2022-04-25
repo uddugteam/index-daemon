@@ -4,6 +4,7 @@ use crate::repository::repositories::{
     WorkerRepositoriesByPairTuple,
 };
 use crate::worker::market_helpers::market_value::MarketValue;
+use crate::worker::market_helpers::market_value_owner::MarketValueOwner;
 use crate::worker::market_helpers::pair_average_price::{
     make_pair_average_price, StoredAndWsTransmissibleF64ByPairTuple,
 };
@@ -66,7 +67,7 @@ impl RepositoriesPrepared {
         percent_change_interval_sec: u64,
         ws_channels_holder: &HolderHashMap<WsChannels>,
     ) -> Arc<RwLock<StoredAndWsTransmissibleF64>> {
-        let key = ("worker".to_string(), MarketValue::IndexPrice, None);
+        let key = (MarketValueOwner::Worker, MarketValue::IndexPrice, None);
         let percent_change = percent_change_holder.get(&key).unwrap();
         let ws_channels = ws_channels_holder.get(&key).unwrap();
 

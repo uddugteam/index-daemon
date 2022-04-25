@@ -2,6 +2,7 @@ use crate::graceful_shutdown::GracefulShutdown;
 use crate::repository::repositories::RepositoryForF64ByTimestamp;
 use crate::worker::helper_functions::strip_usd;
 use crate::worker::market_helpers::market_value::MarketValue;
+use crate::worker::market_helpers::market_value_owner::MarketValueOwner;
 use crate::worker::market_helpers::pair_average_price::StoredAndWsTransmissibleF64ByPairTuple;
 use crate::worker::network_helpers::ws_server::candles::Candles;
 use crate::worker::network_helpers::ws_server::channels::market_channels::LocalMarketChannels;
@@ -106,7 +107,7 @@ impl WsServer {
     fn make_keys(
         percent_change_holder: &PercentChangeByIntervalHolder,
         ws_channels_holder: &WsChannelsHolder,
-        exchanges: Vec<String>,
+        exchanges: Vec<MarketValueOwner>,
         market_value: MarketValue,
         pairs: Vec<Option<(String, String)>>,
     ) -> Option<Vec<HolderKey>> {
@@ -114,7 +115,7 @@ impl WsServer {
 
         for exchange in &exchanges {
             for pair in pairs.clone() {
-                let key = (exchange.to_string(), market_value, pair);
+                let key = (exchange.clone(), market_value, pair);
 
                 if percent_change_holder.contains_key(&key) && ws_channels_holder.contains_key(&key)
                 {
@@ -143,15 +144,17 @@ impl WsServer {
 
         let (exchanges, error_msg) = match &request {
             WsChannelSubscriptionRequest::Worker(..) => (
-                vec!["worker".to_string()],
+                vec![MarketValueOwner::Worker],
                 "Parameter value is wrong: coin.",
             ),
             WsChannelSubscriptionRequest::Market(request) => {
                 let exchanges = match request {
                     LocalMarketChannels::CoinExchangePrice { exchanges, .. }
-                    | LocalMarketChannels::CoinExchangeVolume { exchanges, .. } => {
-                        exchanges.clone()
-                    }
+                    | LocalMarketChannels::CoinExchangeVolume { exchanges, .. } => exchanges
+                        .iter()
+                        .cloned()
+                        .map(MarketValueOwner::Market)
+                        .collect(),
                 };
 
                 (exchanges, "One of two parameters is wrong: exchange, coin.")
