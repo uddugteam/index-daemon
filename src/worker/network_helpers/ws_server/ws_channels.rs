@@ -76,11 +76,7 @@ impl WsChannels {
     pub fn add_channel(&mut self, conn_id: ConnectionId, sender: WsChannelResponseSender) {
         let sub_id = sender.request.get_id();
 
-        if sender.send_succ_sub_notif().is_ok() {
-            self.0.insert((conn_id, sub_id), sender);
-        } else {
-            // Send msg error. The client is likely disconnected. Thus, we don't even establish subscription.
-        }
+        self.0.insert((conn_id, sub_id), sender);
     }
 
     pub fn remove_channel(&mut self, key: &(ConnectionId, JsonRpcId)) {

@@ -21,11 +21,10 @@ impl WsChannelsHolder {
     pub async fn add(
         &self,
         holder_key: &HolderKey,
-        value: (ConnectionId, WsChannelResponseSender),
+        conn_id: ConnectionId,
+        response_sender: WsChannelResponseSender,
     ) {
         if let Some(ws_channels) = self.0.get(holder_key) {
-            let (conn_id, response_sender) = value;
-
             ws_channels
                 .write()
                 .await

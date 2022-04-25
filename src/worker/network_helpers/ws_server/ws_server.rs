@@ -84,10 +84,10 @@ impl WsServer {
     async fn subscribe_stage_2(
         percent_change_holder: &mut PercentChangeByIntervalHolder,
         ws_channels_holder: &mut WsChannelsHolder,
-        broadcast_recipient: &Tx,
         conn_id: ConnectionId,
         request: WsChannelSubscriptionRequest,
         key: HolderKey,
+        sender: WsChannelResponseSender,
     ) {
         let percent_change_interval_sec = request.get_percent_change_interval_sec();
 
@@ -97,11 +97,7 @@ impl WsServer {
                 .await;
         }
 
-        let response_sender = WsChannelResponseSender::new(broadcast_recipient.clone(), request);
-
-        ws_channels_holder
-            .add(&key, (conn_id, response_sender))
-            .await;
+        ws_channels_holder.add(&key, conn_id, sender).await;
     }
 
     fn make_keys(
@@ -188,20 +184,24 @@ impl WsServer {
             )
             .await;
 
+            let sender = WsChannelResponseSender::new(broadcast_recipient.clone(), request.clone());
+
             for key in keys {
                 Self::subscribe_stage_2(
                     percent_change_holder,
                     ws_channels_holder,
-                    broadcast_recipient,
                     conn_id.clone(),
                     request.clone(),
                     key,
+                    sender.clone(),
                 )
                 .await;
 
                 // To prevent DDoS attack on a client
                 sleep(Duration::from_millis(100)).await;
             }
+
+            let _ = sender.send_succ_sub_notif();
         } else {
             let method = request.get_method();
 
