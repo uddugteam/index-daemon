@@ -22,6 +22,7 @@ use crate::worker::network_helpers::ws_server::ws_channel_response_payload::{
     CoinPrice, WsChannelResponsePayload,
 };
 use crate::worker::network_helpers::ws_server::ws_channel_response_sender::WsChannelResponseSender;
+use crate::worker::network_helpers::ws_server::ws_channels::CJ;
 use crate::worker::network_helpers::ws_server::ws_request::WsRequest;
 use async_std::{
     net::{TcpListener, TcpStream},
@@ -179,8 +180,7 @@ impl WsServer {
             Self::unsubscribe(
                 percent_change_holder,
                 ws_channels_holder,
-                conn_id.clone(),
-                sub_id,
+                (conn_id.clone(), sub_id),
             )
             .await;
 
@@ -219,11 +219,8 @@ impl WsServer {
     async fn unsubscribe(
         _percent_change_holder: &mut PercentChangeByIntervalHolder,
         ws_channels_holder: &mut WsChannelsHolder,
-        conn_id: ConnectionId,
-        sub_id: JsonRpcId,
+        key: CJ,
     ) {
-        let key = (conn_id, sub_id);
-
         ws_channels_holder.remove(&key).await;
     }
 
@@ -250,8 +247,7 @@ impl WsServer {
                 Self::unsubscribe(
                     &mut percent_change_holder,
                     &mut ws_channels_holder,
-                    conn_id,
-                    request.id,
+                    (conn_id, request.id),
                 )
                 .await;
             }

@@ -8,7 +8,9 @@ use crate::worker::network_helpers::ws_server::ws_channel_response_payload::WsCh
 use crate::worker::network_helpers::ws_server::ws_channel_response_sender::WsChannelResponseSender;
 use std::collections::HashMap;
 
-pub struct WsChannels(HashMap<(ConnectionId, JsonRpcId), WsChannelResponseSender>);
+pub type CJ = (ConnectionId, JsonRpcId);
+
+pub struct WsChannels(HashMap<CJ, WsChannelResponseSender>);
 
 impl WsChannels {
     pub fn new() -> Self {
@@ -18,7 +20,7 @@ impl WsChannels {
     pub fn get_channels_by_method(
         &self,
         method: WsChannelName,
-    ) -> HashMap<&(ConnectionId, JsonRpcId), &WsChannelSubscriptionRequest> {
+    ) -> HashMap<&CJ, &WsChannelSubscriptionRequest> {
         self.0
             .iter()
             .filter(|(_, v)| v.request.get_method() == method)
@@ -50,10 +52,7 @@ impl WsChannels {
         }
     }
 
-    pub async fn send_individual(
-        &mut self,
-        responses: HashMap<(ConnectionId, JsonRpcId), WsChannelResponsePayload>,
-    ) {
+    pub async fn send_individual(&mut self, responses: HashMap<CJ, WsChannelResponsePayload>) {
         let mut keys_to_remove = Vec::new();
 
         for (key, response_payload) in responses {
@@ -79,7 +78,7 @@ impl WsChannels {
         self.0.insert((conn_id, sub_id), sender);
     }
 
-    pub fn remove_channel(&mut self, key: &(ConnectionId, JsonRpcId)) {
+    pub fn remove_channel(&mut self, key: &CJ) {
         self.0.remove(key);
     }
 }
