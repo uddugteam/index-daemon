@@ -6,6 +6,8 @@ use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
 use crate::worker::network_helpers::ws_server::ws_channel_response::WsChannelResponse;
 use crate::worker::network_helpers::ws_server::ws_channel_response_payload::WsChannelResponsePayload;
 use crate::worker::network_helpers::ws_server::ws_channel_response_sender::WsChannelResponseSender;
+use async_tungstenite::tungstenite::protocol::Message;
+use futures::channel::mpsc::TrySendError;
 use std::collections::HashMap;
 
 pub type CJ = (ConnectionId, JsonRpcId);
@@ -31,25 +33,13 @@ impl WsChannels {
     async fn send_inner(
         sender: &mut WsChannelResponseSender,
         response_payload: WsChannelResponsePayload,
-    ) -> Result<(), ()> {
+    ) -> Option<Result<(), TrySendError<Message>>> {
         let response = WsChannelResponse {
             id: Some(sender.request.get_id()),
             result: response_payload,
         };
 
-        if let Some(send_msg_result) = sender.send(response).await {
-            if send_msg_result.is_err() {
-                // Send msg error. The client is likely disconnected. We stop sending him messages.
-
-                Err(())
-            } else {
-                Ok(())
-            }
-        } else {
-            // Message wasn't sent because of frequency_ms (not enough time has passed since last dispatch)
-
-            Ok(())
-        }
+        sender.send(response).await
     }
 
     pub async fn send_individual(&mut self, responses: HashMap<CJ, WsChannelResponsePayload>) {
@@ -59,10 +49,14 @@ impl WsChannels {
             if let Some(sender) = self.0.get_mut(&key) {
                 let send_result = Self::send_inner(sender, response_payload.clone()).await;
 
-                if send_result.is_err() {
-                    // Send msg error. The client is likely disconnected. We stop sending him messages.
+                if let Some(send_result) = send_result {
+                    if send_result.is_err() {
+                        // Send msg error. The client is likely disconnected. We stop sending him messages.
 
-                    keys_to_remove.push(key.clone());
+                        keys_to_remove.push(key.clone());
+                    }
+                } else {
+                    // Message wasn't sent because of frequency_ms (not enough time has passed since last dispatch)
                 }
             }
         }
