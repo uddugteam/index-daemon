@@ -36,7 +36,6 @@ use futures::{
     prelude::*,
 };
 use std::net::SocketAddr;
-use tokio::time::{sleep, Duration};
 
 type Tx = UnboundedSender<Message>;
 
@@ -85,16 +84,17 @@ impl WsServer {
     async fn subscribe_stage_2(
         percent_change_holder: &mut PercentChangeByIntervalHolder,
         ws_channels_holder: &mut WsChannelsHolder,
-        conn_id: ConnectionId,
         request: WsChannelSubscriptionRequest,
         key: HolderKey,
         sender: WsChannelResponseSender,
+        subscriber: CJ,
     ) {
+        let conn_id = subscriber.0.clone();
         let percent_change_interval_sec = request.get_percent_change_interval_sec();
 
         if let Some(percent_change_interval_sec) = percent_change_interval_sec {
             percent_change_holder
-                .add(&key, percent_change_interval_sec)
+                .add(&key, percent_change_interval_sec, subscriber)
                 .await;
         }
 
@@ -177,10 +177,12 @@ impl WsServer {
         );
 
         if let Some(keys) = keys {
+            let subscriber = (conn_id, sub_id);
+
             Self::unsubscribe(
                 percent_change_holder,
                 ws_channels_holder,
-                (conn_id.clone(), sub_id),
+                subscriber.clone(),
             )
             .await;
 
@@ -190,15 +192,12 @@ impl WsServer {
                 Self::subscribe_stage_2(
                     percent_change_holder,
                     ws_channels_holder,
-                    conn_id.clone(),
                     request.clone(),
                     key,
                     sender.clone(),
+                    subscriber.clone(),
                 )
                 .await;
-
-                // To prevent DDoS attack on a client
-                sleep(Duration::from_millis(100)).await;
             }
 
             let _ = sender.send_succ_sub_notif();
@@ -215,12 +214,12 @@ impl WsServer {
         }
     }
 
-    /// TODO: Add percent change interval removal
     async fn unsubscribe(
-        _percent_change_holder: &mut PercentChangeByIntervalHolder,
+        percent_change_holder: &mut PercentChangeByIntervalHolder,
         ws_channels_holder: &mut WsChannelsHolder,
         key: CJ,
     ) {
+        percent_change_holder.remove(&key).await;
         ws_channels_holder.remove(&key).await;
     }
 
