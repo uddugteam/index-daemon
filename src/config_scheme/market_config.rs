@@ -30,9 +30,9 @@ impl MarketConfig {
 
         let (exchange_pairs, index_pairs) = match (exchange_pairs, index_pairs) {
             (Some(exchange_pairs), Some(index_pairs)) => {
-                assert!(is_subset(&exchange_pairs, &index_pairs));
                 assert!(has_no_duplicates(&exchange_pairs));
                 assert!(has_no_duplicates(&index_pairs));
+                assert!(is_subset(&exchange_pairs, &index_pairs));
 
                 (exchange_pairs, index_pairs)
             }
@@ -40,14 +40,19 @@ impl MarketConfig {
                 assert!(has_no_duplicates(&exchange_pairs));
 
                 let index_pairs = set_intersection(&exchange_pairs, &default.index_pairs);
+                let index_pairs = if index_pairs.is_empty() {
+                    exchange_pairs.clone()
+                } else {
+                    index_pairs
+                };
 
                 (exchange_pairs, index_pairs)
             }
             (None, Some(index_pairs)) => {
                 let exchange_pairs = default.exchange_pairs;
 
-                assert!(is_subset(&exchange_pairs, &index_pairs));
                 assert!(has_no_duplicates(&index_pairs));
+                assert!(is_subset(&exchange_pairs, &index_pairs));
 
                 (exchange_pairs, index_pairs)
             }

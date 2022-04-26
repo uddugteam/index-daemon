@@ -129,38 +129,22 @@ pub fn make_exchange_pairs(coins: Vec<String>, fiats: Option<Vec<&str>>) -> Vec<
 }
 
 pub fn set_intersection<T: PartialEq + Eq + Hash + Clone>(a: &[T], b: &[T]) -> Vec<T> {
-    let a: HashSet<T> = a.iter().cloned().collect();
-    let mut res = Vec::new();
+    let a: HashSet<&T> = a.iter().collect();
+    let b: HashSet<&T> = b.iter().collect();
 
-    for item in b {
-        if a.contains(item) {
-            res.push(item.clone());
-        }
-    }
-
-    res
+    a.intersection(&b).cloned().cloned().collect()
 }
 
-pub fn is_subset<T: PartialEq>(set: &[T], subset: &[T]) -> bool {
-    for item in subset {
-        if !set.contains(item) {
-            return false;
-        }
-    }
+pub fn is_subset<T: PartialEq + Eq + Hash + Clone>(set: &[T], subset: &[T]) -> bool {
+    let set: HashSet<&T> = set.iter().collect();
+    let subset: HashSet<&T> = subset.iter().collect();
 
-    true
+    // `subset` is a subset of `set`
+    subset.is_subset(&set)
 }
 
-pub fn has_no_duplicates<T: PartialEq>(set: &[T]) -> bool {
-    let mut new_set = Vec::new();
+pub fn has_no_duplicates<T: PartialEq + Eq + Hash + Clone>(set: &[T]) -> bool {
+    let hash_set: HashSet<&T> = set.iter().collect();
 
-    for item in set {
-        if !new_set.contains(&item) {
-            new_set.push(item);
-        } else {
-            return false;
-        }
-    }
-
-    true
+    set.iter().eq(hash_set)
 }
