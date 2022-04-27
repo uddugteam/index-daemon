@@ -6,7 +6,7 @@ use crate::worker::network_helpers::ws_server::channels::worker_channels::LocalW
 use crate::worker::network_helpers::ws_server::channels::ws_channel_subscription_request::WsChannelSubscriptionRequest;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
 use crate::worker::network_helpers::ws_server::ws_channel_response_payload::WsChannelResponsePayload;
-use crate::worker::network_helpers::ws_server::ws_channels::WsChannels;
+use crate::worker::network_helpers::ws_server::ws_channels::{WsChannels, CJ};
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -91,6 +91,14 @@ impl StoredAndWsTransmissibleF64 {
             .get_percent_change(percent_change_interval_sec)
     }
 
+    async fn remove_percent_change_intervals(&self, subscribers: &[CJ]) {
+        let mut percent_change = self.percent_change.write().await;
+
+        for subscriber in subscribers {
+            percent_change.remove_percent_change_interval(subscriber);
+        }
+    }
+
     async fn send(&self) {
         if let Some(value) = self.value {
             for ws_channel_name in &self.ws_channel_names {
@@ -160,7 +168,10 @@ impl StoredAndWsTransmissibleF64 {
             responses.insert(key.clone(), response_payload);
         }
 
-        ws_channels.send_individual(responses).await;
+        let subscribers_to_remove = ws_channels.send_individual(responses).await;
+
+        self.remove_percent_change_intervals(&subscribers_to_remove)
+            .await;
 
         Some(())
     }

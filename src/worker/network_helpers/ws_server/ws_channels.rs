@@ -42,7 +42,10 @@ impl WsChannels {
         sender.send(response).await
     }
 
-    pub async fn send_individual(&mut self, responses: HashMap<CJ, WsChannelResponsePayload>) {
+    pub async fn send_individual(
+        &mut self,
+        responses: HashMap<CJ, WsChannelResponsePayload>,
+    ) -> Vec<CJ> {
         let mut keys_to_remove = Vec::new();
 
         for (key, response_payload) in responses {
@@ -61,9 +64,11 @@ impl WsChannels {
             }
         }
 
-        for key in keys_to_remove {
-            self.0.remove(&key);
+        for key in &keys_to_remove {
+            self.0.remove(key);
         }
+
+        keys_to_remove
     }
 
     pub fn add_channel(&mut self, conn_id: ConnectionId, sender: WsChannelResponseSender) {
