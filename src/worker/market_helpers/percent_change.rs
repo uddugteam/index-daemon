@@ -1,5 +1,5 @@
 use crate::config_scheme::config_scheme::ConfigScheme;
-use crate::worker::helper_functions::date_time_from_timestamp_sec;
+use crate::worker::helper_functions::{date_time_from_timestamp_sec, min_date_time};
 use crate::worker::network_helpers::ws_server::ws_channels::CJ;
 use chrono::{DateTime, Utc};
 use std::collections::{HashMap, HashSet};
@@ -45,7 +45,7 @@ impl PercentChangeByInterval {
         for (&interval_sec, percent_change) in &mut self.0 {
             let timestamp_old_sec = percent_change
                 .get_timestamp()
-                .unwrap_or(date_time_from_timestamp_sec(0))
+                .unwrap_or(min_date_time())
                 .timestamp() as u64;
 
             if timestamp_new_sec - timestamp_old_sec >= interval_sec {

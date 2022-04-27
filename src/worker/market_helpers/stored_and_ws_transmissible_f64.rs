@@ -1,5 +1,5 @@
 use crate::repository::repositories::RepositoryForF64ByTimestamp;
-use crate::worker::helper_functions::{date_time_from_timestamp_sec, strip_usd};
+use crate::worker::helper_functions::{date_time_from_timestamp_sec, min_date_time, strip_usd};
 use crate::worker::market_helpers::percent_change::PercentChangeByInterval;
 use crate::worker::network_helpers::ws_server::candles::Candle;
 use crate::worker::network_helpers::ws_server::channels::worker_channels::LocalWorkerChannels;
@@ -7,7 +7,7 @@ use crate::worker::network_helpers::ws_server::channels::ws_channel_subscription
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
 use crate::worker::network_helpers::ws_server::ws_channel_response_payload::WsChannelResponsePayload;
 use crate::worker::network_helpers::ws_server::ws_channels::WsChannels;
-use chrono::{DateTime, Utc, MIN_DATETIME};
+use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -56,7 +56,7 @@ impl StoredAndWsTransmissibleF64 {
 
         Self {
             value: None,
-            timestamp: MIN_DATETIME,
+            timestamp: min_date_time(),
             percent_change,
             percent_change_interval_sec,
             repository,

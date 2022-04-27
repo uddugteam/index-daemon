@@ -1,4 +1,5 @@
 use crate::repository::repositories::MarketRepositoriesByMarketValue;
+use crate::worker::helper_functions::min_date_time;
 use crate::worker::market_helpers::market_value::MarketValue;
 use crate::worker::market_helpers::market_value_owner::MarketValueOwner;
 use crate::worker::market_helpers::percent_change::PercentChangeByInterval;
@@ -6,7 +7,7 @@ use crate::worker::market_helpers::stored_and_ws_transmissible_f64::StoredAndWsT
 use crate::worker::network_helpers::ws_server::holders::helper_functions::HolderHashMap;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
 use crate::worker::network_helpers::ws_server::ws_channels::WsChannels;
-use chrono::{DateTime, Utc, MIN_DATETIME};
+use chrono::{DateTime, Utc};
 use std::sync::Arc;
 
 pub struct ExchangePairInfo {
@@ -84,7 +85,7 @@ impl ExchangePairInfo {
             ),
             total_ask: 0.0,
             total_bid: 0.0,
-            timestamp: MIN_DATETIME,
+            timestamp: min_date_time(),
         }
     }
 
