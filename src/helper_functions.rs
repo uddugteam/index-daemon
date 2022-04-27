@@ -40,25 +40,7 @@ fn parse_timestamp(fill_historical_config: &[String]) -> (DateTime<Utc>, DateTim
     (timestamp_from, timestamp_to)
 }
 
-async fn get_coin_daily_prices(
-    coin: &str,
-    timestamp_to: DateTime<Utc>,
-    day_count: u64,
-) -> Option<Vec<(DateTime<Utc>, f64)>> {
-    assert!(day_count <= 2000);
-
-    let second_coin = "USD";
-    let timestamp_to = timestamp_to.timestamp();
-    let api_key = "eb444b751a15aa9921cf7e14e4054ee42464eb152d86094fbfee9b8313fe895e";
-
-    let uri = format!("https://min-api.cryptocompare.com/data/v2/histoday?fsym={}&tsym={}&toTs={}&limit={}&api_key={}", coin, second_coin,timestamp_to, day_count,api_key);
-
-    let response = Client::new().get(uri).send().await;
-
-    let response = response.ok()?;
-    let response = response.text().await.ok()?;
-    let json: serde_json::Value = serde_json::from_str(&response).ok()?;
-
+fn parse_cryptocompare_json(json: serde_json::Value) -> Option<Vec<(DateTime<Utc>, f64)>> {
     let mut prices = Vec::new();
 
     let object = json.as_object()?;
@@ -79,6 +61,28 @@ async fn get_coin_daily_prices(
     Some(prices)
 }
 
+async fn get_coin_daily_prices(
+    coin: &str,
+    timestamp_to: DateTime<Utc>,
+    day_count: u64,
+) -> Result<Vec<(DateTime<Utc>, f64)>, String> {
+    assert!(day_count <= 2000);
+
+    let second_coin = "USD";
+    let timestamp_to = timestamp_to.timestamp();
+    let api_key = "eb444b751a15aa9921cf7e14e4054ee42464eb152d86094fbfee9b8313fe895e";
+
+    let uri = format!("https://min-api.cryptocompare.com/data/v2/histoday?fsym={}&tsym={}&toTs={}&limit={}&api_key={}", coin, second_coin,timestamp_to, day_count,api_key);
+
+    let response = Client::new().get(uri).send().await;
+
+    let response = response.map_err(|e| e.to_string())?;
+    let response = response.text().await.map_err(|e| e.to_string())?;
+    let json: serde_json::Value = serde_json::from_str(&response).map_err(|e| e.to_string())?;
+
+    parse_cryptocompare_json(json).ok_or("Error parsing json.".to_string())
+}
+
 async fn get_all_daily_prices(
     coins: &[String],
     timestamp_to: DateTime<Utc>,
@@ -86,15 +90,24 @@ async fn get_all_daily_prices(
 ) -> HashMap<String, Vec<(DateTime<Utc>, f64)>> {
     let mut all_prices = HashMap::new();
 
+    // To prevent DDoS attack on cryptocompare.com
+    sleep(Duration::from_secs(60)).await;
+
     for coin in coins {
         // To prevent DDoS attack on cryptocompare.com
         sleep(Duration::from_secs(10)).await;
 
-        let coin_prices = get_coin_daily_prices(coin, timestamp_to, day_count)
-            .await
-            .unwrap();
+        match get_coin_daily_prices(coin, timestamp_to, day_count).await {
+            Ok(coin_prices) => {
+                all_prices.insert(coin.to_string(), coin_prices);
+            }
+            Err(e) => {
+                // Sleep 1 minute before index-daemon restart
+                sleep(Duration::from_secs(60)).await;
 
-        all_prices.insert(coin.to_string(), coin_prices);
+                panic!("Error getting response from cryptocompare.com: {}", e);
+            }
+        }
     }
 
     all_prices
@@ -166,14 +179,17 @@ async fn fill_pair_average_price_repositories(
 
 pub async fn fill_historical_data(
     config: &ConfigScheme,
-    index_price_repository: RepositoryForF64ByTimestamp,
-    pair_average_price_repositories: WorkerRepositoriesByPairTuple,
+    index_price_repository: Option<RepositoryForF64ByTimestamp>,
+    pair_average_price_repositories: Option<WorkerRepositoriesByPairTuple>,
 ) {
     let matches = &config.matches;
 
     if let Some(fill_historical_config) = get_cli_param_values(matches, "fill_historical") {
         if config.service.storage.is_some() {
             info!("Fill historical data begin.");
+
+            assert!(index_price_repository.is_some());
+            assert!(pair_average_price_repositories.is_some());
 
             let (timestamp_from, timestamp_to) = parse_timestamp(&fill_historical_config);
             let day_count = (timestamp_to - timestamp_from).num_days() as u64;
@@ -184,10 +200,13 @@ pub async fn fill_historical_data(
 
             let all_prices = get_all_daily_prices(&coins, timestamp_to, day_count).await;
 
-            let future_1 = fill_index_price_repository(&all_prices, index_price_repository);
+            let future_1 =
+                fill_index_price_repository(&all_prices, index_price_repository.unwrap());
 
-            let future_2 =
-                fill_pair_average_price_repositories(&all_prices, pair_average_price_repositories);
+            let future_2 = fill_pair_average_price_repositories(
+                &all_prices,
+                pair_average_price_repositories.unwrap(),
+            );
 
             futures::future::join_all([future_1.boxed(), future_2.boxed()]).await;
 
