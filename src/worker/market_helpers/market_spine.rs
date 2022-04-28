@@ -185,7 +185,7 @@ impl MarketSpine {
 
         let new_avg = (new_price + old_avg) / 2.0;
 
-        info!("new {}-{} average trade price: {}", pair.0, pair.1, new_avg);
+        trace!("new {}-{} average trade price: {}", pair.0, pair.1, new_avg);
 
         pair_average_price_2.set(new_avg).await;
 
@@ -221,7 +221,7 @@ impl MarketSpine {
         if count > 1 {
             let avg = sum / count as f64;
 
-            info!("new index price: {}", avg);
+            trace!("new index price: {}", avg);
 
             index_price.write().await.set(avg).await;
         }

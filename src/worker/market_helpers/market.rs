@@ -87,7 +87,7 @@ pub async fn subscribe_channel(
     pair: String,
     channel: ExternalMarketChannels,
 ) {
-    trace!(
+    info!(
         "called subscribe_channel(). Market: {}, pair: {}, channel: {:?}",
         market.lock().await.get_spine().name,
         pair,
@@ -162,7 +162,7 @@ pub async fn market_update(market: Arc<Mutex<dyn Market + Send + Sync>>) {
 }
 
 async fn update(market: Arc<Mutex<dyn Market + Send + Sync>>) {
-    trace!(
+    info!(
         "called Market::update(). Market: {}",
         market.lock().await.get_spine().name
     );
@@ -344,7 +344,7 @@ pub trait Market {
     async fn parse_ticker_json_inner(&mut self, pair: String, volume: f64) {
         let pair_text_view = self.get_pair_text_view(pair.clone());
 
-        info!(
+        trace!(
             "new {} ticker on {} with volume: {}",
             pair_text_view,
             self.get_spine().name,
@@ -363,7 +363,7 @@ pub trait Market {
     ) {
         let pair_text_view = self.get_pair_text_view(pair.clone());
 
-        info!(
+        trace!(
             "new {} trade on {} with volume: {}, price: {}",
             pair_text_view,
             self.get_spine().name,
@@ -399,7 +399,7 @@ pub trait Market {
         }
         self.get_spine_mut().set_total_bid(&pair, bid_sum);
 
-        info!(
+        trace!(
             "new {} book on {} with ask_sum: {}, bid_sum: {}",
             pair_text_view,
             self.get_spine().name,
