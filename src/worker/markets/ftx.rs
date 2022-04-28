@@ -15,7 +15,7 @@ pub struct Ftx {
 
 impl Ftx {
     pub async fn update(market: Arc<Mutex<dyn Market + Send + Sync>>) {
-        trace!(
+        info!(
             "called Ftx::update(). Market: {}",
             market.lock().await.get_spine().name
         );

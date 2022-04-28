@@ -508,7 +508,7 @@ impl WsServer {
         match request {
             Ok(request) => match request {
                 WsRequest::Channel(request) => {
-                    info!(
+                    debug!(
                         "Client with addr: {} subscribed to: {:?}",
                         client_addr, request
                     );
@@ -523,7 +523,7 @@ impl WsServer {
                     .await;
                 }
                 WsRequest::Method(request) => {
-                    info!("Client with addr: {} requested: {:?}", client_addr, request);
+                    debug!("Client with addr: {} requested: {:?}", client_addr, request);
 
                     Self::do_response(
                         broadcast_recipient,
@@ -621,7 +621,7 @@ impl WsServer {
     ) {
         match async_tungstenite::accept_async(raw_stream).await {
             Ok(ws_stream) => {
-                info!(
+                debug!(
                     "WebSocket connection established, client addr: {}.",
                     client_addr
                 );
@@ -667,7 +667,7 @@ impl WsServer {
         // Create the event loop and TCP listener we'll accept connections on.
         let try_socket = TcpListener::bind(&self.ws_addr).await;
         let listener = try_socket.expect("Failed to bind");
-        info!("Websocket server started on: {}", self.ws_addr);
+        debug!("Websocket server started on: {}", self.ws_addr);
 
         // Let's spawn the handling of each connection in a separate task.
         while let Ok((stream, client_addr)) = listener.accept().await {

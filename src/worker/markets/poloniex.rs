@@ -111,7 +111,7 @@ impl Poloniex {
     }
 
     pub async fn update(market: Arc<Mutex<dyn Market + Send + Sync>>) {
-        trace!(
+        info!(
             "called Poloniex::update(). Market: {}",
             market.lock().await.get_spine().name
         );

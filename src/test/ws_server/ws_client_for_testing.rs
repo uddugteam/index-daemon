@@ -29,8 +29,6 @@ impl WsClientForTesting {
                 let (stdin_tx, stdin_rx) = futures::channel::mpsc::unbounded();
 
                 for message in self.messages {
-                    info!("WsClientForTesting. Message sent: {}", message);
-
                     stdin_tx.unbounded_send(Message::text(message)).unwrap();
 
                     // To prevent DDoS attack on a server
