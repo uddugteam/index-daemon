@@ -58,7 +58,7 @@ impl Market for Kucoin {
             ExternalMarketChannels::Trades => {
                 // TODO: Implement
                 // Implementation is too hard and requires Private API key
-                panic!("Trades channel for Kucoin is not implemented.");
+                unreachable!("Trades channel for Kucoin is not implemented.");
             }
             ExternalMarketChannels::Book => "spotMarket/level2Depth50",
         }
@@ -100,7 +100,7 @@ impl Market for Kucoin {
         _pair: String,
         _json: serde_json::Value,
     ) -> Option<()> {
-        panic!("Trades channel for Kucoin is not implemented.");
+        unreachable!("Trades channel for Kucoin is not implemented.");
     }
 
     async fn parse_depth_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {

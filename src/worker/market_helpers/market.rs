@@ -268,7 +268,7 @@ pub trait Market {
                     + self.get_spine().get_masked_value(pair.1))
                 .to_uppercase()
             }
-            _ => panic!("fn make_pair is not implemented"),
+            _ => unimplemented!("fn make_pair is not implemented"),
         }
     }
 
@@ -337,7 +337,7 @@ pub trait Market {
     }
 
     async fn update_ticker(&mut self, _pair: String) -> Option<()> {
-        panic!("fn update_ticker is not implemented.");
+        unimplemented!("fn update_ticker is not implemented.");
     }
 
     async fn parse_ticker_json(&mut self, pair: String, json: serde_json::Value) -> Option<()>;

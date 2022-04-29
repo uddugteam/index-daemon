@@ -94,7 +94,7 @@ impl Market for Ftx {
             ExternalMarketChannels::Ticker => {
                 // Ticker channel of market FTX is not implemented, because it has no useful info.
                 // Instead of websocket, we get needed info by REST API.
-                panic!("Ticker channel of market FTX is not implemented, because it has no useful info.");
+                unreachable!("Ticker channel of market FTX is not implemented, because it has no useful info.");
                 // "ticker" 
             },
             ExternalMarketChannels::Trades => "trades",
@@ -149,7 +149,9 @@ impl Market for Ftx {
     async fn parse_ticker_json(&mut self, _pair: String, _json: serde_json::Value) -> Option<()> {
         // Ticker channel of market FTX is not implemented, because it has no useful info.
         // Instead of websocket, we get needed info by REST API.
-        panic!("Ticker channel of market FTX is not implemented, because it has no useful info.");
+        unreachable!(
+            "Ticker channel of market FTX is not implemented, because it has no useful info."
+        );
     }
 
     async fn parse_last_trade_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {

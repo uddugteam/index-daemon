@@ -51,7 +51,7 @@ impl Market for Gemini {
     }
 
     fn get_channel_text_view(&self, _channel: ExternalMarketChannels) -> String {
-        panic!("Market Gemini has no channels.");
+        unreachable!("Market Gemini has no channels.");
     }
 
     async fn get_websocket_url(&self, _pair: &str, _channel: ExternalMarketChannels) -> String {

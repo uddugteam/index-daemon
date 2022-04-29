@@ -182,7 +182,7 @@ impl Market for Poloniex {
             ExternalMarketChannels::Ticker => "1003",
             ExternalMarketChannels::Trades => {
                 // There are no distinct Trades channel in Poloniex. We get Trades inside of Book channel.
-                panic!("Poloniex: Subscription to wrong channel: Trades.")
+                unreachable!("Poloniex: Subscription to wrong channel: Trades.")
             }
             ExternalMarketChannels::Book => {
                 // This string was intentionally left blank, because Poloniex don't have code for Book
