@@ -15,11 +15,11 @@ impl Storage {
         Self::Sled(tree)
     }
 
-    pub fn from_str(name: &str) -> Self {
+    pub fn from_str(name: &str) -> Result<Self, String> {
         match name {
-            "cache" => Self::Cache(Arc::new(RwLock::new(HashMap::new()))),
-            "sled" => Self::make_sled(),
-            other_storage => panic!("Got wrong storage name: {}", other_storage),
+            "cache" => Ok(Self::Cache(Arc::new(RwLock::new(HashMap::new())))),
+            "sled" => Ok(Self::make_sled()),
+            other_storage => Err(format!("Got wrong storage name: {}", other_storage)),
         }
     }
 }

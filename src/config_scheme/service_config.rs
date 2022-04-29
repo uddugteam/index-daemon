@@ -86,7 +86,7 @@ impl ServiceConfig {
             Some(
                 service_config
                     .get_str("storage")
-                    .map(|v| Storage::from_str(&v))
+                    .map(|v| Storage::from_str(&v).unwrap())
                     .unwrap_or_default(),
             )
         } else {

@@ -62,7 +62,8 @@ async fn configure(
             percent_change_interval_sec,
             ws_channels_holder,
         )
-        .await;
+        .await
+        .unwrap();
 
         markets.insert(market_name.to_string(), market);
     }

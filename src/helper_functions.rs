@@ -18,12 +18,16 @@ fn get_cli_param_values(matches: &ArgMatches, key: &str) -> Option<Vec<String>> 
     }
 }
 
-fn parse_timestamp(fill_historical_config: &[String]) -> (DateTime<Utc>, DateTime<Utc>) {
+fn parse_timestamp(
+    fill_historical_config: &[String],
+) -> Result<(DateTime<Utc>, DateTime<Utc>), String> {
     let timestamp = fill_historical_config[0].as_str();
     let timestamp: Vec<&str> = timestamp.split(',').collect();
-    assert!(timestamp.len() <= 2);
+    if timestamp.len() <= 2 {
+        return Err("Got no timestamps.".to_string());
+    }
 
-    let (timestamp_from, timestamp_to) = if let Some(timestamp_from) = timestamp.get(0) {
+    if let Some(timestamp_from) = timestamp.get(0) {
         let timestamp_from = date_time_from_timestamp_sec(timestamp_from.parse().unwrap());
 
         let timestamp_to = timestamp
@@ -31,13 +35,14 @@ fn parse_timestamp(fill_historical_config: &[String]) -> (DateTime<Utc>, DateTim
             .map(|v| date_time_from_timestamp_sec(v.parse().unwrap()))
             .unwrap_or(Utc::now());
 
-        (timestamp_from, timestamp_to)
+        if timestamp_to > timestamp_from {
+            Err("\"timestamp_to\" must be lower or equal that \"timestamp_from\".".to_string())
+        } else {
+            Ok((timestamp_from, timestamp_to))
+        }
     } else {
-        panic!("Wrong timestamp format.");
-    };
-    assert!(timestamp_to > timestamp_from);
-
-    (timestamp_from, timestamp_to)
+        Err("Wrong timestamp format.".to_string())
+    }
 }
 
 fn parse_cryptocompare_json(json: serde_json::Value) -> Option<Vec<(DateTime<Utc>, f64)>> {
@@ -66,28 +71,30 @@ async fn get_coin_daily_prices(
     timestamp_to: DateTime<Utc>,
     day_count: u64,
 ) -> Result<Vec<(DateTime<Utc>, f64)>, String> {
-    assert!(day_count <= 2000);
+    if day_count <= 2000 {
+        Err("\"day_count\" must be lower or equal that \"2000\".".to_string())
+    } else {
+        let second_coin = "USD";
+        let timestamp_to = timestamp_to.timestamp();
+        let api_key = "eb444b751a15aa9921cf7e14e4054ee42464eb152d86094fbfee9b8313fe895e";
 
-    let second_coin = "USD";
-    let timestamp_to = timestamp_to.timestamp();
-    let api_key = "eb444b751a15aa9921cf7e14e4054ee42464eb152d86094fbfee9b8313fe895e";
+        let uri = format!("https://min-api.cryptocompare.com/data/v2/histoday?fsym={}&tsym={}&toTs={}&limit={}&api_key={}", coin, second_coin,timestamp_to, day_count,api_key);
 
-    let uri = format!("https://min-api.cryptocompare.com/data/v2/histoday?fsym={}&tsym={}&toTs={}&limit={}&api_key={}", coin, second_coin,timestamp_to, day_count,api_key);
+        let response = Client::new().get(uri).send().await;
 
-    let response = Client::new().get(uri).send().await;
+        let response = response.map_err(|e| e.to_string())?;
+        let response = response.text().await.map_err(|e| e.to_string())?;
+        let json: serde_json::Value = serde_json::from_str(&response).map_err(|e| e.to_string())?;
 
-    let response = response.map_err(|e| e.to_string())?;
-    let response = response.text().await.map_err(|e| e.to_string())?;
-    let json: serde_json::Value = serde_json::from_str(&response).map_err(|e| e.to_string())?;
-
-    parse_cryptocompare_json(json).ok_or("Error parsing json.".to_string())
+        parse_cryptocompare_json(json).ok_or("Error parsing json.".to_string())
+    }
 }
 
 async fn get_all_daily_prices(
     coins: &[String],
     timestamp_to: DateTime<Utc>,
     day_count: u64,
-) -> HashMap<String, Vec<(DateTime<Utc>, f64)>> {
+) -> Result<HashMap<String, Vec<(DateTime<Utc>, f64)>>, String> {
     let mut all_prices = HashMap::new();
 
     // To prevent DDoS attack on cryptocompare.com
@@ -105,12 +112,15 @@ async fn get_all_daily_prices(
                 // Sleep 1 minute before index-daemon restart
                 sleep(Duration::from_secs(60)).await;
 
-                panic!("Error getting response from cryptocompare.com: {}", e);
+                return Err(format!(
+                    "Error getting response from cryptocompare.com: {}",
+                    e
+                ));
             }
         }
     }
 
-    all_prices
+    Ok(all_prices)
 }
 
 async fn fill_storage(
@@ -191,14 +201,16 @@ pub async fn fill_historical_data(
             assert!(index_price_repository.is_some());
             assert!(pair_average_price_repositories.is_some());
 
-            let (timestamp_from, timestamp_to) = parse_timestamp(&fill_historical_config);
+            let (timestamp_from, timestamp_to) = parse_timestamp(&fill_historical_config).unwrap();
             let day_count = (timestamp_to - timestamp_from).num_days() as u64;
 
             let coins = fill_historical_config[1].as_str();
             let coins: Vec<String> = coins.split(',').map(|v| v.to_string()).collect();
             assert!(!coins.is_empty());
 
-            let all_prices = get_all_daily_prices(&coins, timestamp_to, day_count).await;
+            let all_prices = get_all_daily_prices(&coins, timestamp_to, day_count)
+                .await
+                .unwrap();
 
             let future_1 =
                 fill_index_price_repository(&all_prices, index_price_repository.unwrap());

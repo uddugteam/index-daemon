@@ -42,7 +42,7 @@ impl StoredAndWsTransmissibleF64 {
             } else {
                 // Market's channel
 
-                assert!(matches!(market_name, Some(..)));
+                assert!(market_name.is_some());
             }
 
             if matches!(ws_channel_name, WsChannelName::IndexPrice)

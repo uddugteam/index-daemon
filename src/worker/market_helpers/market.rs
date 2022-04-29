@@ -35,7 +35,7 @@ pub async fn market_factory(
     percent_change_holder: &HolderHashMap<PercentChangeByInterval>,
     percent_change_interval_sec: u64,
     ws_channels_holder: &HolderHashMap<WsChannels>,
-) -> Arc<Mutex<dyn Market + Send + Sync>> {
+) -> Result<Arc<Mutex<dyn Market + Send + Sync>>, String> {
     let mut repositories = repositories.unwrap_or_default();
 
     let mask_pairs = match spine.name.as_ref() {
@@ -50,31 +50,33 @@ pub async fn market_factory(
 
     spine.add_mask_pairs(mask_pairs);
 
-    let market: Arc<Mutex<dyn Market + Send + Sync>> = match spine.name.as_ref() {
-        "binance" => Arc::new(Mutex::new(Binance { spine })),
-        "bitfinex" => Arc::new(Mutex::new(Bitfinex { spine })),
-        "coinbase" => Arc::new(Mutex::new(Coinbase { spine })),
-        "poloniex" => Arc::new(Mutex::new(Poloniex::new(spine))),
-        "kraken" => Arc::new(Mutex::new(Kraken { spine })),
-        "huobi" => Arc::new(Mutex::new(Huobi { spine })),
-        "hitbtc" => Arc::new(Mutex::new(Hitbtc { spine })),
-        "okcoin" => Arc::new(Mutex::new(Okcoin { spine })),
-        "gemini" => Arc::new(Mutex::new(Gemini { spine })),
-        "bybit" => Arc::new(Mutex::new(Bybit { spine })),
-        "gateio" => Arc::new(Mutex::new(Gateio { spine })),
-        "kucoin" => Arc::new(Mutex::new(Kucoin { spine })),
-        "ftx" => Arc::new(Mutex::new(Ftx { spine })),
-        _ => panic!("Market not found: {}", spine.name),
+    let market: Result<Arc<Mutex<dyn Market + Send + Sync>>, _> = match spine.name.as_ref() {
+        "binance" => Ok(Arc::new(Mutex::new(Binance { spine }))),
+        "bitfinex" => Ok(Arc::new(Mutex::new(Bitfinex { spine }))),
+        "coinbase" => Ok(Arc::new(Mutex::new(Coinbase { spine }))),
+        "poloniex" => Ok(Arc::new(Mutex::new(Poloniex::new(spine)))),
+        "kraken" => Ok(Arc::new(Mutex::new(Kraken { spine }))),
+        "huobi" => Ok(Arc::new(Mutex::new(Huobi { spine }))),
+        "hitbtc" => Ok(Arc::new(Mutex::new(Hitbtc { spine }))),
+        "okcoin" => Ok(Arc::new(Mutex::new(Okcoin { spine }))),
+        "gemini" => Ok(Arc::new(Mutex::new(Gemini { spine }))),
+        "bybit" => Ok(Arc::new(Mutex::new(Bybit { spine }))),
+        "gateio" => Ok(Arc::new(Mutex::new(Gateio { spine }))),
+        "kucoin" => Ok(Arc::new(Mutex::new(Kucoin { spine }))),
+        "ftx" => Ok(Arc::new(Mutex::new(Ftx { spine }))),
+        _ => Err(format!("Market not found: {}", spine.name)),
     };
 
-    for exchange_pair in exchange_pairs {
-        market.lock().await.add_exchange_pair(
-            exchange_pair.clone(),
-            repositories.remove(&exchange_pair),
-            percent_change_holder,
-            percent_change_interval_sec,
-            ws_channels_holder,
-        );
+    if let Ok(market) = &market {
+        for exchange_pair in exchange_pairs {
+            market.lock().await.add_exchange_pair(
+                exchange_pair.clone(),
+                repositories.remove(&exchange_pair),
+                percent_change_holder,
+                percent_change_interval_sec,
+                ws_channels_holder,
+            );
+        }
     }
 
     market
@@ -425,7 +427,7 @@ mod test {
     async fn make_market(
         market_name: Option<&str>,
     ) -> (
-        Arc<Mutex<dyn Market + Send + Sync>>,
+        Result<Arc<Mutex<dyn Market + Send + Sync>>, String>,
         Receiver<JoinHandle<()>>,
     ) {
         let config = ConfigScheme::default();
@@ -458,6 +460,9 @@ mod test {
     #[tokio::test]
     async fn test_add_exchange_pair() {
         let (market, _) = make_market(None).await;
+        assert!(market.is_ok());
+        let market = market.unwrap();
+
         let market_name = market.lock().await.get_spine().name.clone();
 
         let pair_tuple = ("some_coin_1".to_string(), "some_coin_2".to_string());
@@ -511,14 +516,16 @@ mod test {
     }
 
     #[tokio::test]
-    #[should_panic]
-    async fn test_market_factory_panic() {
-        let (_, _) = make_market(Some("not_existing_market")).await;
+    async fn test_market_factory_not_existing_market() {
+        let (market, _) = make_market(Some("not_existing_market")).await;
+        assert!(market.is_err());
     }
 
     #[tokio::test]
     async fn test_market_factory() {
         let (market, _) = make_market(None).await;
+        assert!(market.is_ok());
+        let market = market.unwrap();
 
         let config = MarketConfig::default();
         let exchange_pair_keys: Vec<String> = market
