@@ -1,11 +1,20 @@
-version: "3.1"
+version: "3.9"
 services:
   index-daemon:
-    build: .
-    deploy:
-      resources:
-        limits:
-          memory: '1G'
-          cpus: '2'
+    environment:
+      APP__SERVICE_CONFIG__HISTORICAL: 1
+      APP__SERVICE_CONFIG__WS: 1
+      APP__SERVICE_CONFIG__WS_HOST: 0.0.0.0
+      APP__SERVICE_CONFIG__WS_PORT: 8080 
+      APP__SERVICE_CONFIG__LOG_LEVEL: error
+    image: index-daemon:latest 
+    restart: always
+    command: /usr/local/bin/index-daemon --fill_historical 1583010000 BTC,ETH   
+    volumes:
+        - /opt/app/db:/db
     ports:
-      - 8000:8000
+        - target: 8080
+          published: 8080
+          protocol: tcp
+          mode: host
+

@@ -1,15 +1,14 @@
-use rustc_serialize::json::{Array, Json};
-
 use crate::worker::market_helpers::market::Market;
-use crate::worker::market_helpers::market_channels::MarketChannels;
+use crate::worker::market_helpers::market_channels::ExternalMarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
+use async_trait::async_trait;
 
 pub struct Bitfinex {
     pub spine: MarketSpine,
 }
 
 impl Bitfinex {
-    fn depth_helper(array: &Array) -> (Vec<(f64, f64)>, Vec<(f64, f64)>) {
+    fn depth_helper(array: &Vec<serde_json::Value>) -> (Vec<(f64, f64)>, Vec<(f64, f64)>) {
         let mut asks = Vec::new();
         let mut bids = Vec::new();
 
@@ -32,6 +31,7 @@ impl Bitfinex {
     }
 }
 
+#[async_trait]
 impl Market for Bitfinex {
     fn get_spine(&self) -> &MarketSpine {
         &self.spine
@@ -48,20 +48,24 @@ impl Market for Bitfinex {
             .to_uppercase()
     }
 
-    fn get_channel_text_view(&self, channel: MarketChannels) -> String {
+    fn get_channel_text_view(&self, channel: ExternalMarketChannels) -> String {
         match channel {
-            MarketChannels::Ticker => "ticker",
-            MarketChannels::Trades => "trades",
-            MarketChannels::Book => "book",
+            ExternalMarketChannels::Ticker => "ticker",
+            ExternalMarketChannels::Trades => "trades",
+            ExternalMarketChannels::Book => "book",
         }
         .to_string()
     }
 
-    fn get_websocket_url(&self, _pair: &str, _channel: MarketChannels) -> String {
+    async fn get_websocket_url(&self, _pair: &str, _channel: ExternalMarketChannels) -> String {
         "wss://api-pub.bitfinex.com/ws/2".to_string()
     }
 
-    fn get_websocket_on_open_msg(&self, pair: &str, channel: MarketChannels) -> Option<String> {
+    fn get_websocket_on_open_msg(
+        &self,
+        pair: &str,
+        channel: ExternalMarketChannels,
+    ) -> Option<String> {
         Some(format!(
             "{{\"event\":\"subscribe\", \"channel\":\"{}\", \"symbol\":\"{}\"}}",
             self.get_channel_text_view(channel),
@@ -70,31 +74,35 @@ impl Market for Bitfinex {
     }
 
     /// Response description: https://docs.bitfinex.com/reference?ref=https://coder.social#rest-public-ticker
-    fn parse_ticker_json(&mut self, pair: String, json: Json) -> Option<()> {
+    async fn parse_ticker_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
         let array = json.as_array()?;
         let array = array[1].as_array()?;
 
-        let volume: f64 = array[7].as_f64()?;
-        self.parse_ticker_json_inner(pair, volume);
+        let base_price: f64 = array[6].as_f64()?;
+        let base_volume: f64 = array[7].as_f64()?;
+        let quote_volume: f64 = base_volume * base_price;
+
+        self.parse_ticker_json_inner(pair, quote_volume).await;
 
         Some(())
     }
 
     /// Response description: https://docs.bitfinex.com/reference?ref=https://coder.social#rest-public-trades
-    fn parse_last_trade_json(&mut self, pair: String, json: Json) -> Option<()> {
+    async fn parse_last_trade_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
         let array = json.as_array()?;
         let array = array.get(2)?;
         let array = array.as_array()?;
 
         let last_trade_volume: f64 = array[2].as_f64()?;
         let last_trade_price: f64 = array[3].as_f64()?;
-        self.parse_last_trade_json_inner(pair, last_trade_volume, last_trade_price);
+        self.parse_last_trade_json_inner(pair, last_trade_volume, last_trade_price)
+            .await;
 
         Some(())
     }
 
     /// Response description: https://docs.bitfinex.com/reference?ref=https://coder.social#rest-public-book
-    fn parse_depth_json(&mut self, pair: String, json: Json) -> Option<()> {
+    async fn parse_depth_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
         let array = json.as_array()?;
         let array = array.get(1)?.as_array()?;
 

@@ -1,13 +1,13 @@
-use rustc_serialize::json::Json;
-
 use crate::worker::market_helpers::market::{depth_helper_v1, parse_str_from_json_array, Market};
-use crate::worker::market_helpers::market_channels::MarketChannels;
+use crate::worker::market_helpers::market_channels::ExternalMarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
+use async_trait::async_trait;
 
 pub struct Kraken {
     pub spine: MarketSpine,
 }
 
+#[async_trait]
 impl Market for Kraken {
     fn get_spine(&self) -> &MarketSpine {
         &self.spine
@@ -24,37 +24,48 @@ impl Market for Kraken {
         .to_uppercase()
     }
 
-    fn get_channel_text_view(&self, channel: MarketChannels) -> String {
+    fn get_channel_text_view(&self, channel: ExternalMarketChannels) -> String {
         match channel {
-            MarketChannels::Ticker => "ticker",
-            MarketChannels::Trades => "trade",
-            MarketChannels::Book => "book",
+            ExternalMarketChannels::Ticker => "ticker",
+            ExternalMarketChannels::Trades => "trade",
+            ExternalMarketChannels::Book => "book",
         }
         .to_string()
     }
 
-    fn get_websocket_url(&self, _pair: &str, _channel: MarketChannels) -> String {
+    async fn get_websocket_url(&self, _pair: &str, _channel: ExternalMarketChannels) -> String {
         "wss://ws.kraken.com".to_string()
     }
 
-    fn get_websocket_on_open_msg(&self, pair: &str, channel: MarketChannels) -> Option<String> {
+    fn get_websocket_on_open_msg(
+        &self,
+        pair: &str,
+        channel: ExternalMarketChannels,
+    ) -> Option<String> {
         Some(format!(
             "{{\"event\": \"subscribe\", \"pair\": [\"{}\"], \"subscription\": {{\"name\": \"{}\"}}}}",
             pair, self.get_channel_text_view(channel)
         ))
     }
 
-    fn parse_ticker_json(&mut self, pair: String, json: Json) -> Option<()> {
+    async fn parse_ticker_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
         let array = json.as_array()?;
-        let array = array[1].as_object()?.get("v")?.as_array()?;
+        let array = array[1].as_object()?;
 
-        let volume: f64 = parse_str_from_json_array(array, 1)?;
-        self.parse_ticker_json_inner(pair, volume);
+        let base_price = array.get("c")?.as_array()?;
+        let base_price: f64 = parse_str_from_json_array(base_price, 0)?;
+
+        let base_volume = array.get("v")?.as_array()?;
+        let base_volume: f64 = parse_str_from_json_array(base_volume, 1)?;
+
+        let quote_volume: f64 = base_volume * base_price;
+
+        self.parse_ticker_json_inner(pair, quote_volume).await;
 
         Some(())
     }
 
-    fn parse_last_trade_json(&mut self, pair: String, json: Json) -> Option<()> {
+    async fn parse_last_trade_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
         let array = json.as_array()?;
 
         for array in array[1].as_array()? {
@@ -63,7 +74,7 @@ impl Market for Kraken {
             let last_trade_price: f64 = parse_str_from_json_array(array, 0)?;
             let mut last_trade_volume: f64 = parse_str_from_json_array(array, 1)?;
 
-            let trade_type = array[3].as_string()?;
+            let trade_type = array[3].as_str()?;
             // TODO: Check whether inversion is right
             if trade_type == "s" {
                 // sell
@@ -72,13 +83,14 @@ impl Market for Kraken {
                 // buy
             }
 
-            self.parse_last_trade_json_inner(pair.clone(), last_trade_volume, last_trade_price);
+            self.parse_last_trade_json_inner(pair.clone(), last_trade_volume, last_trade_price)
+                .await;
         }
 
         Some(())
     }
 
-    fn parse_depth_json(&mut self, pair: String, json: Json) -> Option<()> {
+    async fn parse_depth_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
         let array = json.as_array()?;
         let object = array[1].as_object()?;
         let asks = object.get("as")?;
