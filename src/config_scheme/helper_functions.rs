@@ -12,35 +12,33 @@ pub fn get_config_file_path(matches: &ArgMatches, key: &str) -> Option<String> {
 }
 
 pub fn get_config_from_config_files(matches: &ArgMatches, key: &str) -> config::Config {
-    let mut config = config::Config::default();
+    let config = config::Config::builder();
 
-    if let Some(path) = get_config_file_path(matches, key) {
-        config.merge(config::File::with_name(&path)).unwrap();
+    let config = if let Some(path) = get_config_file_path(matches, key) {
+        config.add_source(config::File::with_name(&path))
     } else {
-        let env_key = "APP__".to_string() + &key.to_uppercase() + "_";
+        let env_key = "APP__".to_string() + &key.to_uppercase();
 
-        config
-            .merge(config::Environment::with_prefix(&env_key).separator("__"))
-            .unwrap();
-    }
+        config.add_source(config::Environment::with_prefix(&env_key).separator("__"))
+    };
 
-    config
+    config.build().unwrap()
 }
 
 pub fn get_param_value_as_vec_of_string(config: &config::Config, key: &str) -> Option<Vec<String>> {
-    if let Ok(string) = config.get_str(key) {
+    if let Ok(string) = config.get_string(key) {
         Some(string.split(',').map(|v| v.to_string()).collect())
     } else {
         config
             .get_array(key)
             .ok()
-            .map(|v| v.into_iter().map(|v| v.into_str().unwrap()).collect())
+            .map(|v| v.into_iter().map(|v| v.into_string().unwrap()).collect())
     }
 }
 
 pub fn set_log_level(service_config: &config::Config) {
     let log_level = service_config
-        .get_str("log_level")
+        .get_string("log_level")
         .unwrap_or("trace".to_string());
 
     let mut builder = Builder::from_default_env();
