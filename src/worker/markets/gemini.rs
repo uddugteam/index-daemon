@@ -71,7 +71,7 @@ impl Gemini {
     fn depth_helper(
         ask_sum: f64,
         bid_sum: f64,
-        array: &Vec<serde_json::Value>,
+        array: &[serde_json::Value],
     ) -> (Vec<(f64, f64)>, Vec<(f64, f64)>) {
         let mut asks = vec![(1.0, ask_sum)];
         let mut bids = vec![(1.0, bid_sum)];
@@ -148,15 +148,14 @@ impl Market for Gemini {
 
         if message_type == "trade" {
             // trades
-            self.parse_last_trade_json(pair, json).await;
+            self.parse_last_trade_json(pair, json).await
         } else if message_type == "l2_updates" {
             // book
-            self.parse_depth_json(pair, json).await;
+            self.parse_depth_json(pair, json).await
         } else {
             // no ticker
+            None
         }
-
-        Some(())
     }
 
     async fn parse_last_trade_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {

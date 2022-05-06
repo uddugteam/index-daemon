@@ -8,7 +8,7 @@ pub struct Bybit {
 }
 
 impl Bybit {
-    fn depth_helper(array: &Vec<serde_json::Value>) -> (Vec<(f64, f64)>, Vec<(f64, f64)>) {
+    fn depth_helper(array: &[serde_json::Value]) -> (Vec<(f64, f64)>, Vec<(f64, f64)>) {
         let mut asks = Vec::new();
         let mut bids = Vec::new();
 

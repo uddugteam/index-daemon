@@ -13,7 +13,6 @@ impl ExternalMarketChannels {
     }
 }
 
-// TODO: Replace error type with correct
 impl FromStr for ExternalMarketChannels {
     type Err = ();
 
