@@ -18,7 +18,8 @@ type ParamsForRecalculatePairAveragePrice = (
     Vec<(String, String)>,
 );
 
-pub const EPS: f64 = 0.00001;
+/// One billionth
+pub const EPS: f64 = 0.000_000_001;
 
 pub struct MarketSpine {
     pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,

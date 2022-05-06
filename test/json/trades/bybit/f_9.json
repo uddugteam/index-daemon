@@ -2,7 +2,7 @@
   "data": [
     {
       "cross_seq": 11477846328,
-      "price": 42424,
+      "price": 42424.10,
       "side": "Sell",
       "size": 4,
       "symbol": "BTCUSD",
@@ -13,7 +13,7 @@
     },
     {
       "cross_seq": 11477846328,
-      "price": 42424,
+      "price": 42424.15,
       "side": "Sell",
       "size": 1,
       "symbol": "BTCUSD",
@@ -24,7 +24,7 @@
     },
     {
       "cross_seq": 11477846328,
-      "price": 42424,
+      "price": 42424.20,
       "side": "Sell",
       "size": 21,
       "symbol": "BTCUSD",
@@ -35,7 +35,7 @@
     },
     {
       "cross_seq": 11477846328,
-      "price": 42424,
+      "price": 42424.25,
       "side": "Sell",
       "size": 9,
       "symbol": "BTCUSD",
@@ -46,7 +46,7 @@
     },
     {
       "cross_seq": 11477846328,
-      "price": 42424,
+      "price": 42424.30,
       "side": "Sell",
       "size": 13,
       "symbol": "BTCUSD",
@@ -57,7 +57,7 @@
     },
     {
       "cross_seq": 11477846328,
-      "price": 42424,
+      "price": 42424.35,
       "side": "Sell",
       "size": 4,
       "symbol": "BTCUSD",
@@ -68,7 +68,7 @@
     },
     {
       "cross_seq": 11477846328,
-      "price": 42424,
+      "price": 42424.40,
       "side": "Sell",
       "size": 10,
       "symbol": "BTCUSD",
@@ -79,7 +79,7 @@
     },
     {
       "cross_seq": 11477846328,
-      "price": 42424,
+      "price": 42424.45,
       "side": "Buy",
       "size": 1,
       "symbol": "BTCUSD",
@@ -90,7 +90,7 @@
     },
     {
       "cross_seq": 11477846328,
-      "price": 42424,
+      "price": 42424.50,
       "side": "Buy",
       "size": 1,
       "symbol": "BTCUSD",
@@ -101,7 +101,7 @@
     },
     {
       "cross_seq": 11477846328,
-      "price": 42424,
+      "price": 42424.55,
       "side": "Buy",
       "size": 1,
       "symbol": "BTCUSD",
@@ -112,7 +112,7 @@
     },
     {
       "cross_seq": 11477846328,
-      "price": 42424,
+      "price": 42424.60,
       "side": "Buy",
       "size": 1,
       "symbol": "BTCUSD",
@@ -123,7 +123,7 @@
     },
     {
       "cross_seq": 11477846328,
-      "price": 42424,
+      "price": 42424.65,
       "side": "Buy",
       "size": 1,
       "symbol": "BTCUSD",
@@ -134,7 +134,7 @@
     },
     {
       "cross_seq": 11477846328,
-      "price": 42424,
+      "price": 42424.70,
       "side": "Buy",
       "size": 1,
       "symbol": "BTCUSD",
@@ -145,7 +145,7 @@
     },
     {
       "cross_seq": 11477846328,
-      "price": 42424,
+      "price": 42424.75,
       "side": "Buy",
       "size": 1,
       "symbol": "BTCUSD",

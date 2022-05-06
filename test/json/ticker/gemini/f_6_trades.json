@@ -1,0 +1,9 @@
+{
+  "event_id": 110820310345,
+  "price": "36085.90",
+  "quantity": "0.171",
+  "side": "buy",
+  "symbol": "BTCUSD",
+  "timestamp": 1651849001785,
+  "type": "trade"
+}

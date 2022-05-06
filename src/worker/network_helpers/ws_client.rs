@@ -1,4 +1,4 @@
-use crate::worker::market_helpers::market::Market;
+use crate::worker::market_helpers::market::{debug_write_json_to_file, Market};
 use crate::worker::market_helpers::market_channels::ExternalMarketChannels;
 use async_tungstenite::async_std::connect_async;
 use async_tungstenite::tungstenite::protocol::Message;
@@ -99,6 +99,15 @@ impl WsClient {
                             let message_is_ping = Self::send_pong(&stdin_tx, &message).is_some();
                             if !message_is_ping {
                                 if let Ok(json) = serde_json::from_str(&message) {
+                                    // // TODO: Remove debug
+                                    // if true {
+                                    //     debug_write_json_to_file(
+                                    //         &self.market.lock().await.get_spine().name,
+                                    //         self.channel,
+                                    //         &json,
+                                    //     );
+                                    // }
+
                                     let pair = self.pair.clone();
                                     let mut market = self.market.lock().await;
 

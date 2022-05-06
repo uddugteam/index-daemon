@@ -191,8 +191,10 @@ impl Market for Ftx {
             let asks = depth_helper_v2(asks);
             let bids = depth_helper_v2(bids);
             self.parse_depth_json_inner(pair, asks, bids);
-        }
 
-        Some(())
+            Some(())
+        } else {
+            None
+        }
     }
 }

@@ -98,8 +98,10 @@ impl Market for Okcoin {
                     }
                 }
             }
-        }
 
-        Some(())
+            Some(())
+        } else {
+            None
+        }
     }
 }

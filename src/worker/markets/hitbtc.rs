@@ -55,8 +55,8 @@ impl Market for Hitbtc {
 
     async fn parse_last_trade_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
         let object = json.as_object()?;
-        let object = object.get("update")?;
-        let array = object.as_object()?.get(&pair)?.as_array()?;
+        let object = object.get("update")?.as_object()?;
+        let array = object.get(&pair)?.as_array()?;
 
         for object in array {
             let object = object.as_object()?;

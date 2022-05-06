@@ -23,6 +23,10 @@ use crate::worker::network_helpers::ws_server::holders::helper_functions::Holder
 use crate::worker::network_helpers::ws_server::ws_channels::WsChannels;
 use async_trait::async_trait;
 use futures::FutureExt;
+use std::fs;
+use std::fs::File;
+use std::io::Write;
+use std::path::Path;
 use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -80,6 +84,29 @@ pub async fn market_factory(
     }
 
     market
+}
+
+/// TODO: Remove debug
+pub fn debug_write_json_to_file(
+    market_name: &str,
+    channel: ExternalMarketChannels,
+    json: &serde_json::Value,
+) {
+    let dir_path = format!("test/json/{:?}/{}/", channel, market_name).to_lowercase();
+    let _ = fs::create_dir_all(dir_path.clone());
+
+    for i in 0..10 {
+        let file_name = format!("f_{}.json", i);
+        let path = dir_path.clone() + &file_name;
+
+        if !Path::new(&path).exists() {
+            if let Ok(mut file) = File::create(path) {
+                let _ = write!(file, "{}", json);
+
+                break;
+            }
+        }
+    }
 }
 
 /// Establishes websocket connection with market (subscribes to the channel with pair)
@@ -417,13 +444,19 @@ mod test {
     use crate::config_scheme::config_scheme::ConfigScheme;
     use crate::config_scheme::market_config::MarketConfig;
     use crate::config_scheme::repositories_prepared::RepositoriesPrepared;
+    use crate::worker::defaults::MARKETS;
     use crate::worker::helper_functions::get_pair_ref;
     use crate::worker::market_helpers::market::{market_factory, Market};
+    use crate::worker::market_helpers::market_channels::ExternalMarketChannels;
     use crate::worker::market_helpers::market_spine::test::make_spine;
+    use chrono::{DateTime, Utc};
+    use std::fs;
+    use std::ops::Deref;
     use std::sync::mpsc::Receiver;
     use std::sync::Arc;
     use std::thread::JoinHandle;
     use tokio::sync::Mutex;
+    use tokio::time::{sleep, Duration};
 
     async fn make_market(
         market_name: Option<&str>,
@@ -431,7 +464,9 @@ mod test {
         Result<Arc<Mutex<dyn Market + Send + Sync>>, String>,
         Receiver<JoinHandle<()>>,
     ) {
-        let config = ConfigScheme::default();
+        let mut config = ConfigScheme::default();
+        config.market.exchange_pairs = vec![("BTC".to_string(), "USD".to_string())];
+        config.market.index_pairs = vec![("BTC".to_string(), "USD".to_string())];
 
         let RepositoriesPrepared {
             index_price_repository: _,
@@ -458,10 +493,103 @@ mod test {
         (market, rx)
     }
 
+    async fn make_all_markets() -> Vec<(
+        Arc<Mutex<dyn Market + Send + Sync>>,
+        Receiver<JoinHandle<()>>,
+    )> {
+        let mut markets = Vec::new();
+
+        for market_name in MARKETS {
+            let (market, rx) = make_market(Some(market_name)).await;
+            let market = market.unwrap();
+
+            markets.push((market, rx));
+        }
+
+        markets
+    }
+
+    fn check_timestamp(timestamp: DateTime<Utc>, timestamp_before_parse: DateTime<Utc>) {
+        println!("timestamp_before_parse: {:#?}", timestamp_before_parse);
+        println!("timestamp: {:#?}", timestamp);
+
+        assert!(timestamp >= timestamp_before_parse);
+
+        let seconds_elapsed = (timestamp - timestamp_before_parse).num_seconds();
+        assert!(seconds_elapsed >= 0);
+        assert!(seconds_elapsed <= 60);
+    }
+
+    fn check_last_trade_volume(market: &dyn Market, timestamp_before_parse: DateTime<Utc>) {
+        let exchange_pair_info = market
+            .get_spine()
+            .get_exchange_pairs()
+            .values()
+            .next()
+            .unwrap();
+
+        let last_trade_volume = exchange_pair_info.get_last_trade_volume();
+        assert!(last_trade_volume.abs() > 0.0);
+
+        let timestamp = exchange_pair_info.get_timestamp();
+        println!("check_last_trade_volume()");
+        check_timestamp(timestamp, timestamp_before_parse);
+    }
+
+    fn check_total_volume(market: &dyn Market, timestamp_before_parse: DateTime<Utc>) {
+        let exchange_pair_info = market
+            .get_spine()
+            .get_exchange_pairs()
+            .values()
+            .next()
+            .unwrap();
+
+        let total_volume = exchange_pair_info.total_volume.get();
+        assert!(total_volume.is_some());
+
+        let timestamp = exchange_pair_info.total_volume.get_timestamp();
+        println!("check_total_volume()");
+        check_timestamp(timestamp, timestamp_before_parse);
+    }
+
+    fn check_price(market: &dyn Market, timestamp_before_parse: DateTime<Utc>) {
+        let exchange_pair_info = market
+            .get_spine()
+            .get_exchange_pairs()
+            .values()
+            .next()
+            .unwrap();
+
+        let last_trade_price = exchange_pair_info.last_trade_price.get();
+        assert!(last_trade_price.is_some());
+
+        let timestamp = exchange_pair_info.last_trade_price.get_timestamp();
+        println!("check_price()");
+        check_timestamp(timestamp, timestamp_before_parse);
+    }
+
+    fn check_ask_and_bid(market: &dyn Market, timestamp_before_parse: DateTime<Utc>) {
+        let exchange_pair_info = market
+            .get_spine()
+            .get_exchange_pairs()
+            .values()
+            .next()
+            .unwrap();
+
+        let total_ask = exchange_pair_info.get_total_ask();
+        assert!(total_ask.abs() > 0.0);
+
+        let total_bid = exchange_pair_info.get_total_bid();
+        assert!(total_bid.abs() > 0.0);
+
+        let timestamp = exchange_pair_info.get_timestamp();
+        println!("check_ask_and_bid()");
+        check_timestamp(timestamp, timestamp_before_parse);
+    }
+
     #[tokio::test]
     async fn test_add_exchange_pair() {
         let (market, _) = make_market(None).await;
-        assert!(market.is_ok());
         let market = market.unwrap();
 
         let market_name = market.lock().await.get_spine().name.clone();
@@ -525,7 +653,6 @@ mod test {
     #[tokio::test]
     async fn test_market_factory() {
         let (market, _) = make_market(None).await;
-        assert!(market.is_ok());
         let market = market.unwrap();
 
         let config = MarketConfig::default();
@@ -542,6 +669,119 @@ mod test {
         for pair in &config.exchange_pairs {
             let pair_string = market.lock().await.make_pair(get_pair_ref(pair));
             assert!(exchange_pair_keys.contains(&pair_string));
+        }
+    }
+
+    /// TODO: Fix test for `poloniex`
+    #[tokio::test]
+    async fn test_parse_market_response() {
+        for (market, _) in make_all_markets().await {
+            let mut market = market.lock().await;
+            let market_name = market.get_spine().name.as_str().to_string();
+
+            let market_is_gemini = market_name == "gemini";
+            let market_is_ftx = market_name == "ftx";
+
+            // let pairs_count = market.get_spine().get_exchange_pairs().len();
+            // println!("pairs_count: {}", pairs_count);
+            // let first_key = market.get_spine().get_exchange_pairs().keys().next();
+            // println!("first_key: {}", first_key.unwrap());
+
+            let pair_string = market
+                .get_spine()
+                .get_exchange_pairs()
+                .keys()
+                .next()
+                .unwrap()
+                .to_string();
+
+            for channel in market.get_spine().channels.clone() {
+                // // DEBUG begin
+                // if matches!(channel, ExternalMarketChannels::Ticker) {
+                //     continue;
+                // }
+                // // DEBUG end
+
+                if market_is_ftx && matches!(channel, ExternalMarketChannels::Ticker) {
+                    // Market FTX has channel "Ticker", but it's REST API, but not websocket.
+                    continue;
+                }
+
+                let dir_path = format!("test/json/{:?}/{}/", channel, market_name).to_lowercase();
+                // println!("dir_path: {}", dir_path);
+
+                let paths = fs::read_dir(&dir_path).unwrap();
+
+                for path in paths {
+                    let file_name = path.unwrap().file_name().into_string().unwrap();
+                    println!("********************************************************************************************************************************************");
+                    println!("market: {}, channel: {:?}", market_name, channel);
+                    println!("file_name: {}", file_name);
+                    let file_path = dir_path.to_string() + &file_name;
+
+                    let json = fs::read_to_string(file_path).unwrap();
+                    let json = serde_json::from_str::<serde_json::Value>(&json).unwrap();
+
+                    let timestamp_before_parse = Utc::now();
+                    sleep(Duration::from_millis(100)).await;
+
+                    match channel {
+                        ExternalMarketChannels::Ticker => {
+                            let res = market
+                                .parse_ticker_json(pair_string.to_string(), json)
+                                .await;
+                            println!("res: {:#?}", res);
+
+                            if res.is_some() {
+                                if market_is_gemini {
+                                    let file_name_no_ext = file_name.split('.').next().unwrap();
+
+                                    let file_channel = file_name_no_ext.rsplit('_').next().unwrap();
+                                    let file_channel = file_channel.parse().unwrap();
+
+                                    match file_channel {
+                                        ExternalMarketChannels::Trades => {
+                                            check_last_trade_volume(
+                                                market.deref(),
+                                                timestamp_before_parse,
+                                            );
+                                            check_price(market.deref(), timestamp_before_parse);
+                                        }
+                                        ExternalMarketChannels::Book => {
+                                            check_ask_and_bid(
+                                                market.deref(),
+                                                timestamp_before_parse,
+                                            );
+                                        }
+                                        _ => unreachable!(),
+                                    }
+                                } else {
+                                    check_total_volume(market.deref(), timestamp_before_parse);
+                                }
+                            }
+                        }
+                        ExternalMarketChannels::Trades => {
+                            let res = market
+                                .parse_last_trade_json(pair_string.to_string(), json)
+                                .await;
+                            println!("res: {:#?}", res);
+
+                            if res.is_some() {
+                                check_last_trade_volume(market.deref(), timestamp_before_parse);
+                                check_price(market.deref(), timestamp_before_parse);
+                            }
+                        }
+                        ExternalMarketChannels::Book => {
+                            let res = market.parse_depth_json(pair_string.to_string(), json).await;
+                            println!("res: {:#?}", res);
+
+                            if res.is_some() {
+                                check_ask_and_bid(market.deref(), timestamp_before_parse);
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }

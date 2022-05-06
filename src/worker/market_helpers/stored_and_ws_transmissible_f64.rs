@@ -71,6 +71,10 @@ impl StoredAndWsTransmissibleF64 {
         self.value
     }
 
+    pub fn get_timestamp(&self) -> DateTime<Utc> {
+        self.timestamp
+    }
+
     pub async fn set(&mut self, value: f64) {
         self.value = Some(value);
         self.timestamp = Utc::now();

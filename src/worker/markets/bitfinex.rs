@@ -109,8 +109,10 @@ impl Market for Bitfinex {
         if array.get(0)?.is_array() {
             let (asks, bids) = Self::depth_helper(array);
             self.parse_depth_json_inner(pair, asks, bids);
-        }
 
-        Some(())
+            Some(())
+        } else {
+            None
+        }
     }
 }

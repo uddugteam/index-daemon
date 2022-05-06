@@ -2,7 +2,7 @@
   "data": [
     {
       "cross_seq": 11477845625,
-      "price": 42424,
+      "price": 42424.05,
       "side": "Sell",
       "size": 100,
       "symbol": "BTCUSD",
