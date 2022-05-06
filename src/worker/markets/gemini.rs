@@ -1,16 +1,73 @@
 use crate::worker::market_helpers::market::{
-    parse_str_from_json_array, parse_str_from_json_object, Market,
+    do_rest_api, do_websocket, is_graceful_shutdown, parse_str_from_json_array,
+    parse_str_from_json_object, Market,
 };
 use crate::worker::market_helpers::market_channels::ExternalMarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
 use async_trait::async_trait;
+use futures::FutureExt;
 use reqwest::Client;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 pub struct Gemini {
     pub spine: MarketSpine,
 }
 
 impl Gemini {
+    pub async fn update(market: Arc<Mutex<dyn Market + Send + Sync>>) {
+        info!(
+            "called Gemini::update(). Market: {}",
+            market.lock().await.get_spine().name
+        );
+
+        let mut futures = Vec::new();
+
+        let channels = market.lock().await.get_spine().channels.clone();
+        let exchange_pairs: Vec<String> = market
+            .lock()
+            .await
+            .get_spine()
+            .get_exchange_pairs()
+            .keys()
+            .cloned()
+            .collect();
+
+        let mut sleep_seconds = 0;
+        for channel in channels {
+            let channel_is_ticker = matches!(channel, ExternalMarketChannels::Ticker);
+
+            let to_do_rest_api = channel_is_ticker;
+            let to_do_websocket = channel_is_ticker;
+
+            for exchange_pair in &exchange_pairs {
+                if is_graceful_shutdown(&market).await {
+                    return;
+                }
+
+                if to_do_rest_api {
+                    let market_2 = Arc::clone(&market);
+                    let pair = exchange_pair.to_string();
+
+                    let future = do_rest_api(market_2, pair, sleep_seconds);
+                    futures.push(future.boxed());
+                }
+
+                if to_do_websocket {
+                    let market_2 = Arc::clone(&market);
+                    let pair = exchange_pair.to_string();
+
+                    let future = do_websocket(market_2, pair, channel, sleep_seconds);
+                    futures.push(future.boxed());
+                }
+
+                sleep_seconds += 12;
+            }
+        }
+
+        futures::future::join_all(futures).await;
+    }
+
     fn depth_helper(
         ask_sum: f64,
         bid_sum: f64,

@@ -159,6 +159,7 @@ pub async fn market_update(market: Arc<Mutex<dyn Market + Send + Sync>>) {
     match market_name.as_str() {
         "ftx" => Ftx::update(market).await,
         "poloniex" => Poloniex::update(market).await,
+        "gemini" => Gemini::update(market).await,
         _ => update(market).await,
     }
 }
