@@ -1,4 +1,5 @@
 use crate::worker::defaults::POLONIEX_EXCHANGE_PAIRS;
+use crate::worker::helper_functions::min_date_time;
 use crate::worker::market_helpers::market::{
     do_websocket, is_graceful_shutdown, parse_str_from_json_array, parse_str_from_json_object,
     Market,
@@ -6,7 +7,7 @@ use crate::worker::market_helpers::market::{
 use crate::worker::market_helpers::market_channels::ExternalMarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
 use async_trait::async_trait;
-use chrono::{DateTime, Utc, MIN_DATETIME};
+use chrono::{DateTime, Utc};
 use futures::FutureExt;
 use reqwest::Client;
 use std::collections::HashMap;
@@ -38,7 +39,7 @@ impl Poloniex {
             spine,
             pair_codes,
             exchange_pairs_last_price: HashMap::new(),
-            last_http_request_timestamp: MIN_DATETIME,
+            last_http_request_timestamp: min_date_time(),
         }
     }
 
@@ -181,7 +182,7 @@ impl Market for Poloniex {
             ExternalMarketChannels::Ticker => "1003",
             ExternalMarketChannels::Trades => {
                 // There are no distinct Trades channel in Poloniex. We get Trades inside of Book channel.
-                panic!("Poloniex: Subscription to wrong channel: Trades.")
+                unreachable!("Poloniex: Subscription to wrong channel: Trades.")
             }
             ExternalMarketChannels::Book => {
                 // This string was intentionally left blank, because Poloniex don't have code for Book

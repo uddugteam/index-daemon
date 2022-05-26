@@ -1,13 +1,13 @@
 use crate::repository::repositories::RepositoryForF64ByTimestamp;
-use crate::worker::helper_functions::{date_time_from_timestamp_sec, strip_usd};
+use crate::worker::helper_functions::{date_time_from_timestamp_sec, min_date_time, strip_usd};
 use crate::worker::market_helpers::percent_change::PercentChangeByInterval;
 use crate::worker::network_helpers::ws_server::candles::Candle;
 use crate::worker::network_helpers::ws_server::channels::worker_channels::LocalWorkerChannels;
 use crate::worker::network_helpers::ws_server::channels::ws_channel_subscription_request::WsChannelSubscriptionRequest;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
 use crate::worker::network_helpers::ws_server::ws_channel_response_payload::WsChannelResponsePayload;
-use crate::worker::network_helpers::ws_server::ws_channels::WsChannels;
-use chrono::{DateTime, Utc, MIN_DATETIME};
+use crate::worker::network_helpers::ws_server::ws_channels::{WsChannels, CJ};
+use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -42,7 +42,7 @@ impl StoredAndWsTransmissibleF64 {
             } else {
                 // Market's channel
 
-                assert!(matches!(market_name, Some(..)));
+                assert!(market_name.is_some());
             }
 
             if matches!(ws_channel_name, WsChannelName::IndexPrice)
@@ -56,7 +56,7 @@ impl StoredAndWsTransmissibleF64 {
 
         Self {
             value: None,
-            timestamp: MIN_DATETIME,
+            timestamp: min_date_time(),
             percent_change,
             percent_change_interval_sec,
             repository,
@@ -89,6 +89,14 @@ impl StoredAndWsTransmissibleF64 {
             .read()
             .await
             .get_percent_change(percent_change_interval_sec)
+    }
+
+    async fn remove_percent_change_intervals(&self, subscribers: &[CJ]) {
+        let mut percent_change = self.percent_change.write().await;
+
+        for subscriber in subscribers {
+            percent_change.remove_percent_change_interval(subscriber);
+        }
     }
 
     async fn send(&self) {
@@ -160,7 +168,10 @@ impl StoredAndWsTransmissibleF64 {
             responses.insert(key.clone(), response_payload);
         }
 
-        ws_channels.send_individual(responses).await;
+        let subscribers_to_remove = ws_channels.send_individual(responses).await;
+
+        self.remove_percent_change_intervals(&subscribers_to_remove)
+            .await;
 
         Some(())
     }

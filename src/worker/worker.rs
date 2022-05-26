@@ -62,7 +62,8 @@ async fn configure(
             percent_change_interval_sec,
             ws_channels_holder,
         )
-        .await;
+        .await
+        .unwrap();
 
         markets.insert(market_name.to_string(), market);
     }
@@ -216,4 +217,101 @@ pub async fn start_worker(
     }
 
     futures::future::join_all(futures).await;
+}
+
+#[cfg(test)]
+pub mod test {
+    use crate::config_scheme::config_scheme::ConfigScheme;
+    use crate::config_scheme::helper_functions::make_exchange_pairs;
+    use crate::config_scheme::market_config::MarketConfig;
+    use crate::config_scheme::repositories_prepared::RepositoriesPrepared;
+    use crate::graceful_shutdown::GracefulShutdown;
+    use crate::worker::market_helpers::market_channels::ExternalMarketChannels;
+    use crate::worker::worker::configure;
+    use std::sync::mpsc::{self, Receiver, Sender};
+    use std::thread::JoinHandle;
+
+    pub fn prepare_worker_params() -> (
+        Sender<JoinHandle<()>>,
+        Receiver<JoinHandle<()>>,
+        GracefulShutdown,
+    ) {
+        let (tx, rx) = mpsc::channel();
+        let graceful_shutdown = GracefulShutdown::new();
+
+        (tx, rx, graceful_shutdown)
+    }
+
+    async fn test_configure(
+        market_names: Vec<&str>,
+        exchange_pairs: Vec<(String, String)>,
+        channels: Vec<ExternalMarketChannels>,
+    ) {
+        let (_, _, graceful_shutdown) = prepare_worker_params();
+
+        let mut config = ConfigScheme::default();
+        config.market.markets = market_names.iter().map(|v| v.to_string()).collect();
+        config.market.exchange_pairs = exchange_pairs.clone();
+
+        let RepositoriesPrepared {
+            index_price_repository: _,
+            pair_average_price_repositories: _,
+            market_repositories,
+            percent_change_holder,
+            ws_channels_holder,
+            index_price,
+            pair_average_price,
+        } = RepositoriesPrepared::make(&config);
+
+        let markets = configure(
+            market_names.clone(),
+            exchange_pairs,
+            channels,
+            1,
+            market_repositories,
+            pair_average_price,
+            index_price,
+            config.market.index_pairs,
+            &percent_change_holder,
+            config.service.percent_change_interval_sec,
+            &ws_channels_holder,
+            graceful_shutdown,
+        )
+        .await;
+
+        assert_eq!(market_names.len(), markets.len());
+
+        for (market_name_key, market) in &markets {
+            let market_name = market.lock().await.get_spine().name.clone();
+            assert_eq!(market_name_key, &market_name);
+            assert!(market_names.contains(&market_name.as_str()));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_configure_with_default_params() {
+        let config = MarketConfig::default();
+        let markets = config.markets.iter().map(|v| v.as_ref()).collect();
+
+        test_configure(markets, config.exchange_pairs, config.channels).await;
+    }
+
+    #[tokio::test]
+    async fn test_configure_with_custom_params() {
+        let markets = vec!["binance", "bitfinex"];
+        let coins = vec!["ABC".to_string(), "DEF".to_string(), "GHI".to_string()];
+        let exchange_pairs = make_exchange_pairs(coins, Some(vec!["JKL"]));
+        let channels = vec![ExternalMarketChannels::Ticker];
+
+        test_configure(markets, exchange_pairs, channels).await;
+    }
+
+    #[tokio::test]
+    #[should_panic]
+    async fn test_configure_panic() {
+        let config = MarketConfig::default();
+        let markets = vec!["not_existing_market"];
+
+        test_configure(markets, config.exchange_pairs, config.channels).await;
+    }
 }

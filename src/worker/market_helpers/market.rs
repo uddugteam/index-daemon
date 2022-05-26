@@ -35,7 +35,7 @@ pub async fn market_factory(
     percent_change_holder: &HolderHashMap<PercentChangeByInterval>,
     percent_change_interval_sec: u64,
     ws_channels_holder: &HolderHashMap<WsChannels>,
-) -> Arc<Mutex<dyn Market + Send + Sync>> {
+) -> Result<Arc<Mutex<dyn Market + Send + Sync>>, String> {
     let mut repositories = repositories.unwrap_or_default();
 
     let mask_pairs = match spine.name.as_ref() {
@@ -50,31 +50,33 @@ pub async fn market_factory(
 
     spine.add_mask_pairs(mask_pairs);
 
-    let market: Arc<Mutex<dyn Market + Send + Sync>> = match spine.name.as_ref() {
-        "binance" => Arc::new(Mutex::new(Binance { spine })),
-        "bitfinex" => Arc::new(Mutex::new(Bitfinex { spine })),
-        "coinbase" => Arc::new(Mutex::new(Coinbase { spine })),
-        "poloniex" => Arc::new(Mutex::new(Poloniex::new(spine))),
-        "kraken" => Arc::new(Mutex::new(Kraken { spine })),
-        "huobi" => Arc::new(Mutex::new(Huobi { spine })),
-        "hitbtc" => Arc::new(Mutex::new(Hitbtc { spine })),
-        "okcoin" => Arc::new(Mutex::new(Okcoin { spine })),
-        "gemini" => Arc::new(Mutex::new(Gemini { spine })),
-        "bybit" => Arc::new(Mutex::new(Bybit { spine })),
-        "gateio" => Arc::new(Mutex::new(Gateio { spine })),
-        "kucoin" => Arc::new(Mutex::new(Kucoin { spine })),
-        "ftx" => Arc::new(Mutex::new(Ftx { spine })),
-        _ => panic!("Market not found: {}", spine.name),
+    let market: Result<Arc<Mutex<dyn Market + Send + Sync>>, _> = match spine.name.as_ref() {
+        "binance" => Ok(Arc::new(Mutex::new(Binance { spine }))),
+        "bitfinex" => Ok(Arc::new(Mutex::new(Bitfinex { spine }))),
+        "coinbase" => Ok(Arc::new(Mutex::new(Coinbase { spine }))),
+        "poloniex" => Ok(Arc::new(Mutex::new(Poloniex::new(spine)))),
+        "kraken" => Ok(Arc::new(Mutex::new(Kraken { spine }))),
+        "huobi" => Ok(Arc::new(Mutex::new(Huobi { spine }))),
+        "hitbtc" => Ok(Arc::new(Mutex::new(Hitbtc { spine }))),
+        "okcoin" => Ok(Arc::new(Mutex::new(Okcoin { spine }))),
+        "gemini" => Ok(Arc::new(Mutex::new(Gemini { spine }))),
+        "bybit" => Ok(Arc::new(Mutex::new(Bybit { spine }))),
+        "gateio" => Ok(Arc::new(Mutex::new(Gateio { spine }))),
+        "kucoin" => Ok(Arc::new(Mutex::new(Kucoin { spine }))),
+        "ftx" => Ok(Arc::new(Mutex::new(Ftx { spine }))),
+        _ => Err(format!("Market not found: {}", spine.name)),
     };
 
-    for exchange_pair in exchange_pairs {
-        market.lock().await.add_exchange_pair(
-            exchange_pair.clone(),
-            repositories.remove(&exchange_pair),
-            percent_change_holder,
-            percent_change_interval_sec,
-            ws_channels_holder,
-        );
+    if let Ok(market) = &market {
+        for exchange_pair in exchange_pairs {
+            market.lock().await.add_exchange_pair(
+                exchange_pair.clone(),
+                repositories.remove(&exchange_pair),
+                percent_change_holder,
+                percent_change_interval_sec,
+                ws_channels_holder,
+            );
+        }
     }
 
     market
@@ -157,6 +159,7 @@ pub async fn market_update(market: Arc<Mutex<dyn Market + Send + Sync>>) {
     match market_name.as_str() {
         "ftx" => Ftx::update(market).await,
         "poloniex" => Poloniex::update(market).await,
+        "gemini" => Gemini::update(market).await,
         _ => update(market).await,
     }
 }
@@ -268,7 +271,7 @@ pub trait Market {
                     + self.get_spine().get_masked_value(pair.1))
                 .to_uppercase()
             }
-            _ => panic!("fn make_pair is not implemented"),
+            _ => unimplemented!("fn make_pair is not implemented"),
         }
     }
 
@@ -337,7 +340,7 @@ pub trait Market {
     }
 
     async fn update_ticker(&mut self, _pair: String) -> Option<()> {
-        panic!("fn update_ticker is not implemented.");
+        unimplemented!("fn update_ticker is not implemented.");
     }
 
     async fn parse_ticker_json(&mut self, pair: String, json: serde_json::Value) -> Option<()>;
@@ -406,5 +409,139 @@ pub trait Market {
             ask_sum,
             bid_sum
         );
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::config_scheme::config_scheme::ConfigScheme;
+    use crate::config_scheme::market_config::MarketConfig;
+    use crate::config_scheme::repositories_prepared::RepositoriesPrepared;
+    use crate::worker::helper_functions::get_pair_ref;
+    use crate::worker::market_helpers::market::{market_factory, Market};
+    use crate::worker::market_helpers::market_spine::test::make_spine;
+    use std::sync::mpsc::Receiver;
+    use std::sync::Arc;
+    use std::thread::JoinHandle;
+    use tokio::sync::Mutex;
+
+    async fn make_market(
+        market_name: Option<&str>,
+    ) -> (
+        Result<Arc<Mutex<dyn Market + Send + Sync>>, String>,
+        Receiver<JoinHandle<()>>,
+    ) {
+        let config = ConfigScheme::default();
+
+        let RepositoriesPrepared {
+            index_price_repository: _,
+            pair_average_price_repositories: _,
+            market_repositories,
+            percent_change_holder,
+            ws_channels_holder,
+            index_price: _,
+            pair_average_price: _,
+        } = RepositoriesPrepared::make(&config);
+
+        let (market_spine, rx) = make_spine(market_name);
+        let market_name = market_spine.name.clone();
+        let market = market_factory(
+            market_spine,
+            config.market.exchange_pairs,
+            market_repositories.map(|mut v| v.remove(&market_name).unwrap()),
+            &percent_change_holder,
+            config.service.percent_change_interval_sec,
+            &ws_channels_holder,
+        )
+        .await;
+
+        (market, rx)
+    }
+
+    #[tokio::test]
+    async fn test_add_exchange_pair() {
+        let (market, _) = make_market(None).await;
+        assert!(market.is_ok());
+        let market = market.unwrap();
+
+        let market_name = market.lock().await.get_spine().name.clone();
+
+        let pair_tuple = ("some_coin_1".to_string(), "some_coin_2".to_string());
+        let exchange_pair = pair_tuple.clone();
+
+        let mut config = ConfigScheme::default();
+        config.market.exchange_pairs = vec![exchange_pair.clone()];
+
+        let RepositoriesPrepared {
+            index_price_repository: _,
+            pair_average_price_repositories: _,
+            market_repositories,
+            percent_change_holder,
+            ws_channels_holder,
+            index_price: _,
+            pair_average_price: _,
+        } = RepositoriesPrepared::make(&config);
+
+        let pair_string = market.lock().await.make_pair(get_pair_ref(&exchange_pair));
+
+        market.lock().await.add_exchange_pair(
+            exchange_pair.clone(),
+            market_repositories.map(|mut v| {
+                v.remove(&market_name)
+                    .unwrap()
+                    .remove(&exchange_pair)
+                    .unwrap()
+            }),
+            &percent_change_holder,
+            config.service.percent_change_interval_sec,
+            &ws_channels_holder,
+        );
+
+        assert!(market
+            .lock()
+            .await
+            .get_spine()
+            .get_exchange_pairs()
+            .contains_key(&pair_string));
+
+        assert_eq!(
+            market
+                .lock()
+                .await
+                .get_spine()
+                .get_pairs()
+                .get(&pair_string)
+                .unwrap(),
+            &pair_tuple
+        );
+    }
+
+    #[tokio::test]
+    async fn test_market_factory_not_existing_market() {
+        let (market, _) = make_market(Some("not_existing_market")).await;
+        assert!(market.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_market_factory() {
+        let (market, _) = make_market(None).await;
+        assert!(market.is_ok());
+        let market = market.unwrap();
+
+        let config = MarketConfig::default();
+        let exchange_pair_keys: Vec<String> = market
+            .lock()
+            .await
+            .get_spine()
+            .get_exchange_pairs()
+            .keys()
+            .cloned()
+            .collect();
+        assert_eq!(exchange_pair_keys.len(), config.exchange_pairs.len());
+
+        for pair in &config.exchange_pairs {
+            let pair_string = market.lock().await.make_pair(get_pair_ref(pair));
+            assert!(exchange_pair_keys.contains(&pair_string));
+        }
     }
 }

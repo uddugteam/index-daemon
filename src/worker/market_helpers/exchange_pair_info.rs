@@ -1,11 +1,13 @@
 use crate::repository::repositories::MarketRepositoriesByMarketValue;
+use crate::worker::helper_functions::min_date_time;
 use crate::worker::market_helpers::market_value::MarketValue;
+use crate::worker::market_helpers::market_value_owner::MarketValueOwner;
 use crate::worker::market_helpers::percent_change::PercentChangeByInterval;
 use crate::worker::market_helpers::stored_and_ws_transmissible_f64::StoredAndWsTransmissibleF64;
 use crate::worker::network_helpers::ws_server::holders::helper_functions::HolderHashMap;
 use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
 use crate::worker::network_helpers::ws_server::ws_channels::WsChannels;
-use chrono::{DateTime, Utc, MIN_DATETIME};
+use chrono::{DateTime, Utc};
 use std::sync::Arc;
 
 pub struct ExchangePairInfo {
@@ -26,18 +28,19 @@ impl ExchangePairInfo {
         market_name: String,
         pair: (String, String),
     ) -> Self {
+        let market_value_owner = MarketValueOwner::Market(market_name.to_string());
         let mut repositories = repositories.unwrap_or_default();
 
         ExchangePairInfo {
             last_trade_price: StoredAndWsTransmissibleF64::new(
                 repositories.remove(&MarketValue::PairExchangePrice),
                 vec![WsChannelName::CoinExchangePrice],
-                Some(market_name.clone()),
+                Some(market_name.to_string()),
                 Some(pair.clone()),
                 Arc::clone(
                     percent_change_holder
                         .get(&(
-                            market_name.clone(),
+                            market_value_owner.clone(),
                             MarketValue::PairExchangePrice,
                             Some(pair.clone()),
                         ))
@@ -47,7 +50,7 @@ impl ExchangePairInfo {
                 Arc::clone(
                     ws_channels_holder
                         .get(&(
-                            market_name.clone(),
+                            market_value_owner.clone(),
                             MarketValue::PairExchangePrice,
                             Some(pair.clone()),
                         ))
@@ -58,12 +61,12 @@ impl ExchangePairInfo {
             total_volume: StoredAndWsTransmissibleF64::new(
                 repositories.remove(&MarketValue::PairExchangeVolume),
                 vec![WsChannelName::CoinExchangeVolume],
-                Some(market_name.clone()),
+                Some(market_name),
                 Some(pair.clone()),
                 Arc::clone(
                     percent_change_holder
                         .get(&(
-                            market_name.clone(),
+                            market_value_owner.clone(),
                             MarketValue::PairExchangeVolume,
                             Some(pair.clone()),
                         ))
@@ -72,13 +75,17 @@ impl ExchangePairInfo {
                 percent_change_interval_sec,
                 Arc::clone(
                     ws_channels_holder
-                        .get(&(market_name, MarketValue::PairExchangeVolume, Some(pair)))
+                        .get(&(
+                            market_value_owner,
+                            MarketValue::PairExchangeVolume,
+                            Some(pair),
+                        ))
                         .unwrap(),
                 ),
             ),
             total_ask: 0.0,
             total_bid: 0.0,
-            timestamp: MIN_DATETIME,
+            timestamp: min_date_time(),
         }
     }
 

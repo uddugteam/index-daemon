@@ -23,6 +23,10 @@ pub fn date_time_subtract_sec(minuend: DateTime<Utc>, subtrahend_sec: u64) -> Da
     date_time_from_timestamp_sec(minuend - subtrahend_sec)
 }
 
+pub fn min_date_time() -> DateTime<Utc> {
+    date_time_from_timestamp_sec(0)
+}
+
 pub fn date_time_from_timestamp_sec(timestamp_sec: u64) -> DateTime<Utc> {
     let naive = NaiveDateTime::from_timestamp(timestamp_sec as i64, 0);
 

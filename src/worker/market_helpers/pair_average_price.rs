@@ -1,6 +1,7 @@
 use crate::config_scheme::config_scheme::ConfigScheme;
 use crate::repository::repositories::WorkerRepositoriesByPairTuple;
 use crate::worker::market_helpers::market_value::MarketValue;
+use crate::worker::market_helpers::market_value_owner::MarketValueOwner;
 use crate::worker::market_helpers::percent_change::PercentChangeByInterval;
 use crate::worker::market_helpers::stored_and_ws_transmissible_f64::StoredAndWsTransmissibleF64;
 use crate::worker::network_helpers::ws_server::holders::helper_functions::HolderHashMap;
@@ -24,7 +25,7 @@ pub fn make_pair_average_price(
     for exchange_pair in &config.market.exchange_pairs {
         let pair = exchange_pair.clone();
         let key = (
-            "worker".to_string(),
+            MarketValueOwner::Worker,
             MarketValue::PairAveragePrice,
             Some(pair.clone()),
         );

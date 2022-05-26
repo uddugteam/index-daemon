@@ -1,6 +1,6 @@
 use crate::config_scheme::market_config::MarketConfig;
 use crate::config_scheme::service_config::ServiceConfig;
-use clap::{App, Arg, ArgMatches, ValueHint};
+use clap::{Arg, ArgMatches, Command, ValueHint};
 
 #[derive(Default, Clone)]
 pub struct ConfigScheme {
@@ -22,7 +22,7 @@ impl ConfigScheme {
 
     /// Call only once
     fn make_matches() -> ArgMatches {
-        App::new("ICEX")
+        Command::new("ICEX")
             .version("1.0")
             .arg(
                 Arg::new("service_config")

@@ -2,7 +2,7 @@ use crate::repository::repositories::{
     MarketRepositoriesByMarketName, RepositoryForF64ByTimestamp, WorkerRepositoriesByPairTuple,
 };
 use crate::worker::helper_functions::date_time_subtract_sec;
-use chrono::{DateTime, Utc, MIN_DATETIME};
+use chrono::{DateTime, Utc};
 use futures::FutureExt;
 
 /// Seconds in minute
@@ -15,7 +15,7 @@ fn pick_with_interval(
     let mut keep = Vec::new();
     let mut discard = Vec::new();
 
-    let mut next_timestamp = MIN_DATETIME.timestamp() as u64;
+    let mut next_timestamp = 0;
     for value in values {
         let curr_timestamp = value.timestamp() as u64;
 
