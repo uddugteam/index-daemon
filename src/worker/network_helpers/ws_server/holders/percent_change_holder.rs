@@ -1,4 +1,4 @@
-use crate::worker::market_helpers::percent_change::PercentChangeByInterval;
+use crate::worker::market_helpers::percent_change_by_interval::PercentChangeByInterval;
 use crate::worker::network_helpers::ws_server::holders::helper_functions::{
     HolderHashMap, HolderKey,
 };

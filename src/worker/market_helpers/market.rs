@@ -4,7 +4,7 @@ use crate::repository::repositories::{
 use crate::worker::helper_functions::get_pair_ref;
 use crate::worker::market_helpers::market_channels::ExternalMarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
-use crate::worker::market_helpers::percent_change::PercentChangeByInterval;
+use crate::worker::market_helpers::percent_change_by_interval::PercentChangeByInterval;
 use crate::worker::markets::binance::Binance;
 use crate::worker::markets::bitfinex::Bitfinex;
 use crate::worker::markets::bybit::Bybit;
