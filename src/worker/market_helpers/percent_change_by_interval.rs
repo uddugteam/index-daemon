@@ -1,8 +1,9 @@
 use crate::config_scheme::config_scheme::ConfigScheme;
-use crate::worker::helper_functions::{date_time_from_timestamp_sec, min_date_time};
+use crate::worker::helper_functions::min_date_time;
+use crate::worker::market_helpers::percent_change::PercentChange;
 use crate::worker::network_helpers::ws_server::ws_channels::CJ;
 use chrono::{DateTime, Utc};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 #[derive(Clone)]
 pub struct PercentChangeByInterval(HashMap<u64, PercentChange>);
@@ -70,42 +71,5 @@ impl PercentChangeByInterval {
 impl From<ConfigScheme> for PercentChangeByInterval {
     fn from(_config: ConfigScheme) -> Self {
         Self::new()
-    }
-}
-
-#[derive(Debug, Clone, Default)]
-struct PercentChange {
-    value: Option<f64>,
-    percent_change: Option<f64>,
-    timestamp: Option<DateTime<Utc>>,
-    subscribers: HashSet<CJ>,
-}
-
-impl PercentChange {
-    pub fn set(&mut self, new_value: f64, timestamp: DateTime<Utc>) {
-        self.percent_change = self
-            .value
-            .map(|old_value| 100.0 * (new_value - old_value) / old_value);
-
-        self.value = Some(new_value);
-        self.timestamp = Some(timestamp);
-    }
-
-    pub fn get_percent_change(&self) -> Option<f64> {
-        self.percent_change
-    }
-
-    pub fn get_timestamp(&self) -> Option<DateTime<Utc>> {
-        self.timestamp
-    }
-
-    pub fn add_subscriber(&mut self, subscriber: CJ) {
-        self.subscribers.insert(subscriber);
-    }
-
-    pub fn remove_subscriber(&mut self, subscriber: &CJ) -> bool {
-        self.subscribers.remove(subscriber);
-
-        self.subscribers.is_empty()
     }
 }
