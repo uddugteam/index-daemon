@@ -653,8 +653,8 @@ impl WsServer {
             }
             Err(e) => {
                 error!(
-                    "Error during the websocket handshake occurred. Error: {:?}",
-                    e
+                    "Error during the websocket handshake occurred. Client addr: {:?}, Error: {:?}",
+                    client_addr, e,
                 );
             }
         }
