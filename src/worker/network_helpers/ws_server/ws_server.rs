@@ -4,6 +4,7 @@ use crate::worker::helper_functions::strip_usd;
 use crate::worker::market_helpers::market_value::MarketValue;
 use crate::worker::market_helpers::market_value_owner::MarketValueOwner;
 use crate::worker::market_helpers::pair_average_price::StoredAndWsTransmissibleF64ByPairTuple;
+use crate::worker::market_helpers::percent_change::PercentChange;
 use crate::worker::network_helpers::ws_server::candles::Candles;
 use crate::worker::network_helpers::ws_server::channels::market_channels::LocalMarketChannels;
 use crate::worker::network_helpers::ws_server::channels::ws_channel_action::WsChannelAction;
@@ -42,6 +43,10 @@ type Tx = UnboundedSender<Message>;
 const JSONRPC_ERROR_INVALID_REQUEST: i64 = -32600;
 const JSONRPC_ERROR_INVALID_PARAMS: i64 = -32602;
 const JSONRPC_ERROR_INTERNAL_ERROR: i64 = -32603;
+
+/// We need this workaround because we can't pass repository into `fn subscribe_stage_1()`
+#[derive(Clone)]
+struct RepositoryWrap(pub Option<RepositoryForF64ByTimestamp>);
 
 pub struct WsServer {
     pub percent_change_holder: PercentChangeByIntervalHolder,
@@ -85,23 +90,51 @@ impl WsServer {
         percent_change_holder: &mut PercentChangeByIntervalHolder,
         ws_channels_holder: &mut WsChannelsHolder,
         request: WsChannelSubscriptionRequest,
-        key: HolderKey,
+        holder_key: HolderKey,
         sender: WsChannelResponseSender,
         subscriber: CJ,
+        repository: RepositoryWrap,
     ) {
         let conn_id = subscriber.0.clone();
         let percent_change_interval_sec = request.get_percent_change_interval_sec();
 
         if let Some(percent_change_interval_sec) = percent_change_interval_sec {
-            percent_change_holder
-                .add(&key, percent_change_interval_sec, subscriber)
-                .await;
+            if let Some(interval_exists) = percent_change_holder
+                .contains_interval(&holder_key, percent_change_interval_sec)
+                .await
+            {
+                if interval_exists {
+                    // add subscriber
+
+                    percent_change_holder
+                        .add_subscriber(&holder_key, percent_change_interval_sec, subscriber)
+                        .await;
+                } else {
+                    // add interval
+
+                    let percent_change = PercentChange::from_historical(
+                        repository.0,
+                        percent_change_interval_sec,
+                        subscriber,
+                    )
+                    .await;
+
+                    percent_change_holder
+                        .add_interval(&holder_key, percent_change_interval_sec, percent_change)
+                        .await;
+                }
+            } else {
+                unreachable!(
+                    "Internal error: fn {}, \"holder_key\": {:?} is not present",
+                    "subscribe_stage_2", holder_key,
+                );
+            }
         }
 
-        ws_channels_holder.add(&key, conn_id, sender).await;
+        ws_channels_holder.add(&holder_key, conn_id, sender).await;
     }
 
-    fn make_keys(
+    fn make_holder_keys(
         percent_change_holder: &PercentChangeByIntervalHolder,
         ws_channels_holder: &WsChannelsHolder,
         exchanges: Vec<MarketValueOwner>,
@@ -114,7 +147,8 @@ impl WsServer {
             for pair in pairs.clone() {
                 let key = (exchange.clone(), market_value, pair);
 
-                if percent_change_holder.contains_key(&key) && ws_channels_holder.contains_key(&key)
+                if percent_change_holder.contains_holder_key(&key)
+                    && ws_channels_holder.contains_key(&key)
                 {
                     // Good key
 
@@ -130,12 +164,42 @@ impl WsServer {
         Some(keys)
     }
 
+    async fn get_repository_for_request(
+        holder_key: &HolderKey,
+        index_price_repository: &RepositoryWrap,
+        pair_average_price: &StoredAndWsTransmissibleF64ByPairTuple,
+    ) -> RepositoryWrap {
+        match holder_key.0 {
+            MarketValueOwner::Worker => match holder_key.1 {
+                MarketValue::IndexPrice => index_price_repository.clone(),
+                MarketValue::PairAveragePrice => match &holder_key.2 {
+                    Some(pair) => {
+                        let repository = if let Some(arc) = pair_average_price.get(&pair) {
+                            arc.read().await.repository.clone()
+                        } else {
+                            unreachable!("Internal error: fn {}, \"pair_average_price\" does not contain the pair {:?}", "get_repository_for_request", pair);
+                        };
+
+                        RepositoryWrap(repository)
+                    }
+                    None => unreachable!(),
+                },
+                MarketValue::PairExchangePrice | MarketValue::PairExchangeVolume => {
+                    unreachable!();
+                }
+            },
+            MarketValueOwner::Market(_) => unreachable!(),
+        }
+    }
+
     async fn subscribe_stage_1(
         percent_change_holder: &mut PercentChangeByIntervalHolder,
         ws_channels_holder: &mut WsChannelsHolder,
         broadcast_recipient: &Tx,
         conn_id: ConnectionId,
         request: WsChannelSubscriptionRequest,
+        index_price_repository: RepositoryWrap,
+        pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
     ) {
         let sub_id = request.get_id();
 
@@ -168,7 +232,7 @@ impl WsServer {
             None => vec![None],
         };
 
-        let keys = Self::make_keys(
+        let holder_keys = Self::make_holder_keys(
             percent_change_holder,
             ws_channels_holder,
             exchanges,
@@ -176,7 +240,7 @@ impl WsServer {
             pairs,
         );
 
-        if let Some(keys) = keys {
+        if let Some(holder_keys) = holder_keys {
             let subscriber = (conn_id, sub_id);
 
             Self::unsubscribe(
@@ -188,14 +252,22 @@ impl WsServer {
 
             let sender = WsChannelResponseSender::new(broadcast_recipient.clone(), request.clone());
 
-            for key in keys {
+            for holder_key in holder_keys {
+                let repository = Self::get_repository_for_request(
+                    &holder_key,
+                    &index_price_repository,
+                    &pair_average_price,
+                )
+                .await;
+
                 Self::subscribe_stage_2(
                     percent_change_holder,
                     ws_channels_holder,
                     request.clone(),
-                    key,
+                    holder_key,
                     sender.clone(),
                     subscriber.clone(),
+                    repository,
                 )
                 .await;
             }
@@ -230,6 +302,8 @@ impl WsServer {
         broadcast_recipient: Tx,
         conn_id: ConnectionId,
         action: WsChannelAction,
+        index_price_repository: Option<RepositoryForF64ByTimestamp>,
+        pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
     ) {
         match action {
             WsChannelAction::Subscribe(request) => {
@@ -239,6 +313,8 @@ impl WsServer {
                     &broadcast_recipient,
                     conn_id,
                     request,
+                    RepositoryWrap(index_price_repository),
+                    pair_average_price,
                 )
                 .await;
             }
@@ -517,6 +593,8 @@ impl WsServer {
                         broadcast_recipient,
                         conn_id,
                         request,
+                        index_price_repository,
+                        pair_average_price,
                     )
                     .await;
                 }

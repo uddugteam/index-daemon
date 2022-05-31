@@ -95,7 +95,7 @@ impl StoredAndWsTransmissibleF64 {
         let mut percent_change = self.percent_change.write().await;
 
         for subscriber in subscribers {
-            percent_change.remove_percent_change_interval(subscriber);
+            percent_change.remove_interval(subscriber);
         }
     }
 

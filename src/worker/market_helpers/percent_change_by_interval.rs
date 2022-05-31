@@ -13,18 +13,39 @@ impl PercentChangeByInterval {
         Self(HashMap::new())
     }
 
-    pub fn add_percent_change_interval(
+    pub fn contains_interval(&self, percent_change_interval_sec: u64) -> bool {
+        self.0.contains_key(&percent_change_interval_sec)
+    }
+
+    pub fn add_interval(
+        &mut self,
+        percent_change_interval_sec: u64,
+        percent_change: PercentChange,
+    ) -> Option<()> {
+        if self.0.contains_key(&percent_change_interval_sec) {
+            None
+        } else {
+            self.0.insert(percent_change_interval_sec, percent_change);
+
+            Some(())
+        }
+    }
+
+    pub fn add_subscriber(
         &mut self,
         percent_change_interval_sec: u64,
         subscriber: CJ,
-    ) {
-        self.0
-            .entry(percent_change_interval_sec)
-            .or_default()
-            .add_subscriber(subscriber);
+    ) -> Option<()> {
+        if let Some(percent_change) = self.0.get_mut(&percent_change_interval_sec) {
+            percent_change.add_subscriber(subscriber);
+
+            Some(())
+        } else {
+            None
+        }
     }
 
-    pub fn remove_percent_change_interval(&mut self, subscriber: &CJ) {
+    pub fn remove_interval(&mut self, subscriber: &CJ) {
         let mut percent_change_intervals_to_remove = Vec::new();
 
         for (percent_change_interval, percent_change) in &mut self.0 {
