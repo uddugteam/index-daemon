@@ -77,6 +77,7 @@ async fn start_ws(
     percent_change_interval_sec: u64,
     index_price_repository: Option<RepositoryForF64ByTimestamp>,
     pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
+    market_repositories: Option<MarketRepositoriesByMarketName>,
     percent_change_holder: HolderHashMap<PercentChangeByInterval>,
     ws_channels_holder: HolderHashMap<WsChannels>,
     graceful_shutdown: GracefulShutdown,
@@ -92,6 +93,7 @@ async fn start_ws(
         percent_change_interval_sec,
         index_price_repository,
         pair_average_price,
+        market_repositories,
         graceful_shutdown,
     };
 
@@ -189,6 +191,7 @@ pub async fn start_worker(
             percent_change_interval_sec,
             index_price_repository.clone(),
             pair_average_price,
+            market_repositories.clone(),
             percent_change_holder,
             ws_channels_holder,
             graceful_shutdown.clone(),
