@@ -174,7 +174,7 @@ impl WsServer {
                 MarketValue::IndexPrice => index_price_repository.clone(),
                 MarketValue::PairAveragePrice => match &holder_key.2 {
                     Some(pair) => {
-                        let repository = if let Some(arc) = pair_average_price.get(&pair) {
+                        let repository = if let Some(arc) = pair_average_price.get(pair) {
                             arc.read().await.repository.clone()
                         } else {
                             unreachable!("Internal error: fn {}, \"pair_average_price\" does not contain the pair {:?}", "get_repository_for_request", pair);

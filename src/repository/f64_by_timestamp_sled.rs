@@ -42,7 +42,7 @@ impl F64ByTimestampSled {
     }
 
     fn parse_primary_from_ivec(key: vsdbsled::IVec) -> DateTime<Utc> {
-        let key = str::from_utf8(&key.to_vec()).unwrap().to_string();
+        let key = str::from_utf8(&key).unwrap().to_string();
 
         let parts: Vec<&str> = key.rsplit("__").collect();
 
