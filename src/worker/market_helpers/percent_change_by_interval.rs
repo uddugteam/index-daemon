@@ -22,12 +22,12 @@ impl PercentChangeByInterval {
         percent_change_interval_sec: u64,
         percent_change: PercentChange,
     ) -> Option<()> {
-        if self.0.contains_key(&percent_change_interval_sec) {
-            None
-        } else {
-            self.0.insert(percent_change_interval_sec, percent_change);
+        if let std::collections::hash_map::Entry::Vacant(e) = self.0.entry(percent_change_interval_sec) {
+            e.insert(percent_change);
 
             Some(())
+        } else {
+            None
         }
     }
 
