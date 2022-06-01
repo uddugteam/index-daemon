@@ -12,7 +12,7 @@ use crate::worker::market_helpers::market::{market_factory, market_update, Marke
 use crate::worker::market_helpers::market_channels::ExternalMarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
 use crate::worker::market_helpers::pair_average_price::StoredAndWsTransmissibleF64ByPairTuple;
-use crate::worker::market_helpers::percent_change::PercentChangeByInterval;
+use crate::worker::market_helpers::percent_change_by_interval::PercentChangeByInterval;
 use crate::worker::market_helpers::stored_and_ws_transmissible_f64::StoredAndWsTransmissibleF64;
 use crate::worker::network_helpers::ws_server::holders::helper_functions::HolderHashMap;
 use crate::worker::network_helpers::ws_server::holders::percent_change_holder::PercentChangeByIntervalHolder;

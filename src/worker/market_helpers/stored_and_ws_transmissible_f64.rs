@@ -1,6 +1,6 @@
 use crate::repository::repositories::RepositoryForF64ByTimestamp;
 use crate::worker::helper_functions::{date_time_from_timestamp_sec, min_date_time, strip_usd};
-use crate::worker::market_helpers::percent_change::PercentChangeByInterval;
+use crate::worker::market_helpers::percent_change_by_interval::PercentChangeByInterval;
 use crate::worker::network_helpers::ws_server::candles::Candle;
 use crate::worker::network_helpers::ws_server::channels::worker_channels::LocalWorkerChannels;
 use crate::worker::network_helpers::ws_server::channels::ws_channel_subscription_request::WsChannelSubscriptionRequest;
@@ -95,7 +95,7 @@ impl StoredAndWsTransmissibleF64 {
         let mut percent_change = self.percent_change.write().await;
 
         for subscriber in subscribers {
-            percent_change.remove_percent_change_interval(subscriber);
+            percent_change.remove_interval(subscriber);
         }
     }
 

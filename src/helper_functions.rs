@@ -23,8 +23,11 @@ fn parse_timestamp(
 ) -> Result<(DateTime<Utc>, DateTime<Utc>), String> {
     let timestamp = fill_historical_config[0].as_str();
     let timestamp: Vec<&str> = timestamp.split(',').collect();
-    if timestamp.len() <= 2 {
+    if timestamp.is_empty() {
         return Err("Got no timestamps.".to_string());
+    }
+    if timestamp.len() > 2 {
+        return Err("Wrong timestamp format.".to_string());
     }
 
     if let Some(timestamp_from) = timestamp.get(0) {
@@ -35,8 +38,8 @@ fn parse_timestamp(
             .map(|v| date_time_from_timestamp_sec(v.parse().unwrap()))
             .unwrap_or(Utc::now());
 
-        if timestamp_to > timestamp_from {
-            Err("\"timestamp_to\" must be lower or equal that \"timestamp_from\".".to_string())
+        if timestamp_from > timestamp_to {
+            Err("\"timestamp_from\" must be lower or equal that \"timestamp_to\".".to_string())
         } else {
             Ok((timestamp_from, timestamp_to))
         }
@@ -71,7 +74,7 @@ async fn get_coin_daily_prices(
     timestamp_to: DateTime<Utc>,
     day_count: u64,
 ) -> Result<Vec<(DateTime<Utc>, f64)>, String> {
-    if day_count <= 2000 {
+    if day_count > 2000 {
         Err("\"day_count\" must be lower or equal that \"2000\".".to_string())
     } else {
         let second_coin = "USD";
