@@ -1,5 +1,7 @@
 use crate::graceful_shutdown::GracefulShutdown;
-use crate::repository::repositories::RepositoryForF64ByTimestamp;
+use crate::repository::repositories::{
+    MarketRepositoriesByMarketName, RepositoryForF64ByTimestamp,
+};
 use crate::worker::helper_functions::strip_usd;
 use crate::worker::market_helpers::market_value::MarketValue;
 use crate::worker::market_helpers::market_value_owner::MarketValueOwner;
@@ -56,6 +58,7 @@ pub struct WsServer {
     pub percent_change_interval_sec: u64,
     pub index_price_repository: Option<RepositoryForF64ByTimestamp>,
     pub pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
+    pub market_repositories: Option<MarketRepositoriesByMarketName>,
     pub graceful_shutdown: GracefulShutdown,
 }
 
@@ -168,12 +171,13 @@ impl WsServer {
         holder_key: &HolderKey,
         index_price_repository: &RepositoryWrap,
         pair_average_price: &StoredAndWsTransmissibleF64ByPairTuple,
+        market_repositories: &Option<MarketRepositoriesByMarketName>,
     ) -> RepositoryWrap {
-        match holder_key.0 {
+        match &holder_key.0 {
             MarketValueOwner::Worker => match holder_key.1 {
                 MarketValue::IndexPrice => index_price_repository.clone(),
-                MarketValue::PairAveragePrice => match &holder_key.2 {
-                    Some(pair) => {
+                MarketValue::PairAveragePrice => {
+                    if let Some(pair) = &holder_key.2 {
                         let repository = if let Some(arc) = pair_average_price.get(pair) {
                             arc.read().await.repository.clone()
                         } else {
@@ -181,14 +185,37 @@ impl WsServer {
                         };
 
                         RepositoryWrap(repository)
+                    } else {
+                        unreachable!();
                     }
-                    None => unreachable!(),
-                },
+                }
                 MarketValue::PairExchangePrice | MarketValue::PairExchangeVolume => {
                     unreachable!();
                 }
             },
-            MarketValueOwner::Market(_) => unreachable!(),
+            MarketValueOwner::Market(market_name) => match holder_key.1 {
+                MarketValue::IndexPrice | MarketValue::PairAveragePrice => unreachable!(),
+                _ => {
+                    if let Some(market_repositories) = market_repositories {
+                        if let Some(pair) = &holder_key.2 {
+                            let repository = market_repositories
+                                .get(market_name)
+                                .unwrap()
+                                .get(pair)
+                                .unwrap()
+                                .get(&holder_key.1)
+                                .unwrap()
+                                .clone();
+
+                            RepositoryWrap(Some(repository))
+                        } else {
+                            unreachable!();
+                        }
+                    } else {
+                        RepositoryWrap(None)
+                    }
+                }
+            },
         }
     }
 
@@ -200,6 +227,7 @@ impl WsServer {
         request: WsChannelSubscriptionRequest,
         index_price_repository: RepositoryWrap,
         pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
+        market_repositories: Option<MarketRepositoriesByMarketName>,
     ) {
         let sub_id = request.get_id();
 
@@ -257,6 +285,7 @@ impl WsServer {
                     &holder_key,
                     &index_price_repository,
                     &pair_average_price,
+                    &market_repositories,
                 )
                 .await;
 
@@ -304,6 +333,7 @@ impl WsServer {
         action: WsChannelAction,
         index_price_repository: Option<RepositoryForF64ByTimestamp>,
         pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
+        market_repositories: Option<MarketRepositoriesByMarketName>,
     ) {
         match action {
             WsChannelAction::Subscribe(request) => {
@@ -315,6 +345,7 @@ impl WsServer {
                     request,
                     RepositoryWrap(index_price_repository),
                     pair_average_price,
+                    market_repositories,
                 )
                 .await;
             }
@@ -578,6 +609,7 @@ impl WsServer {
         request: Result<WsRequest, String>,
         index_price_repository: Option<RepositoryForF64ByTimestamp>,
         pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
+        market_repositories: Option<MarketRepositoriesByMarketName>,
     ) {
         match request {
             Ok(request) => match request {
@@ -595,6 +627,7 @@ impl WsServer {
                         request,
                         index_price_repository,
                         pair_average_price,
+                        market_repositories,
                     )
                     .await;
                 }
@@ -635,6 +668,7 @@ impl WsServer {
         percent_change_interval_sec: u64,
         index_price_repository: Option<RepositoryForF64ByTimestamp>,
         pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
+        market_repositories: Option<MarketRepositoriesByMarketName>,
         _graceful_shutdown: &GracefulShutdown,
     ) -> Result<(), async_tungstenite::tungstenite::Error> {
         match Self::parse_jsonrpc_request(&request) {
@@ -652,6 +686,7 @@ impl WsServer {
                 let ws_channels_holder_2 = ws_channels_holder.clone();
                 let index_price_repository_2 = index_price_repository.clone();
                 let pair_average_price_2 = pair_average_price.clone();
+                let market_repositories_2 = market_repositories.clone();
 
                 Self::process_ws_channel_request(
                     percent_change_holder_2,
@@ -664,6 +699,7 @@ impl WsServer {
                     request,
                     index_price_repository_2,
                     pair_average_price_2,
+                    market_repositories_2,
                 )
                 .await;
             }
@@ -693,6 +729,7 @@ impl WsServer {
         percent_change_interval_sec: u64,
         index_price_repository: Option<RepositoryForF64ByTimestamp>,
         pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
+        market_repositories: Option<MarketRepositoriesByMarketName>,
         graceful_shutdown: GracefulShutdown,
     ) {
         match async_tungstenite::accept_async(raw_stream).await {
@@ -720,6 +757,7 @@ impl WsServer {
                         percent_change_interval_sec,
                         index_price_repository.clone(),
                         pair_average_price.clone(),
+                        market_repositories.clone(),
                         &graceful_shutdown,
                     )
                 });
@@ -763,6 +801,7 @@ impl WsServer {
                 self.percent_change_interval_sec,
                 self.index_price_repository.clone(),
                 self.pair_average_price.clone(),
+                self.market_repositories.clone(),
                 self.graceful_shutdown.clone(),
             ));
         }
