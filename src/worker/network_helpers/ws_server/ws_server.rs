@@ -407,7 +407,7 @@ impl WsServer {
                 let pair_tuple = (coin.to_string(), "USD".to_string());
 
                 if let Some(repository) = pair_average_price.get(&pair_tuple) {
-                    if let Some(repository) = &repository.read().await.repository {
+                    if let Some(repository) = repository.read().await.repository.clone() {
                         match repository.read_range(from..to).await {
                             Ok(values) => {
                                 let response = match request {

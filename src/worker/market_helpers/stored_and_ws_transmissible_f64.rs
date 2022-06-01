@@ -12,6 +12,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
+#[derive(Clone)]
 pub struct StoredAndWsTransmissibleF64 {
     value: Option<f64>,
     timestamp: DateTime<Utc>,
@@ -71,17 +72,29 @@ impl StoredAndWsTransmissibleF64 {
         self.value
     }
 
+    async fn set_to_repository(
+        mut repository: RepositoryForF64ByTimestamp,
+        timestamp: DateTime<Utc>,
+        value: f64,
+    ) {
+        repository.insert(timestamp, value).await;
+    }
+
     pub async fn set(&mut self, value: f64) {
         self.value = Some(value);
         self.timestamp = Utc::now();
 
-        if let Some(repository) = &mut self.repository {
-            let _ = repository.insert(self.timestamp, value).await;
+        if let Some(repository) = &self.repository {
+            tokio::spawn(Self::set_to_repository(
+                repository.clone(),
+                self.timestamp,
+                value,
+            ));
         }
 
         self.percent_change.write().await.set(value, self.timestamp);
 
-        self.send().await;
+        tokio::spawn(Self::send(self.clone()));
     }
 
     async fn get_percent_change(&self, percent_change_interval_sec: u64) -> Option<f64> {
@@ -99,27 +112,30 @@ impl StoredAndWsTransmissibleF64 {
         }
     }
 
-    async fn send(&self) {
-        if let Some(value) = self.value {
-            for ws_channel_name in &self.ws_channel_names {
-                match ws_channel_name {
-                    WsChannelName::IndexPrice
-                    | WsChannelName::CoinAveragePrice
-                    | WsChannelName::CoinExchangePrice
-                    | WsChannelName::CoinExchangeVolume => {
-                        self.send_ws_response_1(*ws_channel_name, value).await;
-                    }
-                    WsChannelName::IndexPriceCandles | WsChannelName::CoinAveragePriceCandles => {
-                        self.send_ws_response_2(*ws_channel_name).await;
-                    }
-                    _ => unreachable!(),
+    async fn send(self) {
+        for ws_channel_name in &self.ws_channel_names {
+            match ws_channel_name {
+                WsChannelName::IndexPrice
+                | WsChannelName::CoinAveragePrice
+                | WsChannelName::CoinExchangePrice
+                | WsChannelName::CoinExchangeVolume => {
+                    tokio::spawn(Self::send_ws_response_1(self.clone(), *ws_channel_name));
                 }
+                WsChannelName::IndexPriceCandles | WsChannelName::CoinAveragePriceCandles => {
+                    tokio::spawn(Self::send_ws_response_2(
+                        self.repository.clone(),
+                        Arc::clone(&self.ws_channels),
+                        self.pair.clone(),
+                        *ws_channel_name,
+                    ));
+                }
+                _ => unreachable!(),
             }
         }
     }
 
-    async fn send_ws_response_1(&self, ws_channel_name: WsChannelName, value: f64) -> Option<()> {
-        let market_name = self.market_name.as_ref().map(|v| v.to_string());
+    async fn send_ws_response_1(self, ws_channel_name: WsChannelName) -> Option<()> {
+        let value = self.value?;
         let timestamp = self.timestamp;
         let mut ws_channels = self.ws_channels.write().await;
         let channels = ws_channels.get_channels_by_method(ws_channel_name);
@@ -148,7 +164,7 @@ impl StoredAndWsTransmissibleF64 {
                 },
                 WsChannelName::CoinExchangePrice => WsChannelResponsePayload::CoinExchangePrice {
                     coin: strip_usd(self.pair.as_ref()?)?,
-                    exchange: market_name.clone().unwrap(),
+                    exchange: self.market_name.clone()?,
                     value,
                     timestamp,
                     percent_change_interval_sec,
@@ -156,7 +172,7 @@ impl StoredAndWsTransmissibleF64 {
                 },
                 WsChannelName::CoinExchangeVolume => WsChannelResponsePayload::CoinExchangeVolume {
                     coin: strip_usd(self.pair.as_ref()?)?,
-                    exchange: market_name.clone().unwrap(),
+                    exchange: self.market_name.clone()?,
                     value,
                     timestamp,
                     percent_change_interval_sec,
@@ -176,9 +192,14 @@ impl StoredAndWsTransmissibleF64 {
         Some(())
     }
 
-    async fn send_ws_response_2(&self, ws_channel_name: WsChannelName) -> Option<()> {
-        let repository = self.repository.as_ref()?;
-        let mut ws_channels = self.ws_channels.write().await;
+    async fn send_ws_response_2(
+        repository: Option<RepositoryForF64ByTimestamp>,
+        ws_channels: Arc<RwLock<WsChannels>>,
+        pair: Option<(String, String)>,
+        ws_channel_name: WsChannelName,
+    ) -> Option<()> {
+        let repository = repository?;
+        let mut ws_channels = ws_channels.write().await;
         let channels = ws_channels.get_channels_by_method(ws_channel_name);
         let mut responses = HashMap::new();
 
@@ -193,7 +214,7 @@ impl StoredAndWsTransmissibleF64 {
 
                         if let Ok(values) = repository.read_range(from..to).await {
                             if !values.is_empty() {
-                                let value = Candle::calculate(values).unwrap();
+                                let value = Candle::calculate(values)?;
 
                                 let response_payload = match channel {
                                     LocalWorkerChannels::IndexPriceCandles { .. } => {
@@ -201,7 +222,7 @@ impl StoredAndWsTransmissibleF64 {
                                     }
                                     LocalWorkerChannels::CoinAveragePriceCandles { .. } => {
                                         WsChannelResponsePayload::CoinAveragePriceCandles {
-                                            coin: strip_usd(self.pair.as_ref()?)?.clone(),
+                                            coin: strip_usd(pair.as_ref()?)?.clone(),
                                             value,
                                         }
                                     }

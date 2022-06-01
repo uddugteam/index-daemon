@@ -67,7 +67,7 @@ impl PercentChangeByInterval {
         for (&interval_sec, percent_change) in &mut self.0 {
             let timestamp_old_sec = percent_change
                 .get_timestamp()
-                .unwrap_or(min_date_time())
+                .unwrap_or_else(min_date_time)
                 .timestamp() as u64;
 
             if timestamp_new_sec - timestamp_old_sec >= interval_sec {
