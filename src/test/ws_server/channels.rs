@@ -13,6 +13,7 @@ use std::collections::HashMap;
 use tokio::time::{sleep, Duration};
 use uuid::Uuid;
 
+#[ignore]
 #[tokio::test]
 #[serial]
 async fn test_add_ws_channels_together() {
@@ -59,6 +60,7 @@ async fn test_add_ws_channels_together() {
     }
 }
 
+#[ignore]
 #[tokio::test]
 #[serial]
 async fn test_add_ws_channels_together_with_errors() {
@@ -105,6 +107,7 @@ async fn test_add_ws_channels_together_with_errors() {
     }
 }
 
+#[ignore]
 #[tokio::test]
 #[serial]
 async fn test_resubscribe() {
@@ -172,6 +175,7 @@ async fn test_resubscribe() {
     }
 }
 
+#[ignore]
 #[tokio::test]
 #[serial]
 async fn test_unsubscribe() {
@@ -240,6 +244,7 @@ async fn test_unsubscribe() {
     }
 }
 
+#[ignore]
 #[tokio::test]
 #[serial]
 async fn test_channels_response_together() {
@@ -296,6 +301,7 @@ async fn test_channels_response_together() {
     }
 }
 
+#[ignore]
 #[tokio::test]
 #[serial]
 async fn test_channels_response_together_with_errors() {
