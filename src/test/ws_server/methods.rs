@@ -9,6 +9,7 @@ use serial_test::serial;
 use std::collections::HashMap;
 use tokio::time::{sleep, Duration};
 
+#[ignore]
 #[tokio::test]
 #[serial]
 async fn test_request_methods_together() {
@@ -64,6 +65,7 @@ async fn test_request_methods_together() {
     }
 }
 
+#[ignore]
 #[tokio::test]
 #[serial]
 async fn test_request_methods_together_with_errors() {
