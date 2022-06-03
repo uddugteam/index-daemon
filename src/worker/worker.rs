@@ -161,6 +161,7 @@ pub async fn start_worker(
         ws_addr,
         ws_answer_timeout_ms,
         storage: _,
+        cache: _,
         historical_storage_frequency_ms: _,
         data_expire_sec,
         percent_change_interval_sec,

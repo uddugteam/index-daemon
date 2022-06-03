@@ -4,6 +4,7 @@ use crate::worker::market_helpers::market_channels::ExternalMarketChannels;
 use clap::ArgMatches;
 use env_logger::Builder;
 use parse_duration::parse;
+use redis::aio::MultiplexedConnection;
 use std::collections::HashSet;
 use std::hash::Hash;
 
@@ -80,6 +81,18 @@ pub fn get_default_storage(historical: bool) -> Option<Storage> {
     } else {
         None
     }
+}
+
+pub fn get_default_cache_url() -> String {
+    "redis://127.0.0.1:6379/".to_string()
+}
+pub async fn make_cache_handler(cache_url: String) -> Result<MultiplexedConnection, String> {
+    let client = redis::Client::open(cache_url.as_str()).map_err(|e| e.to_string())?;
+
+    client
+        .get_multiplexed_async_connection()
+        .await
+        .map_err(|e| e.to_string())
 }
 
 pub fn get_default_data_expire_string() -> String {

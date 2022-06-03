@@ -1,12 +1,13 @@
 use crate::config_scheme::helper_functions::{
-    get_config_from_config_files, get_default_data_expire_sec, get_default_data_expire_string,
-    get_default_historical, get_default_host, get_default_percent_change_interval_sec,
-    get_default_percent_change_interval_string, get_default_port, get_default_storage,
-    set_log_level,
+    get_config_from_config_files, get_default_cache_url, get_default_data_expire_sec,
+    get_default_data_expire_string, get_default_historical, get_default_host,
+    get_default_percent_change_interval_sec, get_default_percent_change_interval_string,
+    get_default_port, get_default_storage, make_cache_handler, set_log_level,
 };
 use crate::config_scheme::storage::Storage;
 use clap::ArgMatches;
 use parse_duration::parse;
+use redis::aio::MultiplexedConnection;
 
 #[derive(Clone)]
 pub struct ServiceConfig {
@@ -15,13 +16,14 @@ pub struct ServiceConfig {
     pub ws_addr: String,
     pub ws_answer_timeout_ms: u64,
     pub storage: Option<Storage>,
+    pub cache: Option<MultiplexedConnection>,
     pub historical_storage_frequency_ms: u64,
     pub data_expire_sec: u64,
     pub percent_change_interval_sec: u64,
 }
 
 impl ServiceConfig {
-    pub fn new(matches: &ArgMatches) -> Self {
+    pub async fn new(matches: &ArgMatches) -> Self {
         let default = Self::default();
         let service_config = get_config_from_config_files(matches, "service_config");
 
@@ -92,6 +94,21 @@ impl ServiceConfig {
         } else {
             None
         };
+
+        let cache_url = service_config.get_string("cache_url");
+        let cache = if !historical {
+            assert!(cache_url.is_err());
+
+            None
+        } else {
+            let cache_url = cache_url.unwrap_or(get_default_cache_url());
+
+            // Exactly `unwrap` here, to panic when received error
+            let cache = make_cache_handler(cache_url).await.unwrap();
+
+            Some(cache)
+        };
+
         let historical_storage_frequency_ms = service_config
             .get_string("historical_storage_frequency_ms")
             .map(|v| v.parse().unwrap())
@@ -122,6 +139,7 @@ impl ServiceConfig {
             ws_addr,
             ws_answer_timeout_ms,
             storage,
+            cache,
             historical_storage_frequency_ms,
             data_expire_sec,
             percent_change_interval_sec,
@@ -137,6 +155,7 @@ impl Default for ServiceConfig {
             ws_addr: get_default_host() + ":" + &get_default_port(),
             ws_answer_timeout_ms: 100,
             storage: get_default_storage(get_default_historical()),
+            cache: None,
             historical_storage_frequency_ms: 20,
             data_expire_sec: get_default_data_expire_sec(),
             percent_change_interval_sec: get_default_percent_change_interval_sec(),
