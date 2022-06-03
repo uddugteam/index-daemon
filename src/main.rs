@@ -20,7 +20,7 @@ mod worker;
 async fn main() {
     let graceful_shutdown = GracefulShutdown::new();
     let graceful_shutdown_future = graceful_shutdown.clone().start_listener();
-    let config = ConfigScheme::new();
+    let config = ConfigScheme::new().await;
 
     let repositories_prepared = RepositoriesPrepared::make(&config);
 

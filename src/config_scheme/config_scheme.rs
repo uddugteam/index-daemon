@@ -10,12 +10,12 @@ pub struct ConfigScheme {
 }
 
 impl ConfigScheme {
-    pub fn new() -> Self {
+    pub async fn new() -> Self {
         let matches = Self::make_matches();
 
         Self {
             market: MarketConfig::new(&matches),
-            service: ServiceConfig::new(&matches),
+            service: ServiceConfig::new(&matches).await,
             matches,
         }
     }
