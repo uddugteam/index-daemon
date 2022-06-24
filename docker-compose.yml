@@ -14,8 +14,5 @@ services:
     volumes:
         - /opt/app/db:/db
     ports:
-        - target: 8080
-          published: 8080
-          protocol: tcp
-          mode: host
+        - 8080:8080
 
