@@ -1,6 +1,7 @@
 version: "3.9"
 services:
   index-daemon:
+    build: .
     environment:
       APP__SERVICE_CONFIG__HISTORICAL: 1
       APP__SERVICE_CONFIG__WS: 1
