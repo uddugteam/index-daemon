@@ -6,10 +6,10 @@ WORKDIR /app
 
 ADD . .
 
-RUN apt-get update && \
+RUN apt-get update --fix-missing && \
 	apt-get dist-upgrade -y -o Dpkg::Options::="--force-confold" && \
-	apt-get install -y cmake pkg-config libssl-dev git clang curl && \
-        curl https://sh.rustup.rs -sSf | sh -s -- -y && \
+	apt-get install -y apt-transport-https cmake pkg-config libssl-dev git clang curl && \
+    curl https://sh.rustup.rs -sSf | sh -s -- -y && \
 	export PATH="$PATH:$HOME/.cargo/bin" && \
 	cargo build "--$PROFILE"
 
@@ -21,8 +21,8 @@ ARG PROFILE=release
 
 COPY --from=builder /app/target/$PROFILE/index-daemon /usr/local/bin
 
-RUN apt-get update && \
-    apt-get -y install make openssh-client ca-certificates && \
+RUN apt-get update --fix-missing && \
+    apt-get -y install apt-transport-https make openssh-client ca-certificates && \
     update-ca-certificates && \
     mv /usr/share/ca* /tmp && \
     rm -rf /usr/share/*  && \
