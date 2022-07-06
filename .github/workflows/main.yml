@@ -9,7 +9,7 @@ on:
 
 env:
   GCP_WIP: projects/859687294147/locations/global/workloadIdentityPools/github-actions/providers/github-actions
-  GCP_SA:  gitactions@snark-art-dev.iam.gserviceaccount.com
+  GCP_SA:  github-actions@snark-art-dev.iam.gserviceaccount.com
   #SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
   REGISTRY: gcr.io/snark-art-dev # Docker Registry
   SERVICE: index-daemon
