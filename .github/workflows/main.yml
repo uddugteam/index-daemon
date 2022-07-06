@@ -71,7 +71,7 @@ jobs:
     name: Deploy Staging
     needs: build
     runs-on: ubuntu-latest
-    if: github.ref_name == 'develop' || github.ref_name == 'new-ci'
+    if: github.ref_name == 'develop' || github.ref_name == 'CI'
 
     steps:
       - name: Checkout
