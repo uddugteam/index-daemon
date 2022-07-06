@@ -1,0 +1,64 @@
+name: Deploy
+
+inputs:
+  cluster:
+    required: true
+    type: string
+  zone:
+    required: true
+    type: string
+  namespace:
+    required: true
+    type: string
+  service:
+    required: true
+    type: string
+  version:
+    required: true
+    type: string
+  timeout:
+    required: false
+    type: string
+    default: '300s'
+
+permissions:
+    contents: 'read'
+    id-token: 'write'
+
+runs:
+  using: "composite"
+  steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+
+    - name: Install Helm
+      uses: azure/setup-helm@v1
+      with:
+        version: v3.8.0
+
+    # Configure Workload Identity Federation and generate an access token.
+    - name: 'Authenticate to Google Cloud'
+      uses: 'google-github-actions/auth@v0.4.0'
+      with:
+        token_format: 'access_token'
+        workload_identity_provider: ${{ env.GCP_WIP }}
+        service_account: ${{ env.GCP_SA }}
+
+    - name: Set up GKE credentials
+      uses: google-github-actions/get-gke-credentials@v0.4.0
+      with:
+        cluster_name: ${{ inputs.cluster }}
+        location: ${{ inputs.zone }}
+
+    - name: Set version
+      shell: bash
+      working-directory: ./helm
+      run: 'sed -i "/appVersion:/c\appVersion: ${{ inputs.version }}" Chart.yaml'
+
+    # Install Helm chart
+    - name: Deploy
+      shell: bash
+      working-directory: ./helm
+      run: |-
+        helm upgrade --install --atomic --wait --timeout ${{ inputs.timeout }} --cleanup-on-fail \
+              -n ${{ inputs.namespace }} -f ${{ inputs.namespace }}.yaml ${{ inputs.service }} .

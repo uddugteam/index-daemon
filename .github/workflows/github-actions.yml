@@ -36,6 +36,7 @@ jobs:
       - name: Build docker image
         run: docker build -t index-daemon:latest .
       - run: echo "🍏 This job's status is ${{ job.status }}."
+
   deploy_image:
     runs-on: stage
     needs: build_image
