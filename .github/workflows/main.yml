@@ -59,7 +59,7 @@ jobs:
           --cache-from "$REGISTRY/$SERVICE:${GITHUB_REF_NAME}-latest" \
           --tag "$REGISTRY/$SERVICE:${GITHUB_REF_NAME}-${GITHUB_SHA::7}" \
           .
-        docker tag "$REGISTRY/$SERVICE:${GITHUB_REF_NAME}-latest"
+        docker tag "$REGISTRY/$SERVICE:${GITHUB_REF_NAME}-${GITHUB_SHA::7}" "$REGISTRY/$SERVICE:${GITHUB_REF_NAME}-latest"
     #Push the Docker image to Docker Registry
     - name: Publish
       run: |-
