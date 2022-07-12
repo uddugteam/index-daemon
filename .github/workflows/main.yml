@@ -49,15 +49,22 @@ jobs:
       run: echo "::set-output name=version::${GITHUB_REF_NAME}-${GITHUB_SHA::7}"
 
     # Build the Docker image
+    - name: Pull prev
+        run: docker pull "$REGISTRY/$SERVICE:${GITHUB_REF_NAME}-latest" || true
+
+    # Build the Docker image
     - name: Build
       run: |-
         docker build \
+          --cache-from "$REGISTRY/$SERVICE:${GITHUB_REF_NAME}-latest" \
           --tag "$REGISTRY/$SERVICE:${GITHUB_REF_NAME}-${GITHUB_SHA::7}" \
           .
+        docker tag "$REGISTRY/$SERVICE:${GITHUB_REF_NAME}-latest"
     #Push the Docker image to Docker Registry
     - name: Publish
       run: |-
         docker push "$REGISTRY/$SERVICE:${GITHUB_REF_NAME}-${GITHUB_SHA::7}"
+        docker push "$REGISTRY/$SERVICE:${GITHUB_REF_NAME}-latest"
 
     #- name: Slack notify
     #  uses: act10ns/slack@v1

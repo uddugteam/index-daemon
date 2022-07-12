@@ -26,5 +26,5 @@ ingress:
           pathType: Prefix
   tls:
     - hosts:
-      - "staging.holygate.com""
+      - "staging.holygate.com"
       secretName: prod-cert
