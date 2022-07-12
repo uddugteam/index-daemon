@@ -50,7 +50,7 @@ jobs:
 
     # Build the Docker image
     - name: Pull prev
-        run: docker pull "$REGISTRY/$SERVICE:${GITHUB_REF_NAME}-latest" || true
+      run: docker pull "$REGISTRY/$SERVICE:${GITHUB_REF_NAME}-latest" || true
 
     # Build the Docker image
     - name: Build
