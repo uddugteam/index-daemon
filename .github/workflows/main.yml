@@ -81,7 +81,7 @@ jobs:
         uses: ./.github/actions/deploy
         with:
           cluster: dev
-          zone: us-east1-b
+          zone: europe-west4-a
           namespace: staging
           service: ${{ env.SERVICE }}
           version: ${{needs.build.outputs.version}}
