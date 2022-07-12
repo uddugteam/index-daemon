@@ -4,14 +4,14 @@ on:
   push:
     branches:
       - master
-      - develop
+      - dev
       - CI
 
 env:
-  GCP_WIP: projects/859687294147/locations/global/workloadIdentityPools/github-actions/providers/github-actions
-  GCP_SA:  github-actions@snark-art-dev.iam.gserviceaccount.com
+  GCP_WIP: projects/877045599866/locations/global/workloadIdentityPools/github-actions/providers/github-actions
+  GCP_SA:  github-actions@winter-jet-355409.iam.gserviceaccount.com
   #SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-  REGISTRY: gcr.io/snark-art-dev # Docker Registry
+  REGISTRY: europe-west4-docker.pkg.dev/winter-jet-355409/holygate # Docker Registry
   SERVICE: index-daemon
 
 permissions:
@@ -71,7 +71,7 @@ jobs:
     name: Deploy Staging
     needs: build
     runs-on: ubuntu-latest
-    if: github.ref_name == 'develop' || github.ref_name == 'CI'
+    if: github.ref_name == 'master' || github.ref_name == 'dev' || github.ref_name == 'CI'
 
     steps:
       - name: Checkout
@@ -80,7 +80,7 @@ jobs:
       - name: Deploy Staging
         uses: ./.github/actions/deploy
         with:
-          cluster: staging
+          cluster: dev
           zone: us-east1-b
           namespace: staging
           service: ${{ env.SERVICE }}
@@ -93,24 +93,24 @@ jobs:
       #    status: ${{ job.status }}
       #    steps: ${{ toJson(steps) }}
 
-  deploy_prod:
-    name: Deploy Prod
-    needs: build
-    runs-on: ubuntu-latest
-    if: github.ref_name == 'master'
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-
-      - name: Deploy Prod
-        uses: ./.github/actions/deploy
-        with:
-          cluster: prod
-          zone: us-east1-b
-          namespace: prod
-          service: ${{ env.SERVICE }}
-          version: ${{needs.build.outputs.version}}
+#  deploy_prod:
+#    name: Deploy Prod
+#    needs: build
+#    runs-on: ubuntu-latest
+#    if: github.ref_name == 'master'
+#
+#    steps:
+#      - name: Checkout
+#        uses: actions/checkout@v2
+#
+#      - name: Deploy Prod
+#        uses: ./.github/actions/deploy
+#        with:
+#          cluster: prod
+#          zone: us-east1-b
+#          namespace: prod
+#          service: ${{ env.SERVICE }}
+#          version: ${{needs.build.outputs.version}}
 
       #- name: Slack notify
       #  uses: act10ns/slack@v1
