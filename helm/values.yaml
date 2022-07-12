@@ -7,7 +7,7 @@ strategy:
   type: Recreate
 
 image:
-  repository: gcr.io/snark-art-dev/index-daemon
+  repository: europe-west4-docker.pkg.dev/winter-jet-355409/holygate/index-daemon
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
   tag: ""
