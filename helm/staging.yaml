@@ -4,10 +4,10 @@ domain: staging.holygate.com
 resources:
   requests:
     cpu: 250m
-    memory: 2500Mi
+    memory: 4000Mi
   limits:
     cpu: 500m
-    memory: 3000Mi
+    memory: 5000Mi
 
 ingress:
   enabled: true
