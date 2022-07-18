@@ -1,0 +1,39 @@
+
+domain: staging.holygate.com
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 12000Mi
+  limits:
+    cpu: 500m
+    memory: 13000Mi
+
+ingress:
+  enabled: true
+  className: ""
+  annotations:
+    kubernetes.io/ingress.class: traefik
+    cert-manager.io/cluster-issuer: letsencrypt
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    # kubernetes.io/tls-acme: "true"
+  hosts:
+    - host: "{{ .Values.domain }}"
+      port:
+        name: http
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - hosts:
+      - "staging.holygate.com"
+      secretName: staging-cert
+
+nodeSelector:
+  highmem: "true"
+
+tolerations:
+  - key: "highmem"
+    operator: "Equal"
+    value: "true"
+    effect: "NoSchedule"

@@ -1,0 +1,134 @@
+# Default values for microservice.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 1
+strategy:
+  type: Recreate
+
+image:
+  repository: europe-west4-docker.pkg.dev/winter-jet-355409/holygate/index-daemon
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: ""
+
+imagePullSecrets: []
+nameOverride: "index-daemon"
+fullnameOverride: ""
+
+domain: chart-defult.local
+
+env:
+  APP__SERVICE_CONFIG__HISTORICAL: '1'
+  APP__SERVICE_CONFIG__WS: '1'
+  APP__SERVICE_CONFIG__WS_HOST: '0.0.0.0'
+  APP__SERVICE_CONFIG__WS_PORT: '8080'
+  APP__SERVICE_CONFIG__LOG_LEVEL: 'info'
+
+externalSecret:
+  enabled: false
+  key: none
+  version: 0
+
+container:
+  command: ["/usr/local/bin/index-daemon"]
+  args: ["--fill_historical","1583010000", "BTC,ETH"]
+
+  ports:
+    - name: http
+      containerPort: 8080
+      protocol: TCP
+
+  probes: {}
+    #livenessProbe:
+    #  tcpSocket:
+    #    port: http
+    #readinessProbe:
+    #  httpGet:
+    #    path: /
+    #    port: http
+
+service:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+    # kubernetes.io/ingress.class: nginx
+    # kubernetes.io/tls-acme: "true"
+  hosts:
+    - host: "{{ .Values.domain }}"
+      port:
+        name: http
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+  #  - secretName: chart-example-tls
+  #    hosts:
+  #      - chart-example.local
+
+resources:
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  requests:
+    cpu: 250m
+    memory: 6000Mi
+  limits:
+    cpu: 500m
+    memory: 6000Mi
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 100
+  targetCPUUtilizationPercentage: 80
+  # targetMemoryUtilizationPercentage: 80
+
+persistence:
+  type: pvc
+  enabled: true
+  # storageClassName: default
+  accessModes:
+    - ReadWriteOnce
+  size: 128Gi
+  # annotations: {}
+  finalizers:
+    - kubernetes.io/pvc-protection
+  # selectorLabels: {}
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
