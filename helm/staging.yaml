@@ -4,10 +4,10 @@ domain: staging.holygate.com
 resources:
   requests:
     cpu: 250m
-    memory: 6000Mi
+    memory: 12000Mi
   limits:
     cpu: 500m
-    memory: 6000Mi
+    memory: 13000Mi
 
 ingress:
   enabled: true
@@ -28,3 +28,12 @@ ingress:
     - hosts:
       - "staging.holygate.com"
       secretName: staging-cert
+
+nodeSelector:
+  highmem: "true"
+
+tolerations:
+  - key: "highmem"
+    operator: "Equal"
+    value: "true"
+    effect: "NoSchedule"
