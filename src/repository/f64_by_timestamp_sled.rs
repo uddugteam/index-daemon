@@ -27,16 +27,6 @@ impl F64ByTimestampSled {
         format!("{}__{}", self.entity_name, primary.timestamp_millis())
     }
 
-    fn stringify_errors(errors: Vec<String>) -> String {
-        let mut error_string = String::new();
-
-        for error in errors {
-            error_string += &(error + ". ");
-        }
-
-        error_string
-    }
-
     fn date_time_from_timestamp_millis(timestamp_millis: u64) -> DateTime<Utc> {
         date_time_from_timestamp_sec(timestamp_millis / 1000)
     }
@@ -68,23 +58,18 @@ impl Repository<DateTime<Utc>, f64> for F64ByTimestampSled {
         let key_from = self.stringify_primary(primary.start);
         let key_to = self.stringify_primary(primary.end);
 
-        let mut oks = Vec::new();
-        let mut errors = Vec::new();
-
-        self.repository
+        let (oks, errors): (Vec<_>, Vec<_>) = self
+            .repository
             .range(key_from..key_to)
-            .for_each(|v| match v {
-                Ok((k, v)) => {
-                    oks.push((k, v));
-                }
-                Err(e) => errors.push(e.to_string()),
-            });
+            .into_iter()
+            .partition(Result::is_ok);
+        let oks = oks.into_iter().map(Result::unwrap);
+        let mut errors = errors.into_iter().map(Result::unwrap_err);
 
-        if !errors.is_empty() {
-            Err(Self::stringify_errors(errors))
+        if let Some(error) = errors.next() {
+            Err(error.to_string())
         } else {
             let mut res: Vec<(DateTime<Utc>, f64)> = oks
-                .into_iter()
                 .map(|(k, v)| {
                     (
                         Self::parse_primary_from_ivec(k),

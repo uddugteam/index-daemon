@@ -33,16 +33,6 @@ impl F64ByTimestampRocksdb {
         format!("{}__{}", self.entity_name, primary.timestamp_millis())
     }
 
-    fn stringify_errors(errors: Vec<String>) -> String {
-        let mut error_string = String::new();
-
-        for error in errors {
-            error_string += &(error + ". ");
-        }
-
-        error_string
-    }
-
     async fn get_keys_by_range(&self, primary: Range<DateTime<Utc>>) -> Vec<String> {
         self.repository
             .read()
@@ -96,25 +86,19 @@ impl Repository<DateTime<Utc>, f64> for F64ByTimestampRocksdb {
     ) -> Result<Vec<(DateTime<Utc>, f64)>, String> {
         let keys = self.get_keys_by_range(primary.start..primary.end).await;
 
-        let mut oks = Vec::new();
-        let mut errors = Vec::new();
-
         let repository = self.repository.read().await;
-        for key in keys {
-            match repository.get(&key) {
-                Ok(Some(v)) => {
-                    oks.push((key, v));
-                }
-                Ok(None) => {}
-                Err(e) => errors.push(e.to_string()),
-            }
-        }
 
-        if !errors.is_empty() {
-            Err(Self::stringify_errors(errors))
+        let (oks, errors): (Vec<_>, Vec<_>) = keys
+            .into_iter()
+            .map(|key| repository.get(&key).map(|v| v.map(|v| (key, v))))
+            .partition(Result::is_ok);
+        let oks = oks.into_iter().filter_map(Result::unwrap);
+        let mut errors = errors.into_iter().map(Result::unwrap_err);
+
+        if let Some(error) = errors.next() {
+            Err(error.to_string())
         } else {
             let mut res: Vec<(DateTime<Utc>, f64)> = oks
-                .into_iter()
                 .map(|(k, v)| {
                     (
                         Self::parse_primary_from_string(&k),
