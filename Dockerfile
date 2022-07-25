@@ -24,9 +24,6 @@ COPY --from=builder /app/target/$PROFILE/index-daemon /usr/local/bin
 RUN apt-get update --fix-missing && \
     apt-get -y install apt-transport-https make openssh-client ca-certificates heaptrack && \
     update-ca-certificates && \
-    mv /usr/share/ca* /tmp && \
-    rm -rf /usr/share/*  && \
-    mv /tmp/ca-certificates /usr/share/ && \
     ldd /usr/local/bin/index-daemon && \
     /usr/local/bin/index-daemon --version && \
     rm -rf /usr/share/man && \
