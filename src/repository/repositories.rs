@@ -1,6 +1,7 @@
 use crate::config_scheme::config_scheme::ConfigScheme;
 use crate::config_scheme::storage::Storage;
 use crate::repository::f64_by_timestamp_cache::F64ByTimestampCache;
+use crate::repository::f64_by_timestamp_rocksdb::F64ByTimestampRocksdb;
 use crate::repository::f64_by_timestamp_sled::F64ByTimestampSled;
 use crate::repository::repository::Repository;
 use crate::worker::market_helpers::market_value::MarketValue;
@@ -62,6 +63,11 @@ impl Repositories {
             Storage::Sled(tree) => Box::new(F64ByTimestampSled::new(
                 entity_name,
                 tree.clone(),
+                config.service.historical_storage_frequency_ms,
+            )),
+            Storage::Rocksdb(arc) => Box::new(F64ByTimestampRocksdb::new(
+                entity_name,
+                Arc::clone(arc),
                 config.service.historical_storage_frequency_ms,
             )),
         }
