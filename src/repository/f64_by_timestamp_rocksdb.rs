@@ -34,30 +34,25 @@ impl F64ByTimestampRocksdb {
     }
 
     async fn get_keys_by_range(&self, primary: Range<DateTime<Utc>>) -> Vec<String> {
+        let key_from = self.stringify_primary(primary.start);
+        let key_to = self.stringify_primary(primary.end);
+        let key_range = key_from..key_to;
+
         self.repository
             .read()
             .await
             .iterator(rocksdb::IteratorMode::Start)
-            .map(|v| {
-                // Drop values
-                v.0
+            .map(|(key, _value)| {
+                // Drop value
+                key
             })
-            .map(|v| Self::parse_primary_from_bytes(&v))
-            .filter(|(_, v)| v >= &primary.start && v <= &primary.end)
-            .map(|v| v.0)
+            .map(|key| str::from_utf8(&key).unwrap().to_string())
+            .filter(|key| key_range.contains(key))
             .collect()
     }
 
     fn date_time_from_timestamp_millis(timestamp_millis: u64) -> DateTime<Utc> {
         date_time_from_timestamp_sec(timestamp_millis / 1000)
-    }
-
-    fn parse_primary_from_bytes(key: &[u8]) -> (String, DateTime<Utc>) {
-        let key_string = str::from_utf8(key).unwrap().to_string();
-
-        let key = Self::parse_primary_from_string(&key_string);
-
-        (key_string, key)
     }
 
     fn parse_primary_from_string(key_string: &str) -> DateTime<Utc> {
