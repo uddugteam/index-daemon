@@ -1,14 +1,12 @@
 
 domain: staging.holygate.com
 
-#env: null
+#container:
+#  command: ["heaptrack"]
+#  args: ["-o", "/tmp/heaptrack.index-daemon" ,"/usr/local/bin/index-daemon", "--fill_historical","1583010000", "BTC,ETH"]
 
-container:
-  command: ["heaptrack"]
-  args: ["-o", "/tmp/heaptrack.index-daemon" ,"/usr/local/bin/index-daemon", "--fill_historical","1583010000", "BTC,ETH"]
-
-persistence:
-  enabled: false
+#persistence:
+#  enabled: false
 
 resources:
   requests:
