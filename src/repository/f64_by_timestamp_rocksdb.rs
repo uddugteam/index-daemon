@@ -4,17 +4,23 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use std::ops::Range;
 use std::str;
+use std::sync::Arc;
+use tokio::sync::RwLock;
 
 #[derive(Clone)]
-pub struct F64ByTimestampSled {
+pub struct F64ByTimestampRocksdb {
     entity_name: String,
-    repository: vsdbsled::Db,
+    repository: Arc<RwLock<rocksdb::DB>>,
     frequency_ms: u64,
     last_insert_timestamp: DateTime<Utc>,
 }
 
-impl F64ByTimestampSled {
-    pub fn new(entity_name: String, repository: vsdbsled::Db, frequency_ms: u64) -> Self {
+impl F64ByTimestampRocksdb {
+    pub fn new(
+        entity_name: String,
+        repository: Arc<RwLock<rocksdb::DB>>,
+        frequency_ms: u64,
+    ) -> Self {
         Self {
             entity_name,
             repository,
@@ -27,25 +33,48 @@ impl F64ByTimestampSled {
         format!("{}__{}", self.entity_name, primary.timestamp_millis())
     }
 
+    async fn get_keys_by_range(&self, primary: Range<DateTime<Utc>>) -> Vec<String> {
+        self.repository
+            .read()
+            .await
+            .iterator(rocksdb::IteratorMode::Start)
+            .map(|v| {
+                // Drop values
+                v.0
+            })
+            .map(|v| Self::parse_primary_from_bytes(&v))
+            .filter(|(_, v)| v >= &primary.start && v <= &primary.end)
+            .map(|v| v.0)
+            .collect()
+    }
+
     fn date_time_from_timestamp_millis(timestamp_millis: u64) -> DateTime<Utc> {
         date_time_from_timestamp_sec(timestamp_millis / 1000)
     }
 
-    fn parse_primary_from_ivec(key: vsdbsled::IVec) -> DateTime<Utc> {
-        let key = str::from_utf8(&key).unwrap().to_string();
+    fn parse_primary_from_bytes(key: &[u8]) -> (String, DateTime<Utc>) {
+        let key_string = str::from_utf8(key).unwrap().to_string();
 
-        let parts: Vec<&str> = key.rsplit("__").collect();
+        let key = Self::parse_primary_from_string(&key_string);
+
+        (key_string, key)
+    }
+
+    fn parse_primary_from_string(key_string: &str) -> DateTime<Utc> {
+        let parts: Vec<&str> = key_string.rsplit("__").collect();
 
         Self::date_time_from_timestamp_millis(parts.first().unwrap().parse().unwrap())
     }
 }
 
 #[async_trait]
-impl Repository<DateTime<Utc>, f64> for F64ByTimestampSled {
+impl Repository<DateTime<Utc>, f64> for F64ByTimestampRocksdb {
     async fn read(&self, primary: DateTime<Utc>) -> Result<Option<f64>, String> {
         let key = self.stringify_primary(primary);
 
         self.repository
+            .read()
+            .await
             .get(key)
             .map(|v| v.map(|v| f64::from_ne_bytes(v[0..8].try_into().unwrap())))
             .map_err(|e| e.to_string())
@@ -55,15 +84,15 @@ impl Repository<DateTime<Utc>, f64> for F64ByTimestampSled {
         &self,
         primary: Range<DateTime<Utc>>,
     ) -> Result<Vec<(DateTime<Utc>, f64)>, String> {
-        let key_from = self.stringify_primary(primary.start);
-        let key_to = self.stringify_primary(primary.end);
+        let keys = self.get_keys_by_range(primary.start..primary.end).await;
 
-        let (oks, errors): (Vec<_>, Vec<_>) = self
-            .repository
-            .range(key_from..key_to)
+        let repository = self.repository.read().await;
+
+        let (oks, errors): (Vec<_>, Vec<_>) = keys
             .into_iter()
+            .map(|key| repository.get(&key).map(|v| v.map(|v| (key, v))))
             .partition(Result::is_ok);
-        let oks = oks.into_iter().map(Result::unwrap);
+        let oks = oks.into_iter().filter_map(Result::unwrap);
         let mut errors = errors.into_iter().map(Result::unwrap_err);
 
         if let Some(error) = errors.next() {
@@ -72,7 +101,7 @@ impl Repository<DateTime<Utc>, f64> for F64ByTimestampSled {
             let mut res: Vec<(DateTime<Utc>, f64)> = oks
                 .map(|(k, v)| {
                     (
-                        Self::parse_primary_from_ivec(k),
+                        Self::parse_primary_from_string(&k),
                         f64::from_ne_bytes(v[0..8].try_into().unwrap()),
                     )
                 })
@@ -96,10 +125,12 @@ impl Repository<DateTime<Utc>, f64> for F64ByTimestampSled {
 
             let res = self
                 .repository
-                .insert(key, new_value.to_ne_bytes())
+                .write()
+                .await
+                .put(key, new_value.to_ne_bytes())
                 .map(|_| ())
                 .map_err(|e| e.to_string());
-            let _ = self.repository.flush();
+            let _ = self.repository.write().await.flush();
 
             Some(res)
         } else {
@@ -111,17 +142,17 @@ impl Repository<DateTime<Utc>, f64> for F64ByTimestampSled {
     async fn delete(&mut self, primary: DateTime<Utc>) {
         let key = self.stringify_primary(primary);
 
-        let _ = self.repository.remove(key);
-        let _ = self.repository.flush();
+        let _ = self.repository.write().await.delete(key);
+        let _ = self.repository.write().await.flush();
     }
 
     async fn delete_multiple(&mut self, primary: &[DateTime<Utc>]) {
         for &key in primary {
             let key = self.stringify_primary(key);
 
-            let _ = self.repository.remove(key);
+            let _ = self.repository.write().await.delete(key);
         }
 
-        let _ = self.repository.flush();
+        let _ = self.repository.write().await.flush();
     }
 }
