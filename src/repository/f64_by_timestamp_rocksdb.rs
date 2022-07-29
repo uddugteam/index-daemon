@@ -79,7 +79,7 @@ impl Repository<DateTime<Utc>, f64> for F64ByTimestampRocksdb {
         &self,
         primary: Range<DateTime<Utc>>,
     ) -> Result<Vec<(DateTime<Utc>, f64)>, String> {
-        let keys = self.get_keys_by_range(primary.start..primary.end).await;
+        let keys = self.get_keys_by_range(primary).await;
 
         let repository = self.repository.read().await;
 
@@ -125,7 +125,6 @@ impl Repository<DateTime<Utc>, f64> for F64ByTimestampRocksdb {
                 .put(key, new_value.to_ne_bytes())
                 .map(|_| ())
                 .map_err(|e| e.to_string());
-            let _ = self.repository.read().await.flush();
 
             Some(res)
         } else {
@@ -138,16 +137,11 @@ impl Repository<DateTime<Utc>, f64> for F64ByTimestampRocksdb {
         let key = self.stringify_primary(primary);
 
         let _ = self.repository.read().await.delete(key);
-        let _ = self.repository.read().await.flush();
     }
 
     async fn delete_multiple(&mut self, primary: &[DateTime<Utc>]) {
         for &key in primary {
-            let key = self.stringify_primary(key);
-
-            let _ = self.repository.read().await.delete(key);
+            self.delete(key).await;
         }
-
-        let _ = self.repository.read().await.flush();
     }
 }

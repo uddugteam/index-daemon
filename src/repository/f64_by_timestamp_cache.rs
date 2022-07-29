@@ -33,12 +33,16 @@ impl F64ByTimestampCache {
         format!("{}__{}", self.entity_name, primary.timestamp_millis())
     }
 
-    async fn get_keys_by_range(&self, primary: Range<String>) -> Vec<String> {
+    async fn get_keys_by_range(&self, primary: Range<DateTime<Utc>>) -> Vec<String> {
+        let key_from = self.stringify_primary(primary.start);
+        let key_to = self.stringify_primary(primary.end);
+        let key_range = key_from..key_to;
+
         self.repository
             .read()
             .await
             .keys()
-            .filter(|v| v >= &&primary.start && v <= &&primary.end)
+            .filter(|&key| key_range.contains(key))
             .cloned()
             .collect()
     }
@@ -66,14 +70,11 @@ impl Repository<DateTime<Utc>, f64> for F64ByTimestampCache {
         &self,
         primary: Range<DateTime<Utc>>,
     ) -> Result<Vec<(DateTime<Utc>, f64)>, String> {
-        let key_from = self.stringify_primary(primary.start);
-        let key_to = self.stringify_primary(primary.end);
-
         let mut res = Vec::new();
 
         let repository = self.repository.read().await;
 
-        for key in self.get_keys_by_range(key_from..key_to).await {
+        for key in self.get_keys_by_range(primary).await {
             let item = *repository.get(&key).unwrap();
             let key = Self::parse_primary_from_string(key);
 
