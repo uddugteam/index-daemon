@@ -79,7 +79,7 @@ impl Repository<DateTime<Utc>, f64> for F64ByTimestampRocksdb {
         &self,
         primary: Range<DateTime<Utc>>,
     ) -> Result<Vec<(DateTime<Utc>, f64)>, String> {
-        let keys = self.get_keys_by_range(primary.start..primary.end).await;
+        let keys = self.get_keys_by_range(primary).await;
 
         let repository = self.repository.read().await;
 
