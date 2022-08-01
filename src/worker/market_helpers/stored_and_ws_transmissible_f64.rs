@@ -104,8 +104,11 @@ impl StoredAndWsTransmissibleF64 {
             .get_percent_change(percent_change_interval_sec)
     }
 
-    async fn remove_percent_change_intervals(&self, subscribers: &[CJ]) {
-        let mut percent_change = self.percent_change.write().await;
+    async fn remove_percent_change_intervals(
+        percent_change: Arc<RwLock<PercentChangeByInterval>>,
+        subscribers: &[CJ],
+    ) {
+        let mut percent_change = percent_change.write().await;
 
         for subscriber in subscribers {
             percent_change.remove_interval(subscriber);
@@ -137,8 +140,13 @@ impl StoredAndWsTransmissibleF64 {
     async fn send_ws_response_1(self, ws_channel_name: WsChannelName) -> Option<()> {
         let value = self.value?;
         let timestamp = self.timestamp;
-        let mut ws_channels = self.ws_channels.write().await;
-        let channels = ws_channels.get_channels_by_method(ws_channel_name);
+
+        let channels = self
+            .ws_channels
+            .write()
+            .await
+            .get_channels_by_method(ws_channel_name);
+
         let mut responses = HashMap::new();
 
         for (key, request) in channels {
@@ -181,13 +189,16 @@ impl StoredAndWsTransmissibleF64 {
                 _ => unreachable!(),
             };
 
-            responses.insert(key.clone(), response_payload);
+            responses.insert(key, response_payload);
         }
 
-        let subscribers_to_remove = ws_channels.send_individual(responses).await;
+        let ws_channels = Arc::clone(&self.ws_channels);
+        let percent_change = Arc::clone(&self.percent_change);
+        tokio::spawn(async move {
+            let subscribers_to_remove = ws_channels.write().await.send_individual(responses).await;
 
-        self.remove_percent_change_intervals(&subscribers_to_remove)
-            .await;
+            Self::remove_percent_change_intervals(percent_change, &subscribers_to_remove).await;
+        });
 
         Some(())
     }
@@ -199,8 +210,12 @@ impl StoredAndWsTransmissibleF64 {
         ws_channel_name: WsChannelName,
     ) -> Option<()> {
         let repository = repository?;
-        let mut ws_channels = ws_channels.write().await;
-        let channels = ws_channels.get_channels_by_method(ws_channel_name);
+
+        let channels = ws_channels
+            .write()
+            .await
+            .get_channels_by_method(ws_channel_name);
+
         let mut responses = HashMap::new();
 
         for (key, request) in channels {
@@ -239,7 +254,9 @@ impl StoredAndWsTransmissibleF64 {
             }
         }
 
-        ws_channels.send_individual(responses).await;
+        tokio::spawn(async move {
+            ws_channels.write().await.send_individual(responses).await;
+        });
 
         Some(())
     }

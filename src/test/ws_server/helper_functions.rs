@@ -132,9 +132,12 @@ pub async fn get_subscription_requests(
             ws_channels
                 .get_channels_by_method(method)
                 .into_iter()
-                .filter(|(k, _)| &k.1 == sub_id)
-                .map(|(_, v)| v)
-                .for_each(|v| subscription_requests.push(v.clone()));
+                .filter(|(key, _value)| &key.1 == sub_id)
+                .map(|(_key, value)| {
+                    // Drop key
+                    value
+                })
+                .for_each(|v| subscription_requests.push(v));
         }
     }
 
