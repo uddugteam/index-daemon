@@ -5,14 +5,51 @@ use chrono::{DateTime, Utc};
 use std::collections::HashSet;
 
 #[derive(Debug, Clone)]
+enum SubscriberType {
+    System,
+    Users(HashSet<CJ>),
+}
+
+impl SubscriberType {
+    pub fn add(&mut self, subscriber: CJ) {
+        match self {
+            SubscriberType::System => {}
+            SubscriberType::Users(subscribers) => {
+                subscribers.insert(subscriber);
+            }
+        }
+    }
+
+    pub fn remove(&mut self, subscriber: &CJ) -> bool {
+        match self {
+            SubscriberType::System => false,
+            SubscriberType::Users(subscribers) => {
+                subscribers.remove(subscriber);
+
+                subscribers.is_empty()
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct PercentChange {
     value: Option<f64>,
     percent_change: Option<f64>,
     timestamp: Option<DateTime<Utc>>,
-    subscribers: HashSet<CJ>,
+    subscribers: SubscriberType,
 }
 
 impl PercentChange {
+    pub fn new_default_empty() -> Self {
+        Self {
+            value: None,
+            percent_change: None,
+            timestamp: None,
+            subscribers: SubscriberType::System,
+        }
+    }
+
     pub async fn from_historical(
         repository: Option<RepositoryForF64ByTimestamp>,
         percent_change_interval_sec: u64,
@@ -46,7 +83,7 @@ impl PercentChange {
             value,
             percent_change,
             timestamp,
-            subscribers: HashSet::from([subscriber]),
+            subscribers: SubscriberType::Users(HashSet::from([subscriber])),
         }
     }
 
@@ -68,12 +105,10 @@ impl PercentChange {
     }
 
     pub fn add_subscriber(&mut self, subscriber: CJ) {
-        self.subscribers.insert(subscriber);
+        self.subscribers.add(subscriber);
     }
 
     pub fn remove_subscriber(&mut self, subscriber: &CJ) -> bool {
-        self.subscribers.remove(subscriber);
-
-        self.subscribers.is_empty()
+        self.subscribers.remove(subscriber)
     }
 }
