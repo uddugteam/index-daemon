@@ -11,6 +11,11 @@ pub const COINS: [&str; 2] = ["BTC", "ETH"];
 //     "AMP", "NEO", "BAT", "KCS", "OKB", "CHZ", "DASH", "COMP", "NEXO", "XEM", "TUSD", "YFI",
 // ];
 
+pub const PERMANENT_PERCENT_CHANGE_INTERVALS_SEC: [u64; 2] = [
+    86_400, // 1 day
+    60,
+];
+
 pub const POLONIEX_EXCHANGE_PAIRS: [(&str, (&str, &str)); 456] = [
     ("336", ("BNB", "BTC")),
     ("462", ("BTC", "AAVE")),

@@ -1,4 +1,5 @@
 use crate::config_scheme::config_scheme::ConfigScheme;
+use crate::worker::defaults::PERMANENT_PERCENT_CHANGE_INTERVALS_SEC;
 use crate::worker::helper_functions::min_date_time;
 use crate::worker::market_helpers::percent_change::PercentChange;
 use crate::worker::network_helpers::ws_server::ws_channels::CJ;
@@ -10,7 +11,16 @@ pub struct PercentChangeByInterval(HashMap<u64, PercentChange>);
 
 impl PercentChangeByInterval {
     pub fn new() -> Self {
-        Self(HashMap::new())
+        let mut res = Self(HashMap::new());
+
+        for percent_change_interval_sec in PERMANENT_PERCENT_CHANGE_INTERVALS_SEC {
+            res.add_interval(
+                percent_change_interval_sec,
+                PercentChange::new_default_empty(),
+            );
+        }
+
+        res
     }
 
     pub fn contains_interval(&self, percent_change_interval_sec: u64) -> bool {
@@ -22,7 +32,9 @@ impl PercentChangeByInterval {
         percent_change_interval_sec: u64,
         percent_change: PercentChange,
     ) -> Option<()> {
-        if let std::collections::hash_map::Entry::Vacant(e) = self.0.entry(percent_change_interval_sec) {
+        if let std::collections::hash_map::Entry::Vacant(e) =
+            self.0.entry(percent_change_interval_sec)
+        {
             e.insert(percent_change);
 
             Some(())
