@@ -29,13 +29,13 @@ impl F64ByTimestampCache {
         }
     }
 
-    fn stringify_primary(&self, primary: DateTime<Utc>) -> String {
+    fn stringify_primary(&self, primary: &DateTime<Utc>) -> String {
         format!("{}__{}", self.entity_name, primary.timestamp_millis())
     }
 
     async fn get_keys_by_range(&self, primary: Range<DateTime<Utc>>) -> Vec<String> {
-        let key_from = self.stringify_primary(primary.start);
-        let key_to = self.stringify_primary(primary.end);
+        let key_from = self.stringify_primary(&primary.start);
+        let key_to = self.stringify_primary(&primary.end);
         let key_range = key_from..key_to;
 
         self.repository
@@ -61,7 +61,7 @@ impl F64ByTimestampCache {
 #[async_trait]
 impl Repository<DateTime<Utc>, f64> for F64ByTimestampCache {
     async fn read(&self, primary: DateTime<Utc>) -> Result<Option<f64>, String> {
-        let key = self.stringify_primary(primary);
+        let key = self.stringify_primary(&primary);
 
         Ok(self.repository.read().await.get(&key).cloned())
     }
@@ -94,7 +94,7 @@ impl Repository<DateTime<Utc>, f64> for F64ByTimestampCache {
             // Enough time passed
             self.last_insert_timestamp = primary;
 
-            let key = self.stringify_primary(primary);
+            let key = self.stringify_primary(&primary);
 
             let _ = self.repository.write().await.insert(key, new_value);
 
@@ -105,14 +105,14 @@ impl Repository<DateTime<Utc>, f64> for F64ByTimestampCache {
         }
     }
 
-    async fn delete(&mut self, primary: DateTime<Utc>) {
+    async fn delete(&mut self, primary: &DateTime<Utc>) {
         let key = self.stringify_primary(primary);
 
         let _ = self.repository.write().await.remove(&key);
     }
 
     async fn delete_multiple(&mut self, primary: &[DateTime<Utc>]) {
-        for &key in primary {
+        for key in primary {
             let key = self.stringify_primary(key);
 
             let _ = self.repository.write().await.remove(&key);

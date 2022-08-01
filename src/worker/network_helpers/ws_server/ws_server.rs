@@ -634,14 +634,13 @@ impl WsServer {
                 WsRequest::Method(request) => {
                     debug!("Client with addr: {} requested: {:?}", client_addr, request);
 
-                    Self::do_response(
+                    tokio::spawn(Self::do_response(
                         broadcast_recipient,
                         sub_id,
                         request,
                         index_price_repository,
                         pair_average_price,
-                    )
-                    .await;
+                    ));
                 }
             },
             Err(e) => {

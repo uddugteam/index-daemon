@@ -29,13 +29,13 @@ impl F64ByTimestampRocksdb {
         }
     }
 
-    fn stringify_primary(&self, primary: DateTime<Utc>) -> String {
+    fn stringify_primary(&self, primary: &DateTime<Utc>) -> String {
         format!("{}__{}", self.entity_name, primary.timestamp_millis())
     }
 
     async fn get_keys_by_range(&self, primary: Range<DateTime<Utc>>) -> Vec<String> {
-        let key_from = self.stringify_primary(primary.start);
-        let key_to = self.stringify_primary(primary.end);
+        let key_from = self.stringify_primary(&primary.start);
+        let key_to = self.stringify_primary(&primary.end);
         let key_range = key_from..key_to;
 
         self.repository
@@ -65,7 +65,7 @@ impl F64ByTimestampRocksdb {
 #[async_trait]
 impl Repository<DateTime<Utc>, f64> for F64ByTimestampRocksdb {
     async fn read(&self, primary: DateTime<Utc>) -> Result<Option<f64>, String> {
-        let key = self.stringify_primary(primary);
+        let key = self.stringify_primary(&primary);
 
         self.repository
             .read()
@@ -81,12 +81,13 @@ impl Repository<DateTime<Utc>, f64> for F64ByTimestampRocksdb {
     ) -> Result<Vec<(DateTime<Utc>, f64)>, String> {
         let keys = self.get_keys_by_range(primary).await;
 
-        let repository = self.repository.read().await;
+        let (oks, errors): (Vec<_>, Vec<_>) = {
+            let repository = self.repository.read().await;
 
-        let (oks, errors): (Vec<_>, Vec<_>) = keys
-            .into_iter()
-            .map(|key| repository.get(&key).map(|v| v.map(|v| (key, v))))
-            .partition(Result::is_ok);
+            keys.into_iter()
+                .map(|key| repository.get(&key).map(|v| v.map(|v| (key, v))))
+                .partition(Result::is_ok)
+        };
         let oks = oks.into_iter().filter_map(Result::unwrap);
         let mut errors = errors.into_iter().map(Result::unwrap_err);
 
@@ -116,7 +117,7 @@ impl Repository<DateTime<Utc>, f64> for F64ByTimestampRocksdb {
             // Enough time passed
             self.last_insert_timestamp = primary;
 
-            let key = self.stringify_primary(primary);
+            let key = self.stringify_primary(&primary);
 
             let res = self
                 .repository
@@ -133,15 +134,19 @@ impl Repository<DateTime<Utc>, f64> for F64ByTimestampRocksdb {
         }
     }
 
-    async fn delete(&mut self, primary: DateTime<Utc>) {
+    async fn delete(&mut self, primary: &DateTime<Utc>) {
         let key = self.stringify_primary(primary);
 
         let _ = self.repository.read().await.delete(key);
     }
 
     async fn delete_multiple(&mut self, primary: &[DateTime<Utc>]) {
-        for &key in primary {
-            self.delete(key).await;
+        let repository = self.repository.read().await;
+
+        for key in primary {
+            let key = self.stringify_primary(key);
+
+            let _ = repository.delete(key);
         }
     }
 }

@@ -22,11 +22,11 @@ impl WsChannels {
     pub fn get_channels_by_method(
         &self,
         method: WsChannelName,
-    ) -> HashMap<&CJ, &WsChannelSubscriptionRequest> {
+    ) -> HashMap<CJ, WsChannelSubscriptionRequest> {
         self.0
             .iter()
             .filter(|(_, v)| v.request.get_method() == method)
-            .map(|(k, v)| (k, &v.request))
+            .map(|(k, v)| (k.clone(), v.request.clone()))
             .collect()
     }
 
