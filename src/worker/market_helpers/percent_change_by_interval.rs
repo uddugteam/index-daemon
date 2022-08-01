@@ -4,7 +4,7 @@ use crate::worker::helper_functions::min_date_time;
 use crate::worker::market_helpers::percent_change::PercentChange;
 use crate::worker::network_helpers::ws_server::ws_channels::CJ;
 use chrono::{DateTime, Utc};
-use std::collections::HashMap;
+use std::collections::{hash_map, HashMap};
 
 #[derive(Clone)]
 pub struct PercentChangeByInterval(HashMap<u64, PercentChange>);
@@ -32,9 +32,7 @@ impl PercentChangeByInterval {
         percent_change_interval_sec: u64,
         percent_change: PercentChange,
     ) -> Option<()> {
-        if let std::collections::hash_map::Entry::Vacant(e) =
-            self.0.entry(percent_change_interval_sec)
-        {
+        if let hash_map::Entry::Vacant(e) = self.0.entry(percent_change_interval_sec) {
             e.insert(percent_change);
 
             Some(())
@@ -48,13 +46,9 @@ impl PercentChangeByInterval {
         percent_change_interval_sec: u64,
         subscriber: CJ,
     ) -> Option<()> {
-        if let Some(percent_change) = self.0.get_mut(&percent_change_interval_sec) {
-            percent_change.add_subscriber(subscriber);
-
-            Some(())
-        } else {
-            None
-        }
+        self.0
+            .get_mut(&percent_change_interval_sec)
+            .map(|percent_change| percent_change.add_subscriber(subscriber))
     }
 
     pub fn remove_interval(&mut self, subscriber: &CJ) {
