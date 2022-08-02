@@ -41,7 +41,7 @@ pub struct SubscriptionParams {
     pub exchanges: Option<Vec<String>>,
 }
 
-pub fn start_application(
+pub async fn start_application(
     mut config: ConfigScheme,
 ) -> (
     impl Future<Output = ()>,
@@ -58,7 +58,7 @@ pub fn start_application(
         ExternalMarketChannels::Trades,
     ];
 
-    let repositories_prepared = RepositoriesPrepared::make(&config);
+    let repositories_prepared = RepositoriesPrepared::make(&config).await;
 
     let worker_future = start_worker(
         config.clone(),

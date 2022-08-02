@@ -29,12 +29,16 @@ pub struct RepositoriesPrepared {
 }
 
 impl RepositoriesPrepared {
-    pub fn make(config: &ConfigScheme) -> Self {
+    pub async fn make(config: &ConfigScheme) -> Self {
         let (pair_average_price_repositories, market_repositories, index_price_repository) =
             Repositories::optionize_fields(Repositories::new(config));
 
-        let percent_change_holder = make_holder_hashmap::<PercentChangeByInterval>(config);
-        let ws_channels_holder = make_holder_hashmap::<WsChannels>(config);
+        let percent_change_holder = make_holder_hashmap::<PercentChangeByInterval>(
+            config,
+            pair_average_price_repositories.clone(),
+        )
+        .await;
+        let ws_channels_holder = make_holder_hashmap::<WsChannels>(config, None).await;
 
         let pair_average_price = make_pair_average_price(
             config,

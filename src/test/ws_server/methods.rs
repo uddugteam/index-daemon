@@ -26,7 +26,7 @@ async fn test_request_methods_together() {
     } = Requests::make_all(&config, &methods, false, None).unzip();
 
     let (worker_future, (incoming_msg_tx, incoming_msg_rx), config, _repositories_prepared) =
-        start_application(config);
+        start_application(config).await;
 
     let expecteds: HashMap<_, _> = expecteds
         .into_iter()
@@ -82,7 +82,7 @@ async fn test_request_methods_together_with_errors() {
     } = Requests::make_all(&config, &methods, true, None).unzip();
 
     let (worker_future, (incoming_msg_tx, incoming_msg_rx), config, _repositories_prepared) =
-        start_application(config);
+        start_application(config).await;
 
     let expecteds_errors: HashMap<_, _> = params_vec
         .iter()

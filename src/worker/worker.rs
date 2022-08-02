@@ -264,7 +264,7 @@ pub mod test {
             ws_channels_holder,
             index_price,
             pair_average_price,
-        } = RepositoriesPrepared::make(&config);
+        } = RepositoriesPrepared::make(&config).await;
 
         let markets = configure(
             market_names.clone(),

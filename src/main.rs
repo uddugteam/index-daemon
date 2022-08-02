@@ -22,7 +22,7 @@ async fn main() {
     let graceful_shutdown_future = graceful_shutdown.clone().start_listener();
     let config = ConfigScheme::new();
 
-    let repositories_prepared = RepositoriesPrepared::make(&config);
+    let repositories_prepared = RepositoriesPrepared::make(&config).await;
 
     let worker_future = start_worker(config, repositories_prepared, graceful_shutdown);
 

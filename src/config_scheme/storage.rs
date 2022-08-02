@@ -1,3 +1,4 @@
+use num_format::{Locale, ToFormattedString};
 use std::collections::HashMap;
 use std::sync::Arc;
 use sysinfo::{System, SystemExt};
@@ -37,8 +38,8 @@ impl Storage {
 
     fn check_ram(sys: &mut System, time: RamCheckTime) {
         sys.refresh_all();
-        let used_memory = sys.used_memory() / 1024;
-        let total_memory = sys.total_memory() / 1024;
+        let used_memory = (sys.used_memory() / 1024).to_formatted_string(&Locale::en);
+        let total_memory = (sys.total_memory() / 1024).to_formatted_string(&Locale::en);
         debug!(
             "RAM {:?} DB open: {}/{} MB",
             time, used_memory, total_memory,
