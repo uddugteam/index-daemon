@@ -441,9 +441,9 @@ mod test {
             ws_channels_holder,
             index_price: _,
             pair_average_price: _,
-        } = RepositoriesPrepared::make(&config);
+        } = RepositoriesPrepared::make(&config).await;
 
-        let (market_spine, rx) = make_spine(market_name);
+        let (market_spine, rx) = make_spine(market_name).await;
         let market_name = market_spine.name.clone();
         let market = market_factory(
             market_spine,
@@ -480,7 +480,7 @@ mod test {
             ws_channels_holder,
             index_price: _,
             pair_average_price: _,
-        } = RepositoriesPrepared::make(&config);
+        } = RepositoriesPrepared::make(&config).await;
 
         let pair_string = market.lock().await.make_pair(get_pair_ref(&exchange_pair));
 

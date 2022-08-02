@@ -22,7 +22,7 @@ async fn test_add_ws_channels_together() {
     config.service.ws_addr = format!("127.0.0.1:{}", port);
 
     let (worker_future, (incoming_msg_tx, _incoming_msg_rx), config, repositories_prepared) =
-        start_application(config);
+        start_application(config).await;
 
     let channels = WsChannelName::get_all_channels();
 
@@ -69,7 +69,7 @@ async fn test_add_ws_channels_together_with_errors() {
     config.service.ws_addr = format!("127.0.0.1:{}", port);
 
     let (worker_future, (incoming_msg_tx, _incoming_msg_rx), config, repositories_prepared) =
-        start_application(config);
+        start_application(config).await;
 
     let channels = WsChannelName::get_all_channels();
 
@@ -116,7 +116,7 @@ async fn test_resubscribe() {
     config.service.ws_addr = format!("127.0.0.1:{}", port);
 
     let (worker_future, (incoming_msg_tx, _incoming_msg_rx), config, repositories_prepared) =
-        start_application(config);
+        start_application(config).await;
 
     let channels = WsChannelName::get_all_channels();
     let sub_id = JsonRpcId::Str(Uuid::new_v4().to_string());
@@ -186,7 +186,7 @@ async fn test_unsubscribe() {
     let mut futures = Vec::new();
 
     let (worker_future, (incoming_msg_tx, _incoming_msg_rx), config, repositories_prepared) =
-        start_application(config);
+        start_application(config).await;
 
     let channels = WsChannelName::get_all_channels();
 
@@ -253,7 +253,7 @@ async fn test_channels_response_together() {
     config.service.ws_addr = format!("127.0.0.1:{}", port);
 
     let (worker_future, (incoming_msg_tx, incoming_msg_rx), config, _repositories_prepared) =
-        start_application(config);
+        start_application(config).await;
 
     let channels = WsChannelName::get_all_channels();
 
@@ -310,7 +310,7 @@ async fn test_channels_response_together_with_errors() {
     config.service.ws_addr = format!("127.0.0.1:{}", port);
 
     let (worker_future, (incoming_msg_tx, incoming_msg_rx), config, _repositories_prepared) =
-        start_application(config);
+        start_application(config).await;
 
     let channels = WsChannelName::get_all_channels();
 

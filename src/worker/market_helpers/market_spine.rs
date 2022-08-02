@@ -321,7 +321,7 @@ pub mod test {
     use std::sync::mpsc::Receiver;
     use std::thread::JoinHandle;
 
-    pub fn make_spine(market_name: Option<&str>) -> (MarketSpine, Receiver<JoinHandle<()>>) {
+    pub async fn make_spine(market_name: Option<&str>) -> (MarketSpine, Receiver<JoinHandle<()>>) {
         let market_name = market_name.unwrap_or("binance").to_string();
         let (_, rx, _) = prepare_worker_params();
         let graceful_shutdown = GracefulShutdown::new();
@@ -335,7 +335,7 @@ pub mod test {
             ws_channels_holder: _,
             index_price,
             pair_average_price,
-        } = RepositoriesPrepared::make(&config);
+        } = RepositoriesPrepared::make(&config).await;
 
         let spine = MarketSpine::new(
             pair_average_price,
@@ -352,7 +352,7 @@ pub mod test {
 
     #[tokio::test]
     async fn test_add_exchange_pair() {
-        let (mut spine, _) = make_spine(None);
+        let (mut spine, _) = make_spine(None).await;
         let market_name = spine.name.clone();
 
         let pair_tuple = ("some_coin_1".to_string(), "some_coin_2".to_string());
@@ -369,7 +369,7 @@ pub mod test {
             ws_channels_holder,
             index_price: _,
             pair_average_price: _,
-        } = RepositoriesPrepared::make(&config);
+        } = RepositoriesPrepared::make(&config).await;
 
         let pair_string = "some_pair_string".to_string();
 

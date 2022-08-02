@@ -1,4 +1,6 @@
+use crate::config_scheme::async_from::AsyncFrom;
 use crate::config_scheme::config_scheme::ConfigScheme;
+use crate::repository::repositories::RepositoryForF64ByTimestamp;
 use crate::worker::network_helpers::ws_server::channels::ws_channel_subscription_request::WsChannelSubscriptionRequest;
 use crate::worker::network_helpers::ws_server::connection_id::ConnectionId;
 use crate::worker::network_helpers::ws_server::jsonrpc_request::JsonRpcId;
@@ -6,6 +8,7 @@ use crate::worker::network_helpers::ws_server::ws_channel_name::WsChannelName;
 use crate::worker::network_helpers::ws_server::ws_channel_response::WsChannelResponse;
 use crate::worker::network_helpers::ws_server::ws_channel_response_payload::WsChannelResponsePayload;
 use crate::worker::network_helpers::ws_server::ws_channel_response_sender::WsChannelResponseSender;
+use async_trait::async_trait;
 use async_tungstenite::tungstenite::protocol::Message;
 use futures::channel::mpsc::TrySendError;
 use std::collections::HashMap;
@@ -82,8 +85,11 @@ impl WsChannels {
     }
 }
 
-impl From<ConfigScheme> for WsChannels {
-    fn from(_config: ConfigScheme) -> Self {
+#[async_trait]
+impl AsyncFrom<(ConfigScheme, Option<RepositoryForF64ByTimestamp>)> for WsChannels {
+    async fn from(
+        (_config, repository): (ConfigScheme, Option<RepositoryForF64ByTimestamp>),
+    ) -> Self {
         Self::new()
     }
 }

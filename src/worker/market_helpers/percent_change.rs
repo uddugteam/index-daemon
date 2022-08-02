@@ -41,21 +41,41 @@ pub struct PercentChange {
 }
 
 impl PercentChange {
-    pub fn new_default_empty() -> Self {
+    pub async fn new_permanent(
+        repository: Option<RepositoryForF64ByTimestamp>,
+        percent_change_interval_sec: u64,
+    ) -> Self {
+        let debug = repository.is_some();
+        if debug {
+            debug!(
+                "fn new_permanent BEGIN. percent_change_interval_sec: {}",
+                percent_change_interval_sec,
+            );
+        }
+
+        let (value, percent_change, timestamp) =
+            Self::from_historical_inner(repository, percent_change_interval_sec).await;
+
+        if debug {
+            debug!(
+                "fn new_permanent END. percent_change_interval_sec: {}",
+                percent_change_interval_sec,
+            );
+        }
+
         Self {
-            value: None,
-            percent_change: None,
-            timestamp: None,
+            value,
+            percent_change,
+            timestamp,
             subscribers: SubscriberType::System,
         }
     }
 
-    pub async fn from_historical(
+    async fn from_historical_inner(
         repository: Option<RepositoryForF64ByTimestamp>,
         percent_change_interval_sec: u64,
-        subscriber: CJ,
-    ) -> Self {
-        let (value, percent_change, timestamp) = if let Some(repository) = repository {
+    ) -> (Option<f64>, Option<f64>, Option<DateTime<Utc>>) {
+        if let Some(repository) = repository {
             let to = Utc::now();
             let from = date_time_subtract_sec(to, percent_change_interval_sec);
 
@@ -77,7 +97,16 @@ impl PercentChange {
             }
         } else {
             (None, None, None)
-        };
+        }
+    }
+
+    pub async fn from_historical(
+        repository: Option<RepositoryForF64ByTimestamp>,
+        percent_change_interval_sec: u64,
+        subscriber: CJ,
+    ) -> Self {
+        let (value, percent_change, timestamp) =
+            Self::from_historical_inner(repository, percent_change_interval_sec).await;
 
         Self {
             value,
