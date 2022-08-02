@@ -438,50 +438,58 @@ impl WsServer {
                 let pair_tuple = (coin.to_string(), "USD".to_string());
 
                 if let Some(repository) = pair_average_price.get(&pair_tuple) {
-                    if let Some(repository) = repository.read().await.repository.clone() {
-                        match repository.read_range(from..to).await {
-                            Ok(values) => {
-                                let response = match request {
-                                    WsMethodRequest::CoinAveragePriceHistorical { .. } => WsChannelResponse {
-                                        id:Some(id),
-                                        result: WsChannelResponsePayload::CoinAveragePriceHistorical {
-                                            coin,
-                                            values: F64Snapshots::with_interval(
-                                                values, interval_sec,
-                                            ),
-                                        },
-                                    },
-                                    WsMethodRequest::CoinAveragePriceCandlesHistorical { .. } => WsChannelResponse {
-                                        id:Some(id),
-                                        result: WsChannelResponsePayload::CoinAveragePriceCandlesHistorical {
-                                            coin,
-                                            values: Candles::calculate(values, interval_sec),
-                                        },
-                                    },
-                                    _ => unreachable!(),
-                                };
-                                let _ = ws_send_response(
-                                    &broadcast_recipient,
-                                    response,
-                                    Some(request.get_method()),
-                                );
-                            }
-                            Err(e) => {
-                                error!(
-                                    "Method: {:?}. Read range error: {}",
-                                    request.get_method(),
-                                    e
-                                );
+                    // WARNING: Do not move it from here. Do not move it to `if let`
+                    let repository = repository.read().await.repository.clone();
 
-                                Self::send_error(
-                                    &broadcast_recipient,
-                                    Some(sub_id),
-                                    Some(request.get_method()),
-                                    JSONRPC_ERROR_INTERNAL_ERROR,
-                                    "Internal error. Read historical data error.".to_string(),
-                                );
+                    if let Some(repository) = repository {
+                        tokio::spawn(async move {
+                            match repository.read_range(from..to).await {
+                                Ok(values) => {
+                                    tokio::spawn(async move {
+                                        let response = match request {
+                                            WsMethodRequest::CoinAveragePriceHistorical { .. } => WsChannelResponse {
+                                                id: Some(id),
+                                                result: WsChannelResponsePayload::CoinAveragePriceHistorical {
+                                                    coin,
+                                                    values: F64Snapshots::with_interval(
+                                                        values, interval_sec,
+                                                    ),
+                                                },
+                                            },
+                                            WsMethodRequest::CoinAveragePriceCandlesHistorical { .. } => WsChannelResponse {
+                                                id: Some(id),
+                                                result: WsChannelResponsePayload::CoinAveragePriceCandlesHistorical {
+                                                    coin,
+                                                    values: Candles::calculate(values, interval_sec),
+                                                },
+                                            },
+                                            _ => unreachable!(),
+                                        };
+
+                                        let _ = ws_send_response(
+                                            &broadcast_recipient,
+                                            response,
+                                            Some(request.get_method()),
+                                        );
+                                    });
+                                }
+                                Err(e) => {
+                                    error!(
+                                        "Method: {:?}. Read range error: {}",
+                                        request.get_method(),
+                                        e
+                                    );
+
+                                    Self::send_error(
+                                        &broadcast_recipient,
+                                        Some(sub_id),
+                                        Some(request.get_method()),
+                                        JSONRPC_ERROR_INTERNAL_ERROR,
+                                        "Internal error. Read historical data error.".to_string(),
+                                    );
+                                }
                             }
-                        }
+                        });
                     }
                 } else {
                     Self::send_error(
@@ -576,7 +584,7 @@ impl WsServer {
         index_price_repository: Option<RepositoryForF64ByTimestamp>,
         pair_average_price: StoredAndWsTransmissibleF64ByPairTuple,
     ) {
-        match request.clone() {
+        match request {
             WsMethodRequest::AvailableCoins { .. } => {
                 Self::response_1(broadcast_recipient, sub_id, request, pair_average_price).await;
             }
