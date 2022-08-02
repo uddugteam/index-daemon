@@ -88,7 +88,7 @@ impl WsChannels {
 #[async_trait]
 impl AsyncFrom<(ConfigScheme, Option<RepositoryForF64ByTimestamp>)> for WsChannels {
     async fn from(
-        (_config, repository): (ConfigScheme, Option<RepositoryForF64ByTimestamp>),
+        (_config, _repository): (ConfigScheme, Option<RepositoryForF64ByTimestamp>),
     ) -> Self {
         Self::new()
     }
