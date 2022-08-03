@@ -1,8 +1,11 @@
 use crate::config_scheme::async_from::AsyncFrom;
 use crate::config_scheme::config_scheme::ConfigScheme;
-use crate::repository::repositories::{RepositoryForF64ByTimestamp, WorkerRepositoriesByPairTuple};
+use crate::repository::repositories::{
+    MarketRepositoriesByMarketName, RepositoryForF64ByTimestamp, WorkerRepositoriesByPairTuple,
+};
 use crate::worker::market_helpers::market_value::MarketValue;
 use crate::worker::market_helpers::market_value_owner::MarketValueOwner;
+use futures::FutureExt;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -10,13 +13,34 @@ use tokio::sync::RwLock;
 pub type HolderKey = (MarketValueOwner, MarketValue, Option<(String, String)>);
 pub type HolderHashMap<T> = HashMap<HolderKey, Arc<RwLock<T>>>;
 
+async fn make_t<T: AsyncFrom<(ConfigScheme, Option<RepositoryForF64ByTimestamp>)>>(
+    config: &ConfigScheme,
+    key: HolderKey,
+    repository: Option<RepositoryForF64ByTimestamp>,
+) -> (HolderKey, T) {
+    let debug = repository.is_some();
+    if debug {
+        debug!("fn make_holder_hashmap BEGIN: key: {:?}", key);
+    }
+
+    let res = (key.clone(), T::from((config.clone(), repository)).await);
+
+    if debug {
+        debug!("fn make_holder_hashmap END: key: {:?}", key);
+    }
+
+    res
+}
+
 pub async fn make_holder_hashmap<
     T: AsyncFrom<(ConfigScheme, Option<RepositoryForF64ByTimestamp>)>,
 >(
     config: &ConfigScheme,
     mut pair_average_price_repositories: Option<WorkerRepositoriesByPairTuple>,
+    mut market_repositories: Option<MarketRepositoriesByMarketName>,
 ) -> HolderHashMap<T> {
     let mut holder = HashMap::new();
+    let mut futures = Vec::new();
 
     let key = (MarketValueOwner::Worker, MarketValue::IndexPrice, None);
     holder.insert(
@@ -24,7 +48,6 @@ pub async fn make_holder_hashmap<
         Arc::new(RwLock::new(T::from((config.clone(), None)).await)),
     );
 
-    let mut futures = Vec::new();
     for exchange_pair in &config.market.exchange_pairs {
         let key = (
             MarketValueOwner::Worker,
@@ -35,11 +58,8 @@ pub async fn make_holder_hashmap<
             .as_mut()
             .and_then(|v| v.remove(exchange_pair));
 
-        let future = async move { (key, T::from((config.clone(), repository)).await) };
-        futures.push(future);
-    }
-    for (key, item) in futures::future::join_all(futures).await {
-        holder.insert(key, Arc::new(RwLock::new(item)));
+        let future = make_t(config, key, repository);
+        futures.push(future.boxed());
     }
 
     let market_values = [
@@ -54,12 +74,21 @@ pub async fn make_holder_hashmap<
                     market_value,
                     Some(exchange_pair.clone()),
                 );
-                holder.insert(
-                    key,
-                    Arc::new(RwLock::new(T::from((config.clone(), None)).await)),
-                );
+                let repository = market_repositories.as_mut().and_then(|v| {
+                    v.get_mut(market_name).and_then(|v| {
+                        v.get_mut(exchange_pair)
+                            .and_then(|v| v.remove(&market_value))
+                    })
+                });
+
+                let future = make_t(config, key, repository);
+                futures.push(future.boxed());
             }
         }
+    }
+
+    for (key, item) in futures::future::join_all(futures).await {
+        holder.insert(key, Arc::new(RwLock::new(item)));
     }
 
     holder
