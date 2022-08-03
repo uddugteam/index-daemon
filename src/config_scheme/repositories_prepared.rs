@@ -36,9 +36,11 @@ impl RepositoriesPrepared {
         let percent_change_holder = make_holder_hashmap::<PercentChangeByInterval>(
             config,
             pair_average_price_repositories.clone(),
+            market_repositories.clone(),
         )
         .await;
-        let ws_channels_holder = make_holder_hashmap::<WsChannels>(config, None).await;
+
+        let ws_channels_holder = make_holder_hashmap::<WsChannels>(config, None, None).await;
 
         let pair_average_price = make_pair_average_price(
             config,
