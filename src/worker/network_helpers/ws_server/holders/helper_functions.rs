@@ -13,8 +13,7 @@ use tokio::sync::RwLock;
 pub type HolderKey = (MarketValueOwner, MarketValue, Option<(String, String)>);
 pub type HolderHashMap<T> = HashMap<HolderKey, Arc<RwLock<T>>>;
 
-async fn make_t<T: AsyncFrom<(ConfigScheme, Option<RepositoryForF64ByTimestamp>)>>(
-    config: &ConfigScheme,
+async fn make_t<T: AsyncFrom<Option<RepositoryForF64ByTimestamp>> + Send + Sync + 'static>(
     key: HolderKey,
     repository: Option<RepositoryForF64ByTimestamp>,
 ) -> (HolderKey, T) {
@@ -23,7 +22,7 @@ async fn make_t<T: AsyncFrom<(ConfigScheme, Option<RepositoryForF64ByTimestamp>)
         debug!("fn make_holder_hashmap BEGIN: key: {:?}", key);
     }
 
-    let res = (key.clone(), T::from((config.clone(), repository)).await);
+    let res = (key.clone(), T::from(repository).await);
 
     if debug {
         debug!("fn make_holder_hashmap END: key: {:?}", key);
@@ -33,7 +32,7 @@ async fn make_t<T: AsyncFrom<(ConfigScheme, Option<RepositoryForF64ByTimestamp>)
 }
 
 pub async fn make_holder_hashmap<
-    T: AsyncFrom<(ConfigScheme, Option<RepositoryForF64ByTimestamp>)>,
+    T: AsyncFrom<Option<RepositoryForF64ByTimestamp>> + Send + Sync + 'static,
 >(
     config: &ConfigScheme,
     mut pair_average_price_repositories: Option<WorkerRepositoriesByPairTuple>,
@@ -43,10 +42,7 @@ pub async fn make_holder_hashmap<
     let mut futures = Vec::new();
 
     let key = (MarketValueOwner::Worker, MarketValue::IndexPrice, None);
-    holder.insert(
-        key,
-        Arc::new(RwLock::new(T::from((config.clone(), None)).await)),
-    );
+    holder.insert(key, Arc::new(RwLock::new(T::from(None).await)));
 
     for exchange_pair in &config.market.exchange_pairs {
         let key = (
@@ -58,7 +54,7 @@ pub async fn make_holder_hashmap<
             .as_mut()
             .and_then(|v| v.remove(exchange_pair));
 
-        let future = make_t(config, key, repository);
+        let future = tokio::spawn(make_t(key, repository));
         futures.push(future.boxed());
     }
 
@@ -81,13 +77,15 @@ pub async fn make_holder_hashmap<
                     })
                 });
 
-                let future = make_t(config, key, repository);
+                let future = tokio::spawn(make_t(key, repository));
                 futures.push(future.boxed());
             }
         }
     }
 
-    for (key, item) in futures::future::join_all(futures).await {
+    let future_results = futures::future::join_all(futures).await;
+    let future_results = future_results.into_iter().map(Result::unwrap);
+    for (key, item) in future_results {
         holder.insert(key, Arc::new(RwLock::new(item)));
     }
 

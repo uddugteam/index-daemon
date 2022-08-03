@@ -1,5 +1,4 @@
 use crate::config_scheme::async_from::AsyncFrom;
-use crate::config_scheme::config_scheme::ConfigScheme;
 use crate::repository::repositories::RepositoryForF64ByTimestamp;
 use crate::worker::network_helpers::ws_server::channels::ws_channel_subscription_request::WsChannelSubscriptionRequest;
 use crate::worker::network_helpers::ws_server::connection_id::ConnectionId;
@@ -86,10 +85,8 @@ impl WsChannels {
 }
 
 #[async_trait]
-impl AsyncFrom<(ConfigScheme, Option<RepositoryForF64ByTimestamp>)> for WsChannels {
-    async fn from(
-        (_config, _repository): (ConfigScheme, Option<RepositoryForF64ByTimestamp>),
-    ) -> Self {
+impl AsyncFrom<Option<RepositoryForF64ByTimestamp>> for WsChannels {
+    async fn from(_repository: Option<RepositoryForF64ByTimestamp>) -> Self {
         Self::new()
     }
 }

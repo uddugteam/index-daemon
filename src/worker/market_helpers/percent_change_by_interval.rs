@@ -1,5 +1,4 @@
 use crate::config_scheme::async_from::AsyncFrom;
-use crate::config_scheme::config_scheme::ConfigScheme;
 use crate::repository::repositories::RepositoryForF64ByTimestamp;
 use crate::worker::defaults::PERMANENT_PERCENT_CHANGE_INTERVALS_SEC;
 use crate::worker::helper_functions::min_date_time;
@@ -19,16 +18,17 @@ impl PercentChangeByInterval {
         let mut futures = Vec::new();
         for percent_change_interval_sec in PERMANENT_PERCENT_CHANGE_INTERVALS_SEC {
             let repository_2 = repository.clone();
-            let future = async move {
+            let future = tokio::spawn(async move {
                 (
                     percent_change_interval_sec,
                     PercentChange::new_permanent(repository_2, percent_change_interval_sec).await,
                 )
-            };
+            });
             futures.push(future);
         }
 
         let future_results = futures::future::join_all(futures).await;
+        let future_results = future_results.into_iter().map(Result::unwrap);
         for (percent_change_interval_sec, percent_change) in future_results {
             res.add_interval(percent_change_interval_sec, percent_change);
         }
@@ -109,10 +109,8 @@ impl PercentChangeByInterval {
 }
 
 #[async_trait]
-impl AsyncFrom<(ConfigScheme, Option<RepositoryForF64ByTimestamp>)> for PercentChangeByInterval {
-    async fn from(
-        (_config, repository): (ConfigScheme, Option<RepositoryForF64ByTimestamp>),
-    ) -> Self {
+impl AsyncFrom<Option<RepositoryForF64ByTimestamp>> for PercentChangeByInterval {
+    async fn from(repository: Option<RepositoryForF64ByTimestamp>) -> Self {
         Self::new(repository).await
     }
 }
