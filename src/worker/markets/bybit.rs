@@ -68,7 +68,10 @@ impl Market for Bybit {
     }
 
     async fn parse_ticker_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
-        let object = json.as_object()?.get("data")?.as_object()?;
+        let object = json.as_object()?;
+        let object = object.get("data")?.as_object()?;
+        let array = object.get("update")?.as_array()?;
+        let object = array.get(0)?.as_object()?;
 
         let volume = object.get("volume_24h")?.as_f64()?;
         self.parse_ticker_json_inner(pair, volume).await;
