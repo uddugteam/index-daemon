@@ -10,6 +10,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use futures::FutureExt;
 use reqwest::Client;
+use serde_json::json;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -194,7 +195,7 @@ impl Market for Poloniex {
     }
 
     async fn get_websocket_url(&self, _pair: &str, _channel: ExternalMarketChannels) -> String {
-        "wss://api2.poloniex.com".to_string()
+        "wss://ws.poloniex.com/ws/public".to_string()
     }
 
     fn get_websocket_on_open_msg(
@@ -202,16 +203,14 @@ impl Market for Poloniex {
         pair: &str,
         channel: ExternalMarketChannels,
     ) -> Option<String> {
-        let channel_text_view = if let ExternalMarketChannels::Book = channel {
-            pair.to_string()
-        } else {
-            self.get_channel_text_view(channel)
-        };
-
-        Some(format!(
-            "{{\"command\": \"subscribe\", \"channel\": {}}}",
-            channel_text_view,
-        ))
+        Some(
+            json!({
+                "event": "subscribe",
+                "channel": [self.get_channel_text_view(channel)],
+                "symbols": ["all"]
+            })
+            .to_string(),
+        )
     }
 
     /// Poloniex sends us coin instead of pair, then we create pair coin-USD
