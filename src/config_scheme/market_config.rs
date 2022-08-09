@@ -1,7 +1,7 @@
 use crate::config_scheme::helper_functions::{
     get_config_from_config_files, get_default_channels, get_default_exchange_pairs,
-    get_default_markets, get_param_value_as_vec_of_string, has_no_duplicates, is_subset,
-    make_exchange_pairs, make_pairs, set_intersection,
+    get_default_markets, get_param_value_as_vec_of_string, is_subset, make_exchange_pairs,
+    make_pairs, remove_duplicates, set_intersection,
 };
 use crate::worker::market_helpers::market_channels::ExternalMarketChannels;
 use clap::ArgMatches;
@@ -30,14 +30,14 @@ impl MarketConfig {
 
         let (exchange_pairs, index_pairs) = match (exchange_pairs, index_pairs) {
             (Some(exchange_pairs), Some(index_pairs)) => {
-                assert!(has_no_duplicates(&exchange_pairs));
-                assert!(has_no_duplicates(&index_pairs));
+                let exchange_pairs = remove_duplicates(exchange_pairs, "exchange_pairs");
+                let index_pairs = remove_duplicates(index_pairs, "index_pairs");
                 assert!(is_subset(&exchange_pairs, &index_pairs));
 
                 (exchange_pairs, index_pairs)
             }
             (Some(exchange_pairs), None) => {
-                assert!(has_no_duplicates(&exchange_pairs));
+                let exchange_pairs = remove_duplicates(exchange_pairs, "exchange_pairs");
 
                 let index_pairs = set_intersection(&exchange_pairs, &default.index_pairs);
                 let index_pairs = if index_pairs.is_empty() {
@@ -51,7 +51,7 @@ impl MarketConfig {
             (None, Some(index_pairs)) => {
                 let exchange_pairs = default.exchange_pairs;
 
-                assert!(has_no_duplicates(&index_pairs));
+                let index_pairs = remove_duplicates(index_pairs, "index_pairs");
                 assert!(is_subset(&exchange_pairs, &index_pairs));
 
                 (exchange_pairs, index_pairs)

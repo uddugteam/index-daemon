@@ -141,8 +141,16 @@ pub fn is_subset<T: PartialEq + Eq + Hash + Clone>(set: &[T], subset: &[T]) -> b
     subset.is_subset(&set)
 }
 
-pub fn has_no_duplicates<T: PartialEq + Eq + Hash + Clone>(set: &[T]) -> bool {
-    let hash_set: HashSet<&T> = set.iter().collect();
+pub fn remove_duplicates<T: PartialEq + Eq + Hash>(input: Vec<T>, key: &str) -> Vec<T> {
+    let input_len = input.len();
+    let hash_set: HashSet<T> = input.into_iter().collect();
 
-    set.iter().eq(hash_set)
+    if input_len != hash_set.len() {
+        warn!(
+            "Warning: You have duplicates in {}. Duplicates has been removed.",
+            key
+        );
+    }
+
+    hash_set.into_iter().collect()
 }
