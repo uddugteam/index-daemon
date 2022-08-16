@@ -1,7 +1,9 @@
+use crate::repository::f64_by_timestamp_cache::F64ByTimestampCache;
 use crate::repository::repository::Repository;
 use crate::worker::helper_functions::{date_time_from_timestamp_sec, min_date_time};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
+use std::collections::HashMap;
 use std::ops::Range;
 use std::str;
 use std::sync::Arc;
@@ -11,6 +13,7 @@ use tokio::sync::RwLock;
 pub struct F64ByTimestampRocksdb {
     entity_name: String,
     repository: Arc<RwLock<rocksdb::DB>>,
+    cache: Option<F64ByTimestampCache>,
     frequency_ms: u64,
     last_insert_timestamp: DateTime<Utc>,
 }
@@ -19,11 +22,13 @@ impl F64ByTimestampRocksdb {
     pub fn new(
         entity_name: String,
         repository: Arc<RwLock<rocksdb::DB>>,
+        cache: Option<Arc<RwLock<HashMap<String, f64>>>>,
         frequency_ms: u64,
     ) -> Self {
         Self {
-            entity_name,
+            entity_name: entity_name.clone(),
             repository,
+            cache: cache.map(|cache| F64ByTimestampCache::new(entity_name, cache, frequency_ms)),
             frequency_ms,
             last_insert_timestamp: min_date_time(),
         }
@@ -33,7 +38,7 @@ impl F64ByTimestampRocksdb {
         format!("{}__{}", self.entity_name, primary.timestamp_millis())
     }
 
-    async fn get_keys_by_range(&self, primary: Range<DateTime<Utc>>) -> Vec<String> {
+    async fn get_keys_by_range(&self, primary: &Range<DateTime<Utc>>) -> Vec<String> {
         let key_from = self.stringify_primary(&primary.start);
         let key_to = self.stringify_primary(&primary.end);
         let key_range = key_from..key_to;
@@ -64,47 +69,70 @@ impl F64ByTimestampRocksdb {
 
 #[async_trait]
 impl Repository<DateTime<Utc>, f64> for F64ByTimestampRocksdb {
-    async fn read(&self, primary: DateTime<Utc>) -> Result<Option<f64>, String> {
-        let key = self.stringify_primary(&primary);
+    async fn read(&self, primary: &DateTime<Utc>) -> Result<Option<f64>, String> {
+        // async map
+        let res = if let Some(cache) = &self.cache {
+            Some(cache.read(primary).await)
+        } else {
+            None
+        };
 
-        self.repository
-            .read()
-            .await
-            .get(key)
-            .map(|v| v.map(|v| f64::from_ne_bytes(v[0..8].try_into().unwrap())))
-            .map_err(|e| e.to_string())
+        if let Some(Ok(Some(res))) = res {
+            Ok(Some(res))
+        } else {
+            let key = self.stringify_primary(primary);
+
+            self.repository
+                .read()
+                .await
+                .get(key)
+                .map(|v| v.map(|v| f64::from_ne_bytes(v[0..8].try_into().unwrap())))
+                .map_err(|e| e.to_string())
+        }
     }
 
     async fn read_range(
         &self,
-        primary: Range<DateTime<Utc>>,
+        primary: &Range<DateTime<Utc>>,
     ) -> Result<Vec<(DateTime<Utc>, f64)>, String> {
-        let keys = self.get_keys_by_range(primary).await;
-
-        let (oks, errors): (Vec<_>, Vec<_>) = {
-            let repository = self.repository.read().await;
-
-            keys.into_iter()
-                .map(|key| repository.get(&key).map(|v| v.map(|v| (key, v))))
-                .partition(Result::is_ok)
-        };
-        let oks = oks.into_iter().filter_map(Result::unwrap);
-        let mut errors = errors.into_iter().map(Result::unwrap_err);
-
-        if let Some(error) = errors.next() {
-            Err(error.to_string())
+        // async map
+        let res = if let Some(cache) = &self.cache {
+            Some(cache.read_range(primary).await)
         } else {
-            let mut res: Vec<(DateTime<Utc>, f64)> = oks
-                .map(|(k, v)| {
-                    (
-                        Self::parse_primary_from_string(&k),
-                        f64::from_ne_bytes(v[0..8].try_into().unwrap()),
-                    )
-                })
-                .collect();
-            res.sort_by(|a, b| a.0.cmp(&b.0));
+            None
+        };
 
-            Ok(res)
+        match res {
+            Some(Ok(res)) if !res.is_empty() => Ok(res),
+            _ => {
+                let keys = self.get_keys_by_range(primary).await;
+
+                let (oks, errors): (Vec<_>, Vec<_>) = {
+                    let repository = self.repository.read().await;
+
+                    keys.into_iter()
+                        .map(|key| repository.get(&key).map(|v| v.map(|v| (key, v))))
+                        .partition(Result::is_ok)
+                };
+                let oks = oks.into_iter().filter_map(Result::unwrap);
+                let mut errors = errors.into_iter().map(Result::unwrap_err);
+
+                if let Some(error) = errors.next() {
+                    Err(error.to_string())
+                } else {
+                    let mut res: Vec<(DateTime<Utc>, f64)> = oks
+                        .map(|(k, v)| {
+                            (
+                                Self::parse_primary_from_string(&k),
+                                f64::from_ne_bytes(v[0..8].try_into().unwrap()),
+                            )
+                        })
+                        .collect();
+                    res.sort_by(|a, b| a.0.cmp(&b.0));
+
+                    Ok(res)
+                }
+            }
         }
     }
 
@@ -115,6 +143,12 @@ impl Repository<DateTime<Utc>, f64> for F64ByTimestampRocksdb {
     ) -> Option<Result<(), String>> {
         if (primary - self.last_insert_timestamp).num_milliseconds() as u64 > self.frequency_ms {
             // Enough time passed
+
+            // async map
+            if let Some(cache) = &mut self.cache {
+                cache.insert(primary, new_value).await;
+            }
+
             self.last_insert_timestamp = primary;
 
             let key = self.stringify_primary(&primary);
@@ -138,6 +172,11 @@ impl Repository<DateTime<Utc>, f64> for F64ByTimestampRocksdb {
         let key = self.stringify_primary(primary);
 
         let _ = self.repository.read().await.delete(key);
+
+        // async map
+        if let Some(cache) = &mut self.cache {
+            cache.delete(primary).await;
+        }
     }
 
     async fn delete_multiple(&mut self, primary: &[DateTime<Utc>]) {

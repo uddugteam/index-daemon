@@ -53,6 +53,7 @@ impl Repositories {
         config: &ConfigScheme,
         storage: &Storage,
         entity_name: String,
+        cache: bool,
     ) -> RepositoryForF64ByTimestamp {
         match storage {
             Storage::Cache(arc) => Box::new(F64ByTimestampCache::new(
@@ -65,9 +66,10 @@ impl Repositories {
                 tree.clone(),
                 config.service.historical_storage_frequency_ms,
             )),
-            Storage::Rocksdb(arc) => Box::new(F64ByTimestampRocksdb::new(
+            Storage::Rocksdb(arc_repo, arc_cache) => Box::new(F64ByTimestampRocksdb::new(
                 entity_name,
-                Arc::clone(arc),
+                Arc::clone(arc_repo),
+                cache.then_some(Arc::clone(arc_cache)),
                 config.service.historical_storage_frequency_ms,
             )),
         }
@@ -88,7 +90,7 @@ impl Repositories {
                 pair
             );
 
-            let repository = Self::make_repository(config, storage, entity_name);
+            let repository = Self::make_repository(config, storage, entity_name, true);
 
             hash_map.insert(exchange_pair.clone(), repository);
         }
@@ -126,7 +128,7 @@ impl Repositories {
                         pair
                     );
 
-                    let repository = Self::make_repository(config, storage, entity_name);
+                    let repository = Self::make_repository(config, storage, entity_name, false);
 
                     hash_map.insert(market_value, repository);
                 }
@@ -142,6 +144,6 @@ impl Repositories {
     ) -> RepositoryForF64ByTimestamp {
         let entity_name = format!("worker__{}", MarketValue::IndexPrice.to_string());
 
-        Self::make_repository(config, storage, entity_name)
+        Self::make_repository(config, storage, entity_name, false)
     }
 }

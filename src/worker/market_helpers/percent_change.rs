@@ -78,8 +78,9 @@ impl PercentChange {
         if let Some(repository) = repository {
             let to = Utc::now();
             let from = date_time_subtract_sec(to, percent_change_interval_sec);
+            let primary = from..to;
 
-            match repository.read_range(from..to).await {
+            match repository.read_range(&primary).await {
                 Ok(values) => match values.len() {
                     0 => (None, None, None),
                     // TODO: Check - possible bug - will lead to jump of percent change
