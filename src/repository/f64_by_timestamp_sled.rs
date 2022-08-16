@@ -42,8 +42,8 @@ impl F64ByTimestampSled {
 
 #[async_trait]
 impl Repository<DateTime<Utc>, f64> for F64ByTimestampSled {
-    async fn read(&self, primary: DateTime<Utc>) -> Result<Option<f64>, String> {
-        let key = self.stringify_primary(&primary);
+    async fn read(&self, primary: &DateTime<Utc>) -> Result<Option<f64>, String> {
+        let key = self.stringify_primary(primary);
 
         self.repository
             .get(key)
@@ -53,7 +53,7 @@ impl Repository<DateTime<Utc>, f64> for F64ByTimestampSled {
 
     async fn read_range(
         &self,
-        primary: Range<DateTime<Utc>>,
+        primary: &Range<DateTime<Utc>>,
     ) -> Result<Vec<(DateTime<Utc>, f64)>, String> {
         let key_from = self.stringify_primary(&primary.start);
         let key_to = self.stringify_primary(&primary.end);

@@ -14,7 +14,7 @@ enum RamCheckTime {
 pub enum Storage {
     Cache(Arc<RwLock<HashMap<String, f64>>>),
     Sled(vsdbsled::Db),
-    Rocksdb(Arc<RwLock<rocksdb::DB>>),
+    Rocksdb(Arc<RwLock<rocksdb::DB>>, Arc<RwLock<HashMap<String, f64>>>),
 }
 
 impl Storage {
@@ -25,9 +25,10 @@ impl Storage {
         let res = match name {
             "cache" => Ok(Self::Cache(Arc::new(RwLock::new(HashMap::new())))),
             "sled" => Ok(Self::Sled(vsdbsled::open("db").unwrap())),
-            "rocksdb" => Ok(Self::Rocksdb(Arc::new(RwLock::new(
-                rocksdb::DB::open_default("db").unwrap(),
-            )))),
+            "rocksdb" => Ok(Self::Rocksdb(
+                Arc::new(RwLock::new(rocksdb::DB::open_default("db").unwrap())),
+                Arc::new(RwLock::new(HashMap::new())),
+            )),
             other_storage => Err(format!("Got wrong storage name: {}", other_storage)),
         };
 

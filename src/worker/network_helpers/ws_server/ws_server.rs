@@ -443,7 +443,9 @@ impl WsServer {
 
                     if let Some(repository) = repository {
                         tokio::spawn(async move {
-                            match repository.read_range(from..to).await {
+                            let primary = from..to;
+
+                            match repository.read_range(&primary).await {
                                 Ok(values) => {
                                     tokio::spawn(async move {
                                         let response = match request {
@@ -527,8 +529,9 @@ impl WsServer {
                 to,
             } => {
                 let repository = index_price_repository?;
+                let primary = from..to;
 
-                match repository.read_range(from..to).await {
+                match repository.read_range(&primary).await {
                     Ok(values) => {
                         let response = match request {
                             WsMethodRequest::IndexPriceHistorical { .. } => WsChannelResponse {

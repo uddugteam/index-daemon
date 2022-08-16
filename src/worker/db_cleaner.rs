@@ -36,7 +36,9 @@ async fn clear_repository(
     to: DateTime<Utc>,
     log_identifier: String,
 ) {
-    match repository.read_range(from..to).await {
+    let primary = from..to;
+
+    match repository.read_range(&primary).await {
         Ok(res) => {
             let keys = res.into_iter().map(|(k, _)| k).collect();
             let (_keep, discard) = pick_with_interval(keys, INTERVAL_MINUTE);

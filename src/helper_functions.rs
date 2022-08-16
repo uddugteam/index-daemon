@@ -30,7 +30,7 @@ fn parse_timestamp(
         return Err("Wrong timestamp format.".to_string());
     }
 
-    if let Some(timestamp_from) = timestamp.get(0) {
+    if let Some(timestamp_from) = timestamp.first() {
         let timestamp_from = date_time_from_timestamp_sec(timestamp_from.parse().unwrap());
 
         let timestamp_to = timestamp
