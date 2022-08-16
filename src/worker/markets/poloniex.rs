@@ -59,7 +59,7 @@ impl Poloniex {
     fn parse_pair_code_from_pair_string(&self, pair_string: &str) -> Option<String> {
         let pair_tuple: Vec<&str> = pair_string.split('_').collect();
 
-        let pair_tuple = (pair_tuple.get(0)?, pair_tuple.get(1)?);
+        let pair_tuple = (pair_tuple.first()?, pair_tuple.get(1)?);
 
         let pair_tuple = (
             self.spine.get_unmasked_value(pair_tuple.0).to_string(),
