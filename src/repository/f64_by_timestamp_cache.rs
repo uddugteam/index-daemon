@@ -10,11 +10,6 @@ use tokio::sync::RwLock;
 // 1 year in seconds
 const STORE_RANGE_SEC: u64 = 31_536_000;
 
-// // Store one per day
-// const STORE_FREQUENCY_SEC: u64 = 86_400;
-
-// const DAY_IN_SEC: u64 = 86_400;
-
 #[derive(Clone)]
 pub struct F64ByTimestampCache {
     entity_name: String,
