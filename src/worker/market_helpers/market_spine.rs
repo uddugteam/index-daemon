@@ -44,9 +44,7 @@ impl MarketSpine {
         graceful_shutdown: GracefulShutdown,
     ) -> Self {
         let channels = match name.as_str() {
-            "poloniex" | "kucoin" => {
-                // There is no distinct Trades channel in Poloniex. We get Trades inside of Book channel.
-
+            "kucoin" => {
                 // TODO: Implement Trades channel for Kucoin
                 // Trades channel for Kucoin is not implemented.
 

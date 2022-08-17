@@ -1,8 +1,7 @@
 use crate::worker::defaults::POLONIEX_EXCHANGE_PAIRS;
 use crate::worker::helper_functions::min_date_time;
 use crate::worker::market_helpers::market::{
-    do_websocket, is_graceful_shutdown, parse_str_from_json_array, parse_str_from_json_object,
-    Market,
+    do_websocket, is_graceful_shutdown, parse_str_from_json_object, Market,
 };
 use crate::worker::market_helpers::market_channels::ExternalMarketChannels;
 use crate::worker::market_helpers::market_spine::MarketSpine;
@@ -10,6 +9,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use futures::FutureExt;
 use reqwest::Client;
+use serde_json::json;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -24,7 +24,7 @@ pub struct Poloniex {
 impl Poloniex {
     pub fn new(spine: MarketSpine) -> Self {
         let mut pair_codes = HashMap::new();
-        for (pair_code, pair_tuple) in POLONIEX_EXCHANGE_PAIRS {
+        for (pair_code, pair_tuple) in &POLONIEX_EXCHANGE_PAIRS {
             let pair: (String, String) = (
                 spine.get_unmasked_value(pair_tuple.0).to_string(),
                 spine.get_unmasked_value(pair_tuple.1).to_string(),
@@ -74,15 +74,22 @@ impl Poloniex {
         self.pair_codes.contains_key(&pair)
     }
 
+    fn make_pair_for_trades(pair: &str) -> Option<String> {
+        let pair = *POLONIEX_EXCHANGE_PAIRS.get(pair)?;
+
+        // WARNING: Pay attention to the order
+        Some(format!("{}_{}", pair.1, pair.0))
+    }
+
     async fn refresh_pair_prices(&mut self) -> Option<()> {
         let timestamp = Utc::now();
 
         // Hold 10 seconds between HTTP requests to Poloniex
-        if (timestamp - self.last_http_request_timestamp).num_milliseconds() > 10000 {
+        if (timestamp - self.last_http_request_timestamp).num_milliseconds() > 10_000 {
             self.last_http_request_timestamp = timestamp;
 
             let response = Client::new()
-                .post("https://poloniex.com/public?command=returnTicker")
+                .get("https://api.poloniex.com/markets/price")
                 .send()
                 .await;
 
@@ -90,17 +97,42 @@ impl Poloniex {
             let response = response.text().await.ok()?;
             let json: serde_json::Value = serde_json::from_str(&response).ok()?;
 
-            let object = json.as_object()?;
-            for (pair_string, object) in object {
+            for object in json.as_array()? {
                 let object = object.as_object()?;
+                let pair_string = object.get("symbol")?.as_str()?;
 
                 if let Some(pair_code) = self.parse_pair_code_from_pair_string(pair_string) {
-                    let price: f64 = parse_str_from_json_object(object, "last")?;
+                    let price: f64 = parse_str_from_json_object(object, "price")?;
 
                     self.exchange_pairs_last_price.insert(pair_code, price);
                 }
             }
         }
+
+        Some(())
+    }
+
+    async fn parse_last_trade_json_iteration(
+        &mut self,
+        pair: String,
+        object: &serde_json::Value,
+    ) -> Option<()> {
+        let object = object.as_object()?;
+
+        let last_trade_price: f64 = parse_str_from_json_object(object, "price")?;
+        let mut last_trade_volume: f64 = parse_str_from_json_object(object, "quantity")?;
+
+        let trade_type = object.get("takerSide")?.as_str()?;
+        // TODO: Check whether inversion is right
+        if trade_type == "sell" {
+            // sell
+            last_trade_volume *= -1.0;
+        } else if trade_type == "buy" {
+            // buy
+        }
+
+        self.parse_last_trade_json_inner(pair, last_trade_volume, last_trade_price)
+            .await;
 
         Some(())
     }
@@ -180,10 +212,7 @@ impl Market for Poloniex {
     fn get_channel_text_view(&self, channel: ExternalMarketChannels) -> String {
         match channel {
             ExternalMarketChannels::Ticker => "1003",
-            ExternalMarketChannels::Trades => {
-                // There are no distinct Trades channel in Poloniex. We get Trades inside of Book channel.
-                unreachable!("Poloniex: Subscription to wrong channel: Trades.")
-            }
+            ExternalMarketChannels::Trades => "trades",
             ExternalMarketChannels::Book => {
                 // This string was intentionally left blank, because Poloniex don't have code for Book
                 // and we pass pair code instead of it (we do this in fn get_websocket_on_open_msg)
@@ -193,8 +222,14 @@ impl Market for Poloniex {
         .to_string()
     }
 
-    async fn get_websocket_url(&self, _pair: &str, _channel: ExternalMarketChannels) -> String {
-        "wss://api2.poloniex.com".to_string()
+    async fn get_websocket_url(&self, _pair: &str, channel: ExternalMarketChannels) -> String {
+        if let ExternalMarketChannels::Trades = channel {
+            // new api url
+            "wss://ws.poloniex.com/ws/public".to_string()
+        } else {
+            // old api url
+            "wss://api2.poloniex.com".to_string()
+        }
     }
 
     fn get_websocket_on_open_msg(
@@ -202,16 +237,29 @@ impl Market for Poloniex {
         pair: &str,
         channel: ExternalMarketChannels,
     ) -> Option<String> {
-        let channel_text_view = if let ExternalMarketChannels::Book = channel {
-            pair.to_string()
-        } else {
-            self.get_channel_text_view(channel)
-        };
+        if let ExternalMarketChannels::Trades = channel {
+            let pair = Self::make_pair_for_trades(pair)?;
 
-        Some(format!(
-            "{{\"command\": \"subscribe\", \"channel\": {}}}",
-            channel_text_view,
-        ))
+            Some(
+                json!({
+                  "event": "subscribe",
+                  "channel": [self.get_channel_text_view(channel)],
+                  "symbols": [pair]
+                })
+                .to_string(),
+            )
+        } else {
+            let channel_text_view = if let ExternalMarketChannels::Book = channel {
+                pair.to_string()
+            } else {
+                self.get_channel_text_view(channel)
+            };
+
+            Some(format!(
+                "{{\"command\": \"subscribe\", \"channel\": {}}}",
+                channel_text_view,
+            ))
+        }
     }
 
     /// Poloniex sends us coin instead of pair, then we create pair coin-USD
@@ -252,22 +300,12 @@ impl Market for Poloniex {
     }
 
     async fn parse_last_trade_json(&mut self, pair: String, json: serde_json::Value) -> Option<()> {
-        let array = json.as_array()?;
+        let array = json.as_object()?.get("data")?.as_array()?;
 
-        let last_trade_price: f64 = parse_str_from_json_array(array, 3)?;
-        let mut last_trade_volume: f64 = parse_str_from_json_array(array, 4)?;
-
-        let trade_type = array[2].as_u64()?;
-        // TODO: Check whether inversion is right
-        if trade_type == 0 {
-            // sell
-            last_trade_volume *= -1.0;
-        } else if trade_type == 1 {
-            // buy
+        for item in array {
+            self.parse_last_trade_json_iteration(pair.clone(), item)
+                .await;
         }
-
-        self.parse_last_trade_json_inner(pair, last_trade_volume, last_trade_price)
-            .await;
 
         Some(())
     }
@@ -295,6 +333,7 @@ impl Market for Poloniex {
                 }
             } else if array[0].as_str()? == "t" {
                 // trades
+                // old way
 
                 self.parse_last_trade_json(pair.clone(), serde_json::Value::from(array.as_slice()))
                     .await;
