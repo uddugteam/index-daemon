@@ -81,6 +81,8 @@ impl StoredAndWsTransmissibleF64 {
     }
 
     pub async fn set(&mut self, value: f64) {
+        let value = (value * 100.0).round() / 100.0;
+
         self.value = Some(value);
         self.timestamp = Utc::now();
 
