@@ -46,7 +46,7 @@ impl Market for Binance {
         let object = json.as_object()?;
 
         let volume: f64 = parse_str_from_json_object(object, "q")?;
-        self.parse_ticker_json_inner(pair, volume).await;
+        self.parse_ticker_json_inner(&pair, volume).await;
 
         Some(())
     }
@@ -56,7 +56,7 @@ impl Market for Binance {
 
         let last_trade_volume: f64 = parse_str_from_json_object(object, "q")?;
         let last_trade_price: f64 = parse_str_from_json_object(object, "p")?;
-        self.parse_last_trade_json_inner(pair, last_trade_volume, last_trade_price)
+        self.parse_last_trade_json_inner(&pair, last_trade_volume, last_trade_price)
             .await;
 
         Some(())
@@ -69,7 +69,7 @@ impl Market for Binance {
 
         let asks = depth_helper_v1(asks);
         let bids = depth_helper_v1(bids);
-        self.parse_depth_json_inner(pair, asks, bids);
+        self.parse_depth_json_inner(&pair, asks, bids);
 
         Some(())
     }

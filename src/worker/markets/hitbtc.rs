@@ -48,7 +48,7 @@ impl Market for Hitbtc {
         let object = object.as_object()?.get(&pair)?.as_object()?;
 
         let volume: f64 = parse_str_from_json_object(object, "q")?;
-        self.parse_ticker_json_inner(pair, volume).await;
+        self.parse_ticker_json_inner(&pair, volume).await;
 
         Some(())
     }
@@ -73,7 +73,7 @@ impl Market for Hitbtc {
                 // buy
             }
 
-            self.parse_last_trade_json_inner(pair.clone(), last_trade_volume, last_trade_price)
+            self.parse_last_trade_json_inner(&pair, last_trade_volume, last_trade_price)
                 .await;
         }
 
@@ -89,7 +89,7 @@ impl Market for Hitbtc {
 
         let asks = depth_helper_v1(asks);
         let bids = depth_helper_v1(bids);
-        self.parse_depth_json_inner(pair, asks, bids);
+        self.parse_depth_json_inner(&pair, asks, bids);
 
         Some(())
     }

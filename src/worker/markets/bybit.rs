@@ -74,7 +74,7 @@ impl Market for Bybit {
         let object = array.get(0)?.as_object()?;
 
         let volume = object.get("volume_24h")?.as_f64()?;
-        self.parse_ticker_json_inner(pair, volume).await;
+        self.parse_ticker_json_inner(&pair, volume).await;
 
         Some(())
     }
@@ -97,7 +97,7 @@ impl Market for Bybit {
                 // buy
             }
 
-            self.parse_last_trade_json_inner(pair.clone(), last_trade_volume, last_trade_price)
+            self.parse_last_trade_json_inner(&pair, last_trade_volume, last_trade_price)
                 .await;
         }
 
@@ -108,7 +108,7 @@ impl Market for Bybit {
         let array = json.as_object()?.get("data")?.as_array()?;
 
         let (asks, bids) = Self::depth_helper(array);
-        self.parse_depth_json_inner(pair, asks, bids);
+        self.parse_depth_json_inner(&pair, asks, bids);
 
         Some(())
     }

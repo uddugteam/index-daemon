@@ -328,15 +328,13 @@ pub trait Market {
         channel: ExternalMarketChannels,
     ) -> Option<String>;
 
-    fn get_pair_text_view(&self, pair: String) -> String {
-        let pair_text_view = if self.get_spine().name == "poloniex" {
-            let pair_tuple = self.get_spine().get_pairs().get(&pair).unwrap();
+    fn get_pair_text_view(&self, pair: &str) -> String {
+        if self.get_spine().name == "poloniex" {
+            let pair_tuple = self.get_spine().get_pairs().get(pair).unwrap();
             format!("{:?}", pair_tuple)
         } else {
-            pair
-        };
-
-        pair_text_view
+            pair.to_string()
+        }
     }
 
     async fn update_ticker(&mut self, _pair: String) -> Option<()> {
@@ -344,7 +342,7 @@ pub trait Market {
     }
 
     async fn parse_ticker_json(&mut self, pair: String, json: serde_json::Value) -> Option<()>;
-    async fn parse_ticker_json_inner(&mut self, pair: String, volume: f64) {
+    async fn parse_ticker_json_inner(&mut self, pair: &str, volume: f64) {
         let pair_text_view = self.get_pair_text_view(pair.clone());
 
         trace!(
@@ -354,13 +352,13 @@ pub trait Market {
             volume,
         );
 
-        self.get_spine_mut().set_total_volume(&pair, volume).await;
+        self.get_spine_mut().set_total_volume(pair, volume).await;
     }
 
     async fn parse_last_trade_json(&mut self, pair: String, json: serde_json::Value) -> Option<()>;
     async fn parse_last_trade_json_inner(
         &mut self,
-        pair: String,
+        pair: &str,
         last_trade_volume: f64,
         last_trade_price: f64,
     ) {
@@ -375,32 +373,27 @@ pub trait Market {
         );
 
         self.get_spine_mut()
-            .set_last_trade_volume(&pair, last_trade_volume);
+            .set_last_trade_volume(pair, last_trade_volume);
         self.get_spine_mut()
-            .set_last_trade_price(&pair, last_trade_price)
+            .set_last_trade_price(pair, last_trade_price)
             .await;
     }
 
     async fn parse_depth_json(&mut self, pair: String, json: serde_json::Value) -> Option<()>;
-    fn parse_depth_json_inner(
-        &mut self,
-        pair: String,
-        asks: Vec<(f64, f64)>,
-        bids: Vec<(f64, f64)>,
-    ) {
+    fn parse_depth_json_inner(&mut self, pair: &str, asks: Vec<(f64, f64)>, bids: Vec<(f64, f64)>) {
         let pair_text_view = self.get_pair_text_view(pair.clone());
 
         let mut ask_sum: f64 = 0.0;
         for (_price, size) in asks {
             ask_sum += size;
         }
-        self.get_spine_mut().set_total_ask(&pair, ask_sum);
+        self.get_spine_mut().set_total_ask(pair, ask_sum);
 
         let mut bid_sum: f64 = 0.0;
         for (price, size) in bids {
             bid_sum += size * price;
         }
-        self.get_spine_mut().set_total_bid(&pair, bid_sum);
+        self.get_spine_mut().set_total_bid(pair, bid_sum);
 
         trace!(
             "new {} book on {} with ask_sum: {}, bid_sum: {}",

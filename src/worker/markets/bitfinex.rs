@@ -82,7 +82,7 @@ impl Market for Bitfinex {
         let base_volume: f64 = array[7].as_f64()?;
         let quote_volume: f64 = base_volume * base_price;
 
-        self.parse_ticker_json_inner(pair, quote_volume).await;
+        self.parse_ticker_json_inner(&pair, quote_volume).await;
 
         Some(())
     }
@@ -95,7 +95,7 @@ impl Market for Bitfinex {
 
         let last_trade_volume: f64 = array[2].as_f64()?;
         let last_trade_price: f64 = array[3].as_f64()?;
-        self.parse_last_trade_json_inner(pair, last_trade_volume, last_trade_price)
+        self.parse_last_trade_json_inner(&pair, last_trade_volume, last_trade_price)
             .await;
 
         Some(())
@@ -108,7 +108,7 @@ impl Market for Bitfinex {
 
         if array.get(0)?.is_array() {
             let (asks, bids) = Self::depth_helper(array);
-            self.parse_depth_json_inner(pair, asks, bids);
+            self.parse_depth_json_inner(&pair, asks, bids);
         }
 
         Some(())

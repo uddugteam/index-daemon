@@ -120,7 +120,8 @@ impl PercentChange {
     pub fn set(&mut self, new_value: f64, timestamp: DateTime<Utc>) {
         self.percent_change = self
             .value
-            .map(|old_value| 100.0 * (new_value - old_value) / old_value);
+            .map(|old_value| 100.0 * (new_value - old_value) / old_value)
+            .map(|value| (value * 100.0).round() / 100.0);
 
         self.value = Some(new_value);
         self.timestamp = Some(timestamp);

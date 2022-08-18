@@ -60,7 +60,7 @@ impl Market for Kraken {
 
         let quote_volume: f64 = base_volume * base_price;
 
-        self.parse_ticker_json_inner(pair, quote_volume).await;
+        self.parse_ticker_json_inner(&pair, quote_volume).await;
 
         Some(())
     }
@@ -83,7 +83,7 @@ impl Market for Kraken {
                 // buy
             }
 
-            self.parse_last_trade_json_inner(pair.clone(), last_trade_volume, last_trade_price)
+            self.parse_last_trade_json_inner(&pair, last_trade_volume, last_trade_price)
                 .await;
         }
 
@@ -98,7 +98,7 @@ impl Market for Kraken {
 
         let asks = depth_helper_v1(asks);
         let bids = depth_helper_v1(bids);
-        self.parse_depth_json_inner(pair, asks, bids);
+        self.parse_depth_json_inner(&pair, asks, bids);
 
         Some(())
     }

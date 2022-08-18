@@ -64,7 +64,7 @@ impl Market for Gateio {
         let object = object.get("params")?.as_array()?.get(1)?.as_object()?;
 
         let volume: f64 = parse_str_from_json_object(object, "baseVolume")?;
-        self.parse_ticker_json_inner(pair, volume).await;
+        self.parse_ticker_json_inner(&pair, volume).await;
 
         Some(())
     }
@@ -88,7 +88,7 @@ impl Market for Gateio {
                 // buy
             }
 
-            self.parse_last_trade_json_inner(pair.clone(), last_trade_volume, last_trade_price)
+            self.parse_last_trade_json_inner(&pair, last_trade_volume, last_trade_price)
                 .await;
         }
 
@@ -103,7 +103,7 @@ impl Market for Gateio {
 
         let asks = depth_helper_v1(asks);
         let bids = depth_helper_v1(bids);
-        self.parse_depth_json_inner(pair, asks, bids);
+        self.parse_depth_json_inner(&pair, asks, bids);
 
         Some(())
     }
