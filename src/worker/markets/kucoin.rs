@@ -89,7 +89,7 @@ impl Market for Kucoin {
         let object = object.get("data")?.as_object()?;
 
         let volume: f64 = object.get("volValue")?.as_f64()?;
-        self.parse_ticker_json_inner(pair, volume).await;
+        self.parse_ticker_json_inner(&pair, volume).await;
 
         Some(())
     }
@@ -111,7 +111,7 @@ impl Market for Kucoin {
 
         let asks = depth_helper_v1(asks);
         let bids = depth_helper_v1(bids);
-        self.parse_depth_json_inner(pair, asks, bids);
+        self.parse_depth_json_inner(&pair, asks, bids);
 
         Some(())
     }

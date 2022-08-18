@@ -131,7 +131,7 @@ impl Poloniex {
             // buy
         }
 
-        self.parse_last_trade_json_inner(pair, last_trade_volume, last_trade_price)
+        self.parse_last_trade_json_inner(&pair, last_trade_volume, last_trade_price)
             .await;
 
         Some(())
@@ -292,7 +292,7 @@ impl Market for Poloniex {
             if let Some(base_price) = self.get_pair_price(&pair_code).await {
                 let quote_volume: f64 = base_volume * base_price;
 
-                self.parse_ticker_json_inner(pair_code, quote_volume).await;
+                self.parse_ticker_json_inner(&pair_code, quote_volume).await;
             }
         }
 
@@ -327,7 +327,7 @@ impl Market for Poloniex {
                             let asks = Self::depth_helper(asks);
                             let bids = Self::depth_helper(bids);
 
-                            self.parse_depth_json_inner(pair.clone(), asks, bids);
+                            self.parse_depth_json_inner(&pair, asks, bids);
                         }
                     }
                 }

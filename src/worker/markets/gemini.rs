@@ -136,7 +136,7 @@ impl Market for Gemini {
 
         let pair_tuple = self.get_spine().get_pairs().get(&pair).unwrap();
         let volume = parse_str_from_json_object(object, &pair_tuple.1)?;
-        self.parse_ticker_json_inner(pair, volume).await;
+        self.parse_ticker_json_inner(&pair, volume).await;
 
         Some(())
     }
@@ -176,7 +176,7 @@ impl Market for Gemini {
                 // buy
             }
 
-            self.parse_last_trade_json_inner(pair, last_trade_volume, last_trade_price)
+            self.parse_last_trade_json_inner(&pair, last_trade_volume, last_trade_price)
                 .await;
         }
 
@@ -194,7 +194,7 @@ impl Market for Gemini {
 
             let array = object.get("changes")?.as_array()?;
             let (asks, bids) = Self::depth_helper(ask_sum, bid_sum, array);
-            self.parse_depth_json_inner(pair, asks, bids);
+            self.parse_depth_json_inner(&pair, asks, bids);
         }
 
         Some(())

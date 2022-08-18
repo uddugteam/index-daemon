@@ -139,7 +139,7 @@ impl Market for Ftx {
             // Process only needed pairs
             if self.spine.get_exchange_pairs().contains_key(&pair) {
                 let volume = object.get("quoteVolume24h")?.as_f64()?;
-                self.parse_ticker_json_inner(pair, volume).await;
+                self.parse_ticker_json_inner(&pair, volume).await;
             }
         }
 
@@ -173,7 +173,7 @@ impl Market for Ftx {
                 // buy
             }
 
-            self.parse_last_trade_json_inner(pair.clone(), last_trade_volume, last_trade_price)
+            self.parse_last_trade_json_inner(&pair, last_trade_volume, last_trade_price)
                 .await;
         }
 
@@ -190,7 +190,7 @@ impl Market for Ftx {
 
             let asks = depth_helper_v2(asks);
             let bids = depth_helper_v2(bids);
-            self.parse_depth_json_inner(pair, asks, bids);
+            self.parse_depth_json_inner(&pair, asks, bids);
         }
 
         Some(())
