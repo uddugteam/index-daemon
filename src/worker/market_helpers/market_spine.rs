@@ -44,15 +44,6 @@ impl MarketSpine {
         graceful_shutdown: GracefulShutdown,
     ) -> Self {
         let channels = match name.as_str() {
-            "kucoin" => {
-                // TODO: Implement Trades channel for Kucoin
-                // Trades channel for Kucoin is not implemented.
-
-                channels
-                    .into_iter()
-                    .filter(|v| !matches!(v, ExternalMarketChannels::Trades))
-                    .collect()
-            }
             "gemini" => {
                 // Market Gemini has no channels (i.e. has single general channel), so we parse channel data from its single channel
                 [ExternalMarketChannels::Ticker].to_vec()

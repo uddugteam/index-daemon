@@ -63,7 +63,6 @@ You can get cli params description by calling program with "-h" cli param.
 <td>hitbtc</td>
 <td>huobi</td>
 <td>kraken</td>
-<td>kucoin</td>
 <td>okcoin</td>
 <td>poloniex</td>
 </tr>
