@@ -1,8 +1,6 @@
 use crate::config_scheme::market_config::MarketConfig;
-use crate::worker::market_helpers::market_value::MarketValue;
-use crate::worker::market_helpers::market_value_owner::MarketValueOwner;
 use crate::worker::network_helpers::ws_server::holders::helper_functions::{
-    stringify_holderkey, HolderKey,
+    make_holder_keys, stringify_holderkey, HolderKey,
 };
 use num_format::{Locale, ToFormattedString};
 use std::collections::HashMap;
@@ -46,14 +44,7 @@ impl Storage {
     fn make_rocksdb_hashmap(market_config: &MarketConfig) -> RocksdbHashmap {
         let mut hash_map = HashMap::new();
 
-        // ***************************************************************************************************************************
-        // PairAveragePrice
-        for exchange_pair in &market_config.exchange_pairs {
-            let key = (
-                MarketValueOwner::Worker,
-                MarketValue::PairAveragePrice,
-                Some(exchange_pair.clone()),
-            );
+        for key in make_holder_keys(market_config) {
             let entity_name = stringify_holderkey(&key);
 
             hash_map.insert(
@@ -66,52 +57,6 @@ impl Storage {
                 ),
             );
         }
-        // ###########################################################################################################################
-
-        // ***************************************************************************************************************************
-        // PairExchangePrice
-        let market_values = [
-            MarketValue::PairExchangePrice,
-            MarketValue::PairExchangeVolume,
-        ];
-        for market_name in &market_config.markets {
-            for exchange_pair in &market_config.exchange_pairs {
-                for market_value in market_values {
-                    let key = (
-                        MarketValueOwner::Market(market_name.to_string()),
-                        market_value,
-                        Some(exchange_pair.clone()),
-                    );
-                    let entity_name = stringify_holderkey(&key);
-
-                    hash_map.insert(
-                        key,
-                        (
-                            Arc::new(RwLock::new(
-                                rocksdb::DB::open_default(format!("db/{}", entity_name)).unwrap(),
-                            )),
-                            Arc::new(RwLock::new(HashMap::new())),
-                        ),
-                    );
-                }
-            }
-        }
-        // ###########################################################################################################################
-
-        // ***************************************************************************************************************************
-        // IndexPrice
-        let key = (MarketValueOwner::Worker, MarketValue::IndexPrice, None);
-        let entity_name = stringify_holderkey(&key);
-        hash_map.insert(
-            key,
-            (
-                Arc::new(RwLock::new(
-                    rocksdb::DB::open_default(format!("db/{}", entity_name)).unwrap(),
-                )),
-                Arc::new(RwLock::new(HashMap::new())),
-            ),
-        );
-        // ###########################################################################################################################
 
         hash_map
     }

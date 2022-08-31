@@ -1,5 +1,6 @@
 use crate::config_scheme::async_from::AsyncFrom;
 use crate::config_scheme::config_scheme::ConfigScheme;
+use crate::config_scheme::market_config::MarketConfig;
 use crate::repository::repositories::{
     MarketRepositoriesByMarketName, RepositoryForF64ByTimestamp, WorkerRepositoriesByPairTuple,
 };
@@ -104,4 +105,50 @@ pub fn stringify_holderkey(key: &HolderKey) -> String {
     } else {
         format!("{}__{}", owner, market_value)
     }
+}
+
+pub fn make_holder_keys(market_config: &MarketConfig) -> Vec<HolderKey> {
+    let mut keys = Vec::new();
+
+    // ***************************************************************************************************************************
+    // PairAveragePrice
+    for exchange_pair in &market_config.exchange_pairs {
+        let key = (
+            MarketValueOwner::Worker,
+            MarketValue::PairAveragePrice,
+            Some(exchange_pair.clone()),
+        );
+
+        keys.push(key);
+    }
+    // ###########################################################################################################################
+
+    // ***************************************************************************************************************************
+    // Market values
+    let market_values = [
+        MarketValue::PairExchangePrice,
+        MarketValue::PairExchangeVolume,
+    ];
+    for market_name in &market_config.markets {
+        for exchange_pair in &market_config.exchange_pairs {
+            for market_value in market_values {
+                let key = (
+                    MarketValueOwner::Market(market_name.to_string()),
+                    market_value,
+                    Some(exchange_pair.clone()),
+                );
+
+                keys.push(key);
+            }
+        }
+    }
+    // ###########################################################################################################################
+
+    // ***************************************************************************************************************************
+    // IndexPrice
+    let key = (MarketValueOwner::Worker, MarketValue::IndexPrice, None);
+    keys.push(key);
+    // ###########################################################################################################################
+
+    keys
 }
