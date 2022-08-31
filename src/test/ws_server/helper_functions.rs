@@ -52,7 +52,7 @@ pub async fn start_application(
     let graceful_shutdown = GracefulShutdown::new();
 
     config.service.ws = true;
-    config.service.storage = Some(Storage::default());
+    config.service.storage = Some(Storage::new("rocksdb", &config.market).unwrap());
     config.market.channels = vec![
         ExternalMarketChannels::Ticker,
         ExternalMarketChannels::Trades,

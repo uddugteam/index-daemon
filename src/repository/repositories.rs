@@ -5,6 +5,8 @@ use crate::repository::f64_by_timestamp_rocksdb::F64ByTimestampRocksdb;
 use crate::repository::f64_by_timestamp_sled::F64ByTimestampSled;
 use crate::repository::repository::Repository;
 use crate::worker::market_helpers::market_value::MarketValue;
+use crate::worker::market_helpers::market_value_owner::MarketValueOwner;
+use crate::worker::network_helpers::ws_server::holders::helper_functions::HolderKey;
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -53,11 +55,12 @@ impl Repositories {
         config: &ConfigScheme,
         storage: &Storage,
         entity_name: String,
+        key: HolderKey,
         cache: bool,
     ) -> RepositoryForF64ByTimestamp {
         match storage {
             Storage::Cache(arc) => Box::new(F64ByTimestampCache::new(
-                entity_name,
+                Some(entity_name),
                 Arc::clone(arc),
                 config.service.historical_storage_frequency_ms,
             )),
@@ -66,12 +69,15 @@ impl Repositories {
                 tree.clone(),
                 config.service.historical_storage_frequency_ms,
             )),
-            Storage::Rocksdb(arc_repo, arc_cache) => Box::new(F64ByTimestampRocksdb::new(
-                entity_name,
-                Arc::clone(arc_repo),
-                cache.then_some(Arc::clone(arc_cache)),
-                config.service.historical_storage_frequency_ms,
-            )),
+            Storage::Rocksdb(hash_map) => {
+                let (arc_repo, arc_cache) = hash_map.get(&key).unwrap();
+
+                Box::new(F64ByTimestampRocksdb::new(
+                    Arc::clone(arc_repo),
+                    cache.then_some(Arc::clone(arc_cache)),
+                    config.service.historical_storage_frequency_ms,
+                ))
+            }
         }
     }
 
@@ -89,8 +95,13 @@ impl Repositories {
                 MarketValue::PairAveragePrice.to_string(),
                 pair
             );
+            let key = (
+                MarketValueOwner::Worker,
+                MarketValue::PairAveragePrice,
+                Some(exchange_pair.clone()),
+            );
 
-            let repository = Self::make_repository(config, storage, entity_name, true);
+            let repository = Self::make_repository(config, storage, entity_name, key, true);
 
             hash_map.insert(exchange_pair.clone(), repository);
         }
@@ -127,8 +138,14 @@ impl Repositories {
                         market_value.to_string(),
                         pair
                     );
+                    let key = (
+                        MarketValueOwner::Market(market_name.to_string()),
+                        market_value,
+                        Some(exchange_pair.clone()),
+                    );
 
-                    let repository = Self::make_repository(config, storage, entity_name, false);
+                    let repository =
+                        Self::make_repository(config, storage, entity_name, key, false);
 
                     hash_map.insert(market_value, repository);
                 }
@@ -143,7 +160,8 @@ impl Repositories {
         storage: &Storage,
     ) -> RepositoryForF64ByTimestamp {
         let entity_name = format!("worker__{}", MarketValue::IndexPrice.to_string());
+        let key = (MarketValueOwner::Worker, MarketValue::IndexPrice, None);
 
-        Self::make_repository(config, storage, entity_name, false)
+        Self::make_repository(config, storage, entity_name, key, false)
     }
 }

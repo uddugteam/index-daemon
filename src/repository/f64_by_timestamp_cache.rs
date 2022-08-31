@@ -1,5 +1,7 @@
 use crate::repository::repository::Repository;
-use crate::worker::helper_functions::{date_time_from_timestamp_sec, min_date_time};
+use crate::worker::helper_functions::{
+    date_time_from_timestamp_millis, date_time_from_timestamp_sec, min_date_time,
+};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
@@ -12,7 +14,7 @@ const STORE_RANGE_SEC: u64 = 31_536_000;
 
 #[derive(Clone)]
 pub struct F64ByTimestampCache {
-    entity_name: String,
+    entity_name: Option<String>,
     repository: Arc<RwLock<HashMap<String, f64>>>,
     frequency_ms: u64,
     last_insert_timestamp: DateTime<Utc>,
@@ -20,7 +22,7 @@ pub struct F64ByTimestampCache {
 
 impl F64ByTimestampCache {
     pub fn new(
-        entity_name: String,
+        entity_name: Option<String>,
         repository: Arc<RwLock<HashMap<String, f64>>>,
         frequency_ms: u64,
     ) -> Self {
@@ -33,7 +35,11 @@ impl F64ByTimestampCache {
     }
 
     fn stringify_primary(&self, primary: &DateTime<Utc>) -> String {
-        format!("{}__{}", self.entity_name, primary.timestamp_millis())
+        let t = primary.timestamp_millis();
+
+        self.entity_name
+            .as_ref()
+            .map_or(t.to_string(), |v| format!("{}__{}", v, t))
     }
 
     fn check_primary_range(primary: &Range<DateTime<Utc>>) -> bool {
@@ -61,14 +67,10 @@ impl F64ByTimestampCache {
             .collect()
     }
 
-    fn date_time_from_timestamp_millis(timestamp_millis: u64) -> DateTime<Utc> {
-        date_time_from_timestamp_sec(timestamp_millis / 1000)
-    }
-
     fn parse_primary_from_string(key: String) -> DateTime<Utc> {
         let parts: Vec<&str> = key.rsplit("__").collect();
 
-        Self::date_time_from_timestamp_millis(parts.first().unwrap().parse().unwrap())
+        date_time_from_timestamp_millis(parts.first().unwrap().parse().unwrap())
     }
 }
 

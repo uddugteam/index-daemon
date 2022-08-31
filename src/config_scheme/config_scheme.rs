@@ -12,10 +12,12 @@ pub struct ConfigScheme {
 impl ConfigScheme {
     pub fn new() -> Self {
         let matches = Self::make_matches();
+        let market = MarketConfig::new(&matches);
+        let service = ServiceConfig::new(&matches, &market);
 
         Self {
-            market: MarketConfig::new(&matches),
-            service: ServiceConfig::new(&matches),
+            market,
+            service,
             matches,
         }
     }

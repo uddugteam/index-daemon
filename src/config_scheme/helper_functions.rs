@@ -74,12 +74,12 @@ pub fn get_default_historical() -> bool {
     false
 }
 
-pub fn get_default_storage(historical: bool) -> Option<Storage> {
-    if historical {
-        Some(Storage::default())
-    } else {
-        None
-    }
+pub fn get_default_storage_name() -> String {
+    "rocksdb".to_string()
+}
+
+pub fn get_default_storage(_historical: bool) -> Option<Storage> {
+    None
 }
 
 pub fn get_default_data_expire_string() -> String {

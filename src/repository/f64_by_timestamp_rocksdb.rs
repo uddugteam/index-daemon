@@ -1,17 +1,15 @@
 use crate::repository::f64_by_timestamp_cache::F64ByTimestampCache;
 use crate::repository::repository::Repository;
-use crate::worker::helper_functions::{date_time_from_timestamp_sec, min_date_time};
+use crate::worker::helper_functions::{date_time_from_timestamp_millis, min_date_time};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 use std::ops::Range;
-use std::str;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
 #[derive(Clone)]
 pub struct F64ByTimestampRocksdb {
-    entity_name: String,
     repository: Arc<RwLock<rocksdb::DB>>,
     cache: Option<F64ByTimestampCache>,
     frequency_ms: u64,
@@ -20,27 +18,21 @@ pub struct F64ByTimestampRocksdb {
 
 impl F64ByTimestampRocksdb {
     pub fn new(
-        entity_name: String,
         repository: Arc<RwLock<rocksdb::DB>>,
         cache: Option<Arc<RwLock<HashMap<String, f64>>>>,
         frequency_ms: u64,
     ) -> Self {
         Self {
-            entity_name: entity_name.clone(),
             repository,
-            cache: cache.map(|cache| F64ByTimestampCache::new(entity_name, cache, frequency_ms)),
+            cache: cache.map(|cache| F64ByTimestampCache::new(None, cache, frequency_ms)),
             frequency_ms,
             last_insert_timestamp: min_date_time(),
         }
     }
 
-    fn stringify_primary(&self, primary: &DateTime<Utc>) -> String {
-        format!("{}__{}", self.entity_name, primary.timestamp_millis())
-    }
-
-    async fn get_keys_by_range(&self, primary: &Range<DateTime<Utc>>) -> Vec<String> {
-        let key_from = self.stringify_primary(&primary.start);
-        let key_to = self.stringify_primary(&primary.end);
+    async fn get_keys_by_range(&self, primary: &Range<DateTime<Utc>>) -> Vec<DateTime<Utc>> {
+        let key_from = primary.start.timestamp_millis() as u64;
+        let key_to = primary.end.timestamp_millis() as u64;
         let key_range = key_from..key_to;
 
         self.repository
@@ -51,19 +43,10 @@ impl F64ByTimestampRocksdb {
                 // Drop value
                 key
             })
-            .map(|key| str::from_utf8(&key).unwrap().to_string())
+            .map(|key| u64::from_ne_bytes(key.as_ref().try_into().unwrap()))
             .filter(|key| key_range.contains(key))
+            .map(date_time_from_timestamp_millis)
             .collect()
-    }
-
-    fn date_time_from_timestamp_millis(timestamp_millis: u64) -> DateTime<Utc> {
-        date_time_from_timestamp_sec(timestamp_millis / 1000)
-    }
-
-    fn parse_primary_from_string(key_string: &str) -> DateTime<Utc> {
-        let parts: Vec<&str> = key_string.rsplit("__").collect();
-
-        Self::date_time_from_timestamp_millis(parts.first().unwrap().parse().unwrap())
     }
 }
 
@@ -80,12 +63,12 @@ impl Repository<DateTime<Utc>, f64> for F64ByTimestampRocksdb {
         if let Some(Ok(Some(res))) = res {
             Ok(Some(res))
         } else {
-            let key = self.stringify_primary(primary);
+            let key = primary.timestamp_millis() as u64;
 
             self.repository
                 .read()
                 .await
-                .get(key)
+                .get(key.to_ne_bytes())
                 .map(|v| v.map(|v| f64::from_ne_bytes(v[0..8].try_into().unwrap())))
                 .map_err(|e| e.to_string())
         }
@@ -111,6 +94,8 @@ impl Repository<DateTime<Utc>, f64> for F64ByTimestampRocksdb {
                     let repository = self.repository.read().await;
 
                     keys.into_iter()
+                        .map(|key| key.timestamp_millis() as u64)
+                        .map(|key| key.to_ne_bytes())
                         .map(|key| repository.get(&key).map(|v| v.map(|v| (key, v))))
                         .partition(Result::is_ok)
                 };
@@ -123,7 +108,7 @@ impl Repository<DateTime<Utc>, f64> for F64ByTimestampRocksdb {
                     let mut res: Vec<(DateTime<Utc>, f64)> = oks
                         .map(|(k, v)| {
                             (
-                                Self::parse_primary_from_string(&k),
+                                date_time_from_timestamp_millis(u64::from_ne_bytes(k)),
                                 f64::from_ne_bytes(v[0..8].try_into().unwrap()),
                             )
                         })
@@ -151,13 +136,13 @@ impl Repository<DateTime<Utc>, f64> for F64ByTimestampRocksdb {
 
             self.last_insert_timestamp = primary;
 
-            let key = self.stringify_primary(&primary);
+            let key = primary.timestamp_millis() as u64;
 
             let res = self
                 .repository
                 .read()
                 .await
-                .put(key, new_value.to_ne_bytes())
+                .put(key.to_ne_bytes(), new_value.to_ne_bytes())
                 .map(|_| ())
                 .map_err(|e| e.to_string());
 
@@ -169,9 +154,9 @@ impl Repository<DateTime<Utc>, f64> for F64ByTimestampRocksdb {
     }
 
     async fn delete(&mut self, primary: &DateTime<Utc>) {
-        let key = self.stringify_primary(primary);
+        let key = primary.timestamp_millis() as u64;
 
-        let _ = self.repository.read().await.delete(key);
+        let _ = self.repository.read().await.delete(key.to_ne_bytes());
 
         // async map
         if let Some(cache) = &mut self.cache {
@@ -183,9 +168,9 @@ impl Repository<DateTime<Utc>, f64> for F64ByTimestampRocksdb {
         let repository = self.repository.read().await;
 
         for key in primary {
-            let key = self.stringify_primary(key);
+            let key = key.timestamp_millis() as u64;
 
-            let _ = repository.delete(key);
+            let _ = repository.delete(key.to_ne_bytes());
         }
     }
 }

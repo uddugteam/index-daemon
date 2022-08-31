@@ -2,8 +2,9 @@ use crate::config_scheme::helper_functions::{
     get_config_from_config_files, get_default_data_expire_sec, get_default_data_expire_string,
     get_default_historical, get_default_host, get_default_percent_change_interval_sec,
     get_default_percent_change_interval_string, get_default_port, get_default_storage,
-    set_log_level,
+    get_default_storage_name, set_log_level,
 };
+use crate::config_scheme::market_config::MarketConfig;
 use crate::config_scheme::storage::Storage;
 use clap::ArgMatches;
 use parse_duration::parse;
@@ -21,7 +22,7 @@ pub struct ServiceConfig {
 }
 
 impl ServiceConfig {
-    pub fn new(matches: &ArgMatches) -> Self {
+    pub fn new(matches: &ArgMatches, market_config: &MarketConfig) -> Self {
         let default = Self::default();
         let service_config = get_config_from_config_files(matches, "service_config");
 
@@ -83,12 +84,11 @@ impl ServiceConfig {
         }
 
         let storage = if historical {
-            Some(
-                service_config
-                    .get_string("storage")
-                    .map(|v| Storage::new(&v).unwrap())
-                    .unwrap_or_default(),
-            )
+            let storage_name = service_config
+                .get_string("storage")
+                .unwrap_or(get_default_storage_name());
+
+            Some(Storage::new(&storage_name, market_config).unwrap())
         } else {
             None
         };

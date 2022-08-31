@@ -1,5 +1,5 @@
 use crate::repository::repository::Repository;
-use crate::worker::helper_functions::{date_time_from_timestamp_sec, min_date_time};
+use crate::worker::helper_functions::{date_time_from_timestamp_millis, min_date_time};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use std::ops::Range;
@@ -27,16 +27,12 @@ impl F64ByTimestampSled {
         format!("{}__{}", self.entity_name, primary.timestamp_millis())
     }
 
-    fn date_time_from_timestamp_millis(timestamp_millis: u64) -> DateTime<Utc> {
-        date_time_from_timestamp_sec(timestamp_millis / 1000)
-    }
-
     fn parse_primary_from_ivec(key: vsdbsled::IVec) -> DateTime<Utc> {
         let key = str::from_utf8(&key).unwrap().to_string();
 
         let parts: Vec<&str> = key.rsplit("__").collect();
 
-        Self::date_time_from_timestamp_millis(parts.first().unwrap().parse().unwrap())
+        date_time_from_timestamp_millis(parts.first().unwrap().parse().unwrap())
     }
 }
 
