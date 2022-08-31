@@ -6,7 +6,9 @@ use crate::repository::f64_by_timestamp_sled::F64ByTimestampSled;
 use crate::repository::repository::Repository;
 use crate::worker::market_helpers::market_value::MarketValue;
 use crate::worker::market_helpers::market_value_owner::MarketValueOwner;
-use crate::worker::network_helpers::ws_server::holders::helper_functions::HolderKey;
+use crate::worker::network_helpers::ws_server::holders::helper_functions::{
+    stringify_holderkey, HolderKey,
+};
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -89,17 +91,12 @@ impl Repositories {
 
         let mut hash_map = HashMap::new();
         for exchange_pair in &market_config.exchange_pairs {
-            let pair = format!("{}_{}", exchange_pair.0, exchange_pair.1);
-            let entity_name = format!(
-                "worker__{}__{}",
-                MarketValue::PairAveragePrice.to_string(),
-                pair
-            );
             let key = (
                 MarketValueOwner::Worker,
                 MarketValue::PairAveragePrice,
                 Some(exchange_pair.clone()),
             );
+            let entity_name = stringify_holderkey(&key);
 
             let repository = Self::make_repository(config, storage, entity_name, key, true);
 
@@ -131,18 +128,12 @@ impl Repositories {
                     .or_insert(HashMap::new());
 
                 for market_value in market_values {
-                    let pair = format!("{}_{}", exchange_pair.0, exchange_pair.1);
-                    let entity_name = format!(
-                        "market__{}__{}__{}",
-                        market_name,
-                        market_value.to_string(),
-                        pair
-                    );
                     let key = (
                         MarketValueOwner::Market(market_name.to_string()),
                         market_value,
                         Some(exchange_pair.clone()),
                     );
+                    let entity_name = stringify_holderkey(&key);
 
                     let repository =
                         Self::make_repository(config, storage, entity_name, key, false);
@@ -159,8 +150,8 @@ impl Repositories {
         config: &ConfigScheme,
         storage: &Storage,
     ) -> RepositoryForF64ByTimestamp {
-        let entity_name = format!("worker__{}", MarketValue::IndexPrice.to_string());
         let key = (MarketValueOwner::Worker, MarketValue::IndexPrice, None);
+        let entity_name = stringify_holderkey(&key);
 
         Self::make_repository(config, storage, entity_name, key, false)
     }

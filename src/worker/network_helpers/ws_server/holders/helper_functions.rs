@@ -91,3 +91,17 @@ pub async fn make_holder_hashmap<
 
     holder
 }
+
+pub fn stringify_holderkey(key: &HolderKey) -> String {
+    let (owner, market_value, pair) = key;
+    let owner = owner.to_string();
+    let market_value = market_value.to_string();
+
+    if let Some(pair) = pair {
+        let pair = format!("{}_{}", pair.0, pair.1);
+
+        format!("{}__{}__{}", owner, market_value, pair)
+    } else {
+        format!("{}__{}", owner, market_value)
+    }
+}

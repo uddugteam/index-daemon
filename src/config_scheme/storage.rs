@@ -1,7 +1,9 @@
 use crate::config_scheme::market_config::MarketConfig;
 use crate::worker::market_helpers::market_value::MarketValue;
 use crate::worker::market_helpers::market_value_owner::MarketValueOwner;
-use crate::worker::network_helpers::ws_server::holders::helper_functions::HolderKey;
+use crate::worker::network_helpers::ws_server::holders::helper_functions::{
+    stringify_holderkey, HolderKey,
+};
 use num_format::{Locale, ToFormattedString};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -52,12 +54,7 @@ impl Storage {
                 MarketValue::PairAveragePrice,
                 Some(exchange_pair.clone()),
             );
-            let pair = format!("{}_{}", exchange_pair.0, exchange_pair.1);
-            let entity_name = format!(
-                "worker__{}__{}",
-                MarketValue::PairAveragePrice.to_string(),
-                pair
-            );
+            let entity_name = stringify_holderkey(&key);
 
             hash_map.insert(
                 key,
@@ -85,13 +82,7 @@ impl Storage {
                         market_value,
                         Some(exchange_pair.clone()),
                     );
-                    let pair = format!("{}_{}", exchange_pair.0, exchange_pair.1);
-                    let entity_name = format!(
-                        "market__{}__{}__{}",
-                        market_name,
-                        market_value.to_string(),
-                        pair
-                    );
+                    let entity_name = stringify_holderkey(&key);
 
                     hash_map.insert(
                         key,
@@ -109,8 +100,8 @@ impl Storage {
 
         // ***************************************************************************************************************************
         // IndexPrice
-        let entity_name = format!("worker__{}", MarketValue::IndexPrice.to_string());
         let key = (MarketValueOwner::Worker, MarketValue::IndexPrice, None);
+        let entity_name = stringify_holderkey(&key);
         hash_map.insert(
             key,
             (
