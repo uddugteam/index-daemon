@@ -1,6 +1,6 @@
 use crate::repository::f64_by_timestamp_cache::F64ByTimestampCache;
 use crate::repository::repository::Repository;
-use crate::worker::helper_functions::{date_time_from_timestamp_millis, min_date_time};
+use crate::worker::helper_functions::{datetime_from_timestamp_millis, min_datetime};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
@@ -26,7 +26,7 @@ impl F64ByTimestampRocksdb {
             repository,
             cache: cache.map(|cache| F64ByTimestampCache::new(None, cache, frequency_ms)),
             frequency_ms,
-            last_insert_timestamp: min_date_time(),
+            last_insert_timestamp: min_datetime(),
         }
     }
 
@@ -45,7 +45,7 @@ impl F64ByTimestampRocksdb {
             })
             .map(|key| u64::from_ne_bytes(key.as_ref().try_into().unwrap()))
             .filter(|key| key_range.contains(key))
-            .map(date_time_from_timestamp_millis)
+            .map(datetime_from_timestamp_millis)
             .collect()
     }
 }
@@ -108,7 +108,7 @@ impl Repository<DateTime<Utc>, f64> for F64ByTimestampRocksdb {
                     let mut res: Vec<(DateTime<Utc>, f64)> = oks
                         .map(|(k, v)| {
                             (
-                                date_time_from_timestamp_millis(u64::from_ne_bytes(k)),
+                                datetime_from_timestamp_millis(u64::from_ne_bytes(k)),
                                 f64::from_ne_bytes(v[0..8].try_into().unwrap()),
                             )
                         })

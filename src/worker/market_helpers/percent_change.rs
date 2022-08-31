@@ -1,5 +1,5 @@
 use crate::repository::repositories::RepositoryForF64ByTimestamp;
-use crate::worker::helper_functions::date_time_subtract_sec;
+use crate::worker::helper_functions::datetime_subtract_sec;
 use crate::worker::network_helpers::ws_server::ws_channels::CJ;
 use chrono::{DateTime, Utc};
 use std::collections::HashSet;
@@ -77,7 +77,7 @@ impl PercentChange {
     ) -> (Option<f64>, Option<f64>, Option<DateTime<Utc>>) {
         if let Some(repository) = repository {
             let to = Utc::now();
-            let from = date_time_subtract_sec(to, percent_change_interval_sec);
+            let from = datetime_subtract_sec(to, percent_change_interval_sec);
             let primary = from..to;
 
             match repository.read_range(&primary).await {

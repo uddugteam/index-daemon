@@ -1,4 +1,4 @@
-use crate::worker::helper_functions::date_time_from_timestamp_sec;
+use crate::worker::helper_functions::datetime_from_timestamp_sec;
 use chrono::{DateTime, Utc};
 use serde::{self, Deserialize, Deserializer, Serializer};
 
@@ -17,5 +17,5 @@ where
 {
     let timestamp: u64 = Deserialize::deserialize(deserializer)?;
 
-    Ok(date_time_from_timestamp_sec(timestamp))
+    Ok(datetime_from_timestamp_sec(timestamp))
 }

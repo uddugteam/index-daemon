@@ -1,4 +1,4 @@
-use crate::worker::helper_functions::min_date_time;
+use crate::worker::helper_functions::min_datetime;
 use crate::worker::network_helpers::ws_server::channels::ws_channel_subscription_request::WsChannelSubscriptionRequest;
 use crate::worker::network_helpers::ws_server::hepler_functions::ws_send_response;
 use crate::worker::network_helpers::ws_server::ws_channel_response::WsChannelResponse;
@@ -22,7 +22,7 @@ impl WsChannelResponseSender {
         Self {
             broadcast_recipient,
             request,
-            last_send_timestamp: min_date_time(),
+            last_send_timestamp: min_datetime(),
         }
     }
 

@@ -1,6 +1,6 @@
 use crate::repository::repository::Repository;
 use crate::worker::helper_functions::{
-    date_time_from_timestamp_millis, date_time_from_timestamp_sec, min_date_time,
+    datetime_from_timestamp_millis, datetime_from_timestamp_sec, min_datetime,
 };
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -30,7 +30,7 @@ impl F64ByTimestampCache {
             entity_name,
             repository,
             frequency_ms,
-            last_insert_timestamp: min_date_time(),
+            last_insert_timestamp: min_datetime(),
         }
     }
 
@@ -48,7 +48,7 @@ impl F64ByTimestampCache {
 
     fn check_primary(primary: &DateTime<Utc>) -> bool {
         let now_timestamp_sec = Utc::now().timestamp() as u64;
-        let earliest_timestamp = date_time_from_timestamp_sec(now_timestamp_sec - STORE_RANGE_SEC);
+        let earliest_timestamp = datetime_from_timestamp_sec(now_timestamp_sec - STORE_RANGE_SEC);
 
         primary >= &earliest_timestamp
     }
@@ -70,7 +70,7 @@ impl F64ByTimestampCache {
     fn parse_primary_from_string(key: String) -> DateTime<Utc> {
         let parts: Vec<&str> = key.rsplit("__").collect();
 
-        date_time_from_timestamp_millis(parts.first().unwrap().parse().unwrap())
+        datetime_from_timestamp_millis(parts.first().unwrap().parse().unwrap())
     }
 }
 

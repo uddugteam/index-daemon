@@ -1,6 +1,6 @@
 use crate::config_scheme::config_scheme::ConfigScheme;
 use crate::repository::repositories::{RepositoryForF64ByTimestamp, WorkerRepositoriesByPairTuple};
-use crate::worker::helper_functions::date_time_from_timestamp_sec;
+use crate::worker::helper_functions::datetime_from_timestamp_sec;
 use chrono::{DateTime, Utc};
 use clap::ArgMatches;
 use futures::FutureExt;
@@ -31,11 +31,11 @@ fn parse_timestamp(
     }
 
     if let Some(timestamp_from) = timestamp.first() {
-        let timestamp_from = date_time_from_timestamp_sec(timestamp_from.parse().unwrap());
+        let timestamp_from = datetime_from_timestamp_sec(timestamp_from.parse().unwrap());
 
         let timestamp_to = timestamp
             .get(1)
-            .map(|v| date_time_from_timestamp_sec(v.parse().unwrap()))
+            .map(|v| datetime_from_timestamp_sec(v.parse().unwrap()))
             .unwrap_or(Utc::now());
 
         if timestamp_from > timestamp_to {
@@ -57,7 +57,7 @@ fn parse_cryptocompare_json(json: serde_json::Value) -> Option<Vec<(DateTime<Utc
         let object = object.as_object()?;
 
         let timestamp = object.get("time")?.as_u64()?;
-        let timestamp = date_time_from_timestamp_sec(timestamp);
+        let timestamp = datetime_from_timestamp_sec(timestamp);
 
         let high_price = object.get("high")?.as_f64()?;
         let low_price = object.get("low")?.as_f64()?;

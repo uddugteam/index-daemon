@@ -1,5 +1,5 @@
 use crate::repository::repository::Repository;
-use crate::worker::helper_functions::{date_time_from_timestamp_millis, min_date_time};
+use crate::worker::helper_functions::{datetime_from_timestamp_millis, min_datetime};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use std::ops::Range;
@@ -19,7 +19,7 @@ impl F64ByTimestampSled {
             entity_name,
             repository,
             frequency_ms,
-            last_insert_timestamp: min_date_time(),
+            last_insert_timestamp: min_datetime(),
         }
     }
 
@@ -32,7 +32,7 @@ impl F64ByTimestampSled {
 
         let parts: Vec<&str> = key.rsplit("__").collect();
 
-        date_time_from_timestamp_millis(parts.first().unwrap().parse().unwrap())
+        datetime_from_timestamp_millis(parts.first().unwrap().parse().unwrap())
     }
 }
 

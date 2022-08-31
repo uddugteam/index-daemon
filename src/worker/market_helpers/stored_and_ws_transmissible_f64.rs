@@ -1,5 +1,5 @@
 use crate::repository::repositories::RepositoryForF64ByTimestamp;
-use crate::worker::helper_functions::{date_time_from_timestamp_sec, min_date_time, strip_usd};
+use crate::worker::helper_functions::{datetime_from_timestamp_sec, min_datetime, strip_usd};
 use crate::worker::market_helpers::percent_change_by_interval::PercentChangeByInterval;
 use crate::worker::network_helpers::ws_server::candles::Candle;
 use crate::worker::network_helpers::ws_server::channels::worker_channels::LocalWorkerChannels;
@@ -57,7 +57,7 @@ impl StoredAndWsTransmissibleF64 {
 
         Self {
             value: None,
-            timestamp: min_date_time(),
+            timestamp: min_datetime(),
             percent_change,
             percent_change_interval_sec,
             repository,
@@ -227,7 +227,7 @@ impl StoredAndWsTransmissibleF64 {
                     | LocalWorkerChannels::CoinAveragePriceCandles { interval_sec, .. } => {
                         let to = Utc::now();
                         let from = to.timestamp() as u64 - interval_sec;
-                        let from = date_time_from_timestamp_sec(from);
+                        let from = datetime_from_timestamp_sec(from);
                         let primary = from..to;
 
                         if let Ok(values) = repository.read_range(&primary).await {

@@ -1,5 +1,5 @@
 use crate::repository::repositories::MarketRepositoriesByMarketValue;
-use crate::worker::helper_functions::min_date_time;
+use crate::worker::helper_functions::min_datetime;
 use crate::worker::market_helpers::market_value::MarketValue;
 use crate::worker::market_helpers::market_value_owner::MarketValueOwner;
 use crate::worker::market_helpers::percent_change_by_interval::PercentChangeByInterval;
@@ -85,7 +85,7 @@ impl ExchangePairInfo {
             ),
             total_ask: 0.0,
             total_bid: 0.0,
-            timestamp: min_date_time(),
+            timestamp: min_datetime(),
         }
     }
 

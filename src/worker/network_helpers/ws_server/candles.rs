@@ -1,4 +1,4 @@
-use crate::worker::helper_functions::date_time_from_timestamp_sec;
+use crate::worker::helper_functions::datetime_from_timestamp_sec;
 use crate::worker::network_helpers::ws_server::ser_date_into_timestamp;
 use chrono::{DateTime, Utc};
 
@@ -22,7 +22,7 @@ impl Candles {
                     last_to = t + interval_sec;
                 }
 
-                let t = date_time_from_timestamp_sec(t);
+                let t = datetime_from_timestamp_sec(t);
                 chunks.last_mut().unwrap().push((t, v));
             });
 

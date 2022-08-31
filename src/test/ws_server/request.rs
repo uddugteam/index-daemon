@@ -1,7 +1,7 @@
 use crate::config_scheme::config_scheme::ConfigScheme;
 use crate::test::ws_server::error_type::{ErrorType, Field};
 use crate::test::ws_server::helper_functions::SubscriptionParams;
-use crate::worker::helper_functions::date_time_from_timestamp_sec;
+use crate::worker::helper_functions::datetime_from_timestamp_sec;
 use crate::worker::network_helpers::ws_server::channels::market_channels::LocalMarketChannels;
 use crate::worker::network_helpers::ws_server::channels::worker_channels::LocalWorkerChannels;
 use crate::worker::network_helpers::ws_server::channels::ws_channel_action::WsChannelAction;
@@ -183,7 +183,7 @@ impl Request {
             let interval_sec = parse(&interval).unwrap().as_secs();
 
             let to = Utc::now();
-            let from = date_time_from_timestamp_sec(to.timestamp() as u64 - YEAR_IN_SECONDS);
+            let from = datetime_from_timestamp_sec(to.timestamp() as u64 - YEAR_IN_SECONDS);
 
             let params = AllParams {
                 id,

@@ -1,4 +1,4 @@
-use crate::worker::helper_functions::date_time_from_timestamp_sec;
+use crate::worker::helper_functions::datetime_from_timestamp_sec;
 use crate::worker::network_helpers::ws_server::channels::market_channels::LocalMarketChannels;
 use crate::worker::network_helpers::ws_server::channels::worker_channels::LocalWorkerChannels;
 use crate::worker::network_helpers::ws_server::channels::ws_channel_action::WsChannelAction;
@@ -165,12 +165,10 @@ impl WsRequest {
                 let interval_sec = interval_sec???;
 
                 let from = Self::parse_u64(object, "from").ok_or("\"from\" is required")??;
-                let from = date_time_from_timestamp_sec(from);
+                let from = datetime_from_timestamp_sec(from);
 
                 let to = Self::parse_u64(object, "to").transpose()?;
-                let to = to
-                    .map(date_time_from_timestamp_sec)
-                    .unwrap_or_else(Utc::now);
+                let to = to.map(datetime_from_timestamp_sec).unwrap_or_else(Utc::now);
 
                 let res = match request.method {
                     WsChannelName::IndexPriceHistorical => WsMethodRequest::IndexPriceHistorical {

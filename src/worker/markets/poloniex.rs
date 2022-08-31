@@ -1,5 +1,5 @@
 use crate::worker::defaults::POLONIEX_EXCHANGE_PAIRS;
-use crate::worker::helper_functions::min_date_time;
+use crate::worker::helper_functions::min_datetime;
 use crate::worker::market_helpers::market::{
     do_websocket, is_graceful_shutdown, parse_str_from_json_object, Market,
 };
@@ -39,7 +39,7 @@ impl Poloniex {
             spine,
             pair_codes,
             exchange_pairs_last_price: HashMap::new(),
-            last_http_request_timestamp: min_date_time(),
+            last_http_request_timestamp: min_datetime(),
         }
     }
 

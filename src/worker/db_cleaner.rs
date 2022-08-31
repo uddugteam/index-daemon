@@ -1,7 +1,7 @@
 use crate::repository::repositories::{
     MarketRepositoriesByMarketName, RepositoryForF64ByTimestamp, WorkerRepositoriesByPairTuple,
 };
-use crate::worker::helper_functions::date_time_subtract_sec;
+use crate::worker::helper_functions::datetime_subtract_sec;
 use chrono::{DateTime, Utc};
 use futures::FutureExt;
 
@@ -118,7 +118,7 @@ pub async fn clear_db(
     info!("DB clearing begin.");
 
     let to = Utc::now();
-    let from = date_time_subtract_sec(to, data_expire_sec);
+    let from = datetime_subtract_sec(to, data_expire_sec);
 
     let mut futures = Vec::new();
 
