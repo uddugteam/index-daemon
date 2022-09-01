@@ -83,13 +83,16 @@ impl PercentChange {
             match repository.read_range(&primary).await {
                 Ok(values) => match values.len() {
                     0 => (None, None, None),
-                    // TODO: Check - possible bug - will lead to jump of percent change
-                    1 => (Some(values[0].1), None, Some(to)),
+                    1 => {
+                        // TODO: Check - possible bug - will lead to jump of percent change
+                        (Some(values[0].1), None, Some(to))
+                    }
                     _ => {
                         let first_value = values.first().unwrap().1;
                         let last_value = values.last().unwrap().1;
 
                         let percent_change = 100.0 * (last_value - first_value) / first_value;
+                        let percent_change = (percent_change * 100.0).round() / 100.0;
 
                         (Some(last_value), Some(percent_change), Some(to))
                     }
