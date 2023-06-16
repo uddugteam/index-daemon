@@ -17,7 +17,7 @@ job "quazar-idx-daemon" {
 
       config {
         image = "andskur/index-daemon:latest" // must be fulfilled!
-        ports = ["idx"]
+        ports = ["ws"]
       }
 
       resources {
