@@ -1,26 +1,33 @@
-job "index-daemon" {
-  group "idx-daemon" {
+job "quazar-idx-daemon" {
+  group "quazar-idx-daemon" {
     network {
-      port "idx" {
+      port "ws" {
         to = 8000
       }
     }
-    task "idx-daemon" {
+
+    service {
+      name = "quazar-idx-daemon"
+      port = "ws"
+    }
+
+    task "quazar-idx-daemon" {
       driver = "docker"
       kill_timeout = "20s"
 
       config {
-        image = "misnaged/index-daemon:latest" // must be fulfilled!
+        image = "andskur/index-daemon:latest" // must be fulfilled!
         ports = ["idx"]
-        auth {
-          username = ""
-          password = ""
-        }
       }
 
       resources {
         cpu    = 2048
-        memory = 2048
+        memory = 1024
+      }
+
+      env {
+        APP__SERVICE_CONFIG__WS       = "1"
+        APP__SERVICE_CONFIG__WS_PORT  = "8000"
       }
     }
   }
