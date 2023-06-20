@@ -138,7 +138,7 @@ impl Worker {
             &ws_channels_holder,
         );
         self.start_ws(
-            ws,
+            true,
             ws_addr,
             ws_answer_timeout_ms,
             pair_average_price_repository,
